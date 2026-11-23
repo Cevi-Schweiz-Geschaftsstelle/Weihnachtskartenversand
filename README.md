@@ -68,6 +68,9 @@ Einrichten:
      - Leichte Namensabweichungen werden erkannt (z.B. „Krisenteam" für Krisenmanagement, „PSA Cevi Schweiz" für PSA).
      - Nicht gefundene Einträge werden gemeldet.
      - Bleibt die Liste leer, schlägt das Tool alle Gruppen vor.
+   - **„Immer ausschliessen":** Wortteile im Gruppennamen, Vorgabe „Ehemalige".
+     - Solche Gruppen werden nie übernommen, auch nicht als Untergruppe, z.B. „Ehemalige Fachgruppen" oder „Ehemalige Ausschüsse".
+     - Bereits übernommene werden beim nächsten Aktualisieren entfernt.
    - **Mitgliederorganisationen (MIO)** sind eigene Ebenen mit vielen Mitgliedern. Übernommen wird darum nur die **Adresse der Organisation** (ein Brief pro Organisation), nicht deren Mitglieder. Stimmen Organisation und PLZ mit genau einem Excel-Eintrag überein, ist das ein Brief.
 5. Später genügt **„↻ Aus Cevi DB aktualisieren"**.
 

@@ -247,7 +247,7 @@ function defaultState() {
     staff: [],
     aliasText: '', autoAliases: true, version: 3,
     decisions: {}, overrides: {}, done: {}, importDone: true,
-    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
+    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
           sources: [] },
     ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', owner: '', only: '' }, assignFilter: 'open' },
   };
@@ -286,6 +286,7 @@ function load() {
     }
     s.staff = s.staff || [];
     if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';
+    if (s.db.groupExclude === undefined) s.db.groupExclude = 'Ehemalige';
     // alter, nie ausgefüllter Beispiel-Eintrag
     s.db.sources = (s.db.sources || []).filter(x => !(x.label === 'Fachgruppen' && !String(x.groupIds || '').trim() && !x.auto));
     for (const st of s.staff) if (st.first === undefined && st.last === undefined) Object.assign(st, splitName(st.name));
@@ -675,7 +676,7 @@ function assign(key, owner) {
 const SETTINGS_TYPE = 'weihnachtsbrief-einstellungen';
 function exportSettings() {
   const data = { type: SETTINGS_TYPE, version: 3, exportedAt: new Date().toISOString(), staff: S.staff, cats: S.cats, order: S.order,
-    overrides: S.overrides, decisions: S.decisions, done: S.done, ignoredSugg: S.ignoredSugg || [], db: { baseUrl: S.db.baseUrl, sources: S.db.sources } };
+    overrides: S.overrides, decisions: S.decisions, done: S.done, ignoredSugg: S.ignoredSugg || [], db: { baseUrl: S.db.baseUrl, sources: S.db.sources, groupFilter: S.db.groupFilter, groupExclude: S.db.groupExclude, rootGroup: S.db.rootGroup } };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = `Weihnachtsbrief-Einstellungen_${new Date().toISOString().slice(0, 10)}.json`;
@@ -694,7 +695,7 @@ async function importSettings(file) {
     if (Array.isArray(d.order)) S.order = d.order.filter(id => S.cats.some(c => c.id === id));
     for (const c of S.cats) if (!S.order.includes(c.id)) S.order.push(c.id);
     S.overrides = d.overrides || {}; S.decisions = d.decisions || {}; if (d.done) S.done = d.done; S.ignoredSugg = d.ignoredSugg || [];
-    if (d.db) { S.db.baseUrl = d.db.baseUrl || S.db.baseUrl; if (Array.isArray(d.db.sources)) S.db.sources = d.db.sources; }
+    if (d.db) { S.db.baseUrl = d.db.baseUrl || S.db.baseUrl; if (Array.isArray(d.db.sources)) S.db.sources = d.db.sources; for (const k of ['groupFilter', 'groupExclude', 'rootGroup']) if (d.db[k] !== undefined) S.db[k] = d.db[k]; }
     save(); render(); toast(`Einstellungen geladen: ${S.staff.length} Zuständige, ${S.cats.length} Kategorien`);
   } catch (e) { toast('Konnte Einstellungen nicht laden: ' + e.message); }
 }
@@ -997,6 +998,8 @@ function dbView() {
           <div class="small muted" style="margin-bottom:8px">Das Tool liest alle Gruppen von Cevi Schweiz aus der DB, schlägt die passende Kategorie vor und richtet die Untergruppen (z.B. alle Fachgruppen) ein.</div>
           <label class="small" for="dbFilter"><b>Nur diese Gruppen übernehmen</b> <span class="muted">(eine pro Zeile · leer = alle)</span></label>
           <textarea id="dbFilter" rows="9" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupFilter || '')}</textarea>
+          <label class="small" for="dbExclude"><b>Immer ausschliessen</b> <span class="muted">(Wortteil im Gruppennamen, eine pro Zeile – z.B. „Ehemalige" entfernt „Ehemalige Fachgruppen", „Ehemalige Ausschüsse" usw.)</span></label>
+          <textarea id="dbExclude" rows="2" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupExclude || '')}</textarea>
           <div class="free" style="margin-top:0"><input type="text" id="dbRoot" value="${esc(d.rootGroup || '')}" placeholder="Gruppe „Cevi Schweiz": Nummer oder Link" style="flex:1;min-width:0"><button class="btn primary" data-action="db-read-groups">🔎 Gruppen lesen</button></div>
         </div>
       </div>
@@ -1175,6 +1178,7 @@ async function expandSubgroups(ids) {
     for (let i = 0; i < frontier.length; i += 25) {
       const pages = await apiAll('/api/groups', { 'filter[parent_id]': frontier.slice(i, i + 25).join(',') });
       for (const p of pages) for (const g of p.data || []) {
+        if (isExcluded(g.attributes.display_name || g.attributes.name)) continue; // z.B. „Ehemalige Fachgruppen" samt Untergruppen
         parent.set(String(g.id), String(g.attributes.parent_id)); name.set(String(g.id), g.attributes.display_name || g.attributes.name);
         if (!all.has(String(g.id))) { all.add(String(g.id)); next.push(String(g.id)); }
       }
@@ -1196,6 +1200,24 @@ function typeCategory(g) {
   if (/(Vorstand|Geschaeftsstelle)$/.test(t)) return { catId: 'cevi-schweiz', why: t.endsWith('Vorstand') ? 'Gruppentyp Vorstand' : 'Gruppentyp Geschäftsstelle' };
   if (/Spender$/.test(t)) return { catId: 'fundraising', why: 'Gruppentyp Spender' };
   return null;
+}
+// „Immer ausschliessen": Gruppen mit diesen Wortteilen im Namen werden nie übernommen (z.B. „Ehemalige")
+function excludeTerms() { return String(S.db.groupExclude || '').split(/\n+/).map(x => WB.fold(x.trim())).filter(Boolean); }
+function isExcluded(name) { const n = WB.fold(name || ''); return excludeTerms().some(t => n.includes(t)); }
+/** Ausgeschlossene Gruppen samt allen Untergruppen entfernen */
+function dropExcluded(groups) {
+  const byId = new Map(groups.map(g => [String(g.id), g]));
+  const out = (g) => { let cur = g, n = 0; while (cur && n++ < 30) { if (isExcluded(cur.name)) return true; cur = cur.parent_id ? byId.get(String(cur.parent_id)) : null; } return false; };
+  const removed = groups.filter(out);
+  return { kept: groups.filter(g => !out(g)), removed: removed.map(g => g.name) };
+}
+/** Bereits übernommene, inzwischen ausgeschlossene Untergruppen/Quellen aufräumen */
+function cleanExcluded() {
+  let n = 0;
+  for (const c of S.cats) for (const [gk, g] of Object.entries(c.groups || {})) if (isExcluded(g.name) && !(g.persons || []).length) { delete c.groups[gk]; n++; }
+  const before = S.db.sources.length;
+  S.db.sources = S.db.sources.filter(x => !isExcluded(x.label));
+  return n + (before - S.db.sources.length);
 }
 // „Nur diese Gruppen übernehmen": Abgleich der Wunschliste mit den Gruppen der DB
 const isOrgType = (g) => /Mitgliederorganisation$/.test(String(g.type || ''));
@@ -1285,9 +1307,12 @@ async function dbReadGroups() {
     const groups = pages.flatMap(p => p.data || []).filter(g => !seen.has(String(g.id)) && seen.add(String(g.id)))
       .map(g => ({ id: String(g.id), name: g.attributes.display_name || g.attributes.name, parent_id: g.attributes.parent_id, type: g.attributes.type, layer: g.attributes.layer }));
     const root = groups.find(g => g.id === layer);
+    const ex = dropExcluded(groups.filter(g => g.id !== layer));
+    groups.splice(0, groups.length, ...(root ? [root] : []), ...ex.kept);
+    if (ex.removed.length) logDb(`${ex.removed.length} Gruppen ausgeschlossen (${S.db.groupExclude.split(/\n+/).filter(Boolean).join(', ')})`);
     const wanted = filterEntries();
     const prop = wanted.length ? proposeFiltered(groups, layer, wanted) : { units: proposeMapping(groups, layer), notFound: [], ignored: [] };
-    DBMAP = { layer, rootName: root ? root.name : layer, units: prop.units, notFound: prop.notFound, ignored: prop.ignored, filtered: wanted.length > 0, count: groups.length };
+    DBMAP = { layer, rootName: root ? root.name : layer, units: prop.units, notFound: prop.notFound, ignored: prop.ignored, excluded: ex.removed, filtered: wanted.length > 0, count: groups.length + ex.removed.length };
     logDb(`OK ✓ ${groups.length} Gruppen in „${DBMAP.rootName}" gefunden`);
     render();
     const el = $('#dbmap'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1312,6 +1337,7 @@ function applyMapping() {
   const covered = new Set(fresh.flatMap(x => parseGroupIds(x.groupIds)));
   const keep = S.db.sources.filter(x => !x.auto && parseGroupIds(x.groupIds).length && !parseGroupIds(x.groupIds).every(id => covered.has(id)));
   S.db.sources = [...fresh, ...keep];
+  cleanExcluded();
   DBMAP = null; save();
   toast(`${fresh.length} Gruppen übernommen – Daten werden geladen …`);
   dbRefresh(false);
@@ -1332,6 +1358,7 @@ function dbMapView() {
             <td style="text-align:center"><input type="checkbox" data-map-inc="${i}" ${u.include && u.catId ? 'checked' : ''} ${u.catId ? '' : 'disabled'}></td></tr>`).join('')}</tbody>
     </table></div>
     ${(DBMAP.notFound || []).length ? `<div class="bd"><div class="callout warn"><b>Nicht gefunden:</b> ${DBMAP.notFound.map(esc).join(', ')} – heisst die Gruppe in der Cevi DB anders? Dann den Namen in der Liste oben anpassen und nochmals „Gruppen lesen".</div></div>` : ''}
+    ${(DBMAP.excluded || []).length ? `<div class="bd" style="padding-top:0"><details><summary class="small muted" style="cursor:pointer">${DBMAP.excluded.length} Gruppen ausgeschlossen („Immer ausschliessen") – anzeigen</summary><div class="small muted" style="margin-top:6px">${DBMAP.excluded.map(esc).join(' · ')}</div></details></div>` : ''}
     ${(DBMAP.ignored || []).length ? `<div class="bd" style="padding-top:0"><details><summary class="small muted" style="cursor:pointer">${DBMAP.ignored.length} weitere Gruppen ignoriert (nicht in deiner Liste) – anzeigen</summary><div class="small muted" style="margin-top:6px">${DBMAP.ignored.map(esc).join(' · ')}</div></details></div>` : ''}
     <div class="bd" style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" data-action="map-cancel">Abbrechen</button><button class="btn primary" data-action="map-apply">✓ Übernehmen und Daten laden</button></div>
   </div>`;
@@ -1349,6 +1376,7 @@ async function dbTest() {
 }
 async function dbRefresh(demo = false) {
   if (!demo && !token()) { S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
+  if (!demo && cleanExcluded()) save();
   const srcs = demo ? demoSources() : S.db.sources.filter(s => parseGroupIds(s.groupIds).length);
   if (!srcs.length) {
     S.ui.tab = 'db'; render();
@@ -1647,6 +1675,7 @@ document.addEventListener('change', (ev) => {
   if (t.id === 'importDone') { S.importDone = t.checked; save(); render(); return; }
   if (t.id === 'dbRoot') { S.db.rootGroup = t.value.trim(); save(); return; }
   if (t.id === 'dbFilter') { S.db.groupFilter = t.value; save(); return; }
+  if (t.id === 'dbExclude') { S.db.groupExclude = t.value; const n = cleanExcluded(); save(); if (n) { render(); toast(`${n} ausgeschlossene Gruppen/Untergruppen entfernt`); } return; }
   if (t.dataset.mapCat !== undefined && DBMAP) { const u = DBMAP.units[+t.dataset.mapCat]; u.catId = t.value; u.include = !!t.value; render(); return; }
   if (t.dataset.mapInc !== undefined && DBMAP) { const u = DBMAP.units[+t.dataset.mapInc]; u.include = t.checked; render(); return; }
   if (t.id === 'dbBase') { S.db.baseUrl = t.value.trim(); save(); return; }

@@ -9,25 +9,29 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
 
 ## Ablauf
 
-1. **Zuständigkeit:**
-   - Zuständige Personen mit Vorname und Nachname erfassen. Das **Kürzel entsteht automatisch** aus dem 1. Buchstaben des Vornamens und dem 1. und 2. Buchstaben des Nachnamens (z.B. Anna Beispiel → ABE). Ist es schon vergeben, nimmt das Tool die nächste Variante. Von Hand überschreiben ist möglich.
+1. **Zuständigkeit:** Hier werden die zuständigen Personen erfasst.
+   - Vorname und Nachname eintragen. Das **Kürzel entsteht automatisch** aus dem 1. Buchstaben des Vornamens und dem 1. und 2. Buchstaben des Nachnamens (z.B. Anna Beispiel → ABE). Ist es schon vergeben, nimmt das Tool die nächste Variante. Von Hand überschreiben ist möglich.
    - Nach dem Excel-Import schlägt das Tool die Personen vor, die es in den Listen findet. Mit ✕ lässt sich ein Vorschlag ausblenden.
    - Nach **„Erfassen"** öffnet sich ein Fenster: die Kategorien und Untergruppen anhaken, zu denen die Person gehört, dann **„Fertig"**. Später lässt sich das in der Personen-Tabelle über **„✎ Kategorien"** ändern.
+   - Rechts: importierte Listen und Daten (Häkchen zurücksetzen, Einstellungen speichern/laden).
+2. **Kategorien** (eigener Reiter neben Zuständigkeit):
    - Personen den Kategorien zuordnen, auch mehrere pro Kategorie. **★** versendet, alle weiteren unterschreiben mit.
    - **Untergruppen** (z.B. Fachgruppen › Informatik, Projektgruppen › Konekta 26) haben eigene Zuständige.
-     - Die Untergruppen erscheinen nach dem Excel-Import automatisch und lassen sich auch von Hand anlegen.
+     - Die Untergruppen erscheinen nach dem Excel-Import bzw. dem Laden aus der Cevi DB automatisch und lassen sich auch von Hand anlegen.
      - Was bei einer Untergruppe eingetragen ist, gilt vor der Spalte „Zuständigkeit" in der Excel. Diese gilt vor der Kategorie.
      - Mit „übernehmen" bzw. „Alle aus Excel übernehmen" wird die Zuständigkeit aus der Excel fest eingetragen.
      - Untergruppen aus Excel und Cevi DB werden zusammengeführt („Informatik" = „Fachgruppe Informatik").
      - **Jede Ebene wird einzeln ausgewiesen**, z.B. Ausschüsse › Partner & Politik › ↳ SAJV. Ist bei einer tieferen Untergruppe niemand eingetragen, **erbt** sie die Zuständigkeit der Obergruppe.
+     - **„✕ entfernen"** nimmt eine Untergruppe heraus, die nicht mehr gebraucht wird (z.B. ein vergangenes Lager). Ihre Adressen fallen weg, sofern sie nicht noch in einer anderen Liste stehen. Bei jedem weiteren Import aus der Cevi DB oder aus Excel wird sie ignoriert. Mit **↺** lässt sie sich wiederherstellen.
    - Die Reihenfolge der Kategorien (▲▼) bestimmt den Vorschlag, wenn jemand in mehreren Kategorien vorkommt.
-2. **Excel importieren:** Die Adressliste ins Fenster ziehen.
+3. **Excel importieren:** Die Adressliste ins Fenster ziehen.
    - Jedes Blatt bzw. jeder Block (z.B. „CCH › Vorstand") wird automatisch einer Kategorie zugeordnet.
    - Das Blatt „Überblick" liefert die Hauptzuständigkeiten. Die Sammelliste („Masterliste") wird ignoriert, damit nichts doppelt gezählt wird.
-3. **Zuteilen:**
-   - Für Personen in mehreren Listen wählt man per Klick die Hauptverantwortung. Die anderen unterschreiben automatisch mit.
-   - Adressen ohne Zuständigkeit lassen sich frei zuweisen.
-4. **Duplikate:** Unsichere Fälle bestätigen oder ablehnen, z.B. gleicher Name mit anderer PLZ oder ein Tippfehler im Vornamen.
+4. **Unvollständig:** Alles, was noch eine Entscheidung braucht, in einem Reiter. Die Zahl am Reiter zeigt, wie viel noch offen ist.
+   - **Mögliche Duplikate prüfen:** Unsichere Fälle bestätigen oder ablehnen, z.B. gleicher Name mit anderer PLZ oder ein Tippfehler im Vornamen.
+   - **Ohne Zuständigkeit:** Diese Adressen lassen sich frei zuweisen.
+   - **Mehrfach gelistet:** Für Personen in mehreren Listen wählt man per Klick die Hauptverantwortung. Die anderen unterschreiben automatisch mit.
+   - **Automatisch zusammengeführt** (aufklappbar): Alle Personen, die das Tool selbst zusammengeführt hat. Bei einem Fehler „Trennen".
 5. **Pro Zuständige\*r:** Jede Person sieht ihre Briefe und wo sie mitunterschreibt. Hier gibt es Erledigt-Häkchen, Drucken und den Export.
    - **🏷 Etiketten:** Alle Adressen der gewählten Person auf A4-Etikettenbögen drucken.
      - Bögen: Avery Zweckform 3475, 3474, 3422, L7160, L7163 oder eigene Masse.
@@ -67,7 +71,7 @@ Eine neue Version ersetzt die alte. Wer auf der neuen Liste nicht mehr steht, f�
   - Eine Datei mit nur einem Blatt ersetzt nur dieses Blatt.
 - **Cevi DB:** Jeder Refresh lädt die DB-Daten komplett neu.
 - Nach jeder Aktualisierung erscheint eine kurze Meldung mit Zahlen (z.B. „32 weggefallen, 3 neu“), ohne Namenslisten.
-- Entscheide aus „Zuteilen" bleiben bei einer neuen Version erhalten.
+- Entscheide aus „Unvollständig" bleiben bei einer neuen Version erhalten.
 
 ## Cevi DB anbinden (Live-Daten statt Excel)
 
@@ -93,12 +97,14 @@ Einrichten:
    - **„Nur diese Gruppen übernehmen":** eine Liste, eine Gruppe pro Zeile. Vorgabe: Geschäftsstelle, Ausschüsse, Fachgruppen, Projektgruppen, Kommissionen, Krisenmanagement › Cevi CH, Ehrenmitglieder, PSA, Mitgliederorganisationen (MIO).
      - Alle anderen Gruppen werden ignoriert und im Vorschlag nur aufgelistet.
      - Leichte Namensabweichungen werden erkannt (z.B. „Krisenteam" für Krisenmanagement, „PSA Cevi Schweiz" für PSA).
-     - **Nur eine Untergruppe:** `Gruppe › Untergruppe`, z.B. `Krisenmanagement › Cevi CH`. Dann wird nur diese Untergruppe geladen, ohne die Obergruppe und ohne die übrigen Untergruppen. „CH" findet auch „Schweiz". Statt `›` geht auch `>` oder `/`.
+     - **Nur eine Untergruppe:** `Gruppe › Untergruppe`, z.B. `Krisenmanagement › Cevi CH`. Dann wird nur diese Untergruppe geladen, ohne die Obergruppe und ohne die übrigen Untergruppen. „CH" findet auch „Schweiz". Statt `›` geht auch `>` oder `/`. Früher übernommene andere Untergruppen (z.B. Basel, Bern) verschwinden beim nächsten Aktualisieren.
      - Nicht gefundene Einträge werden gemeldet, bei Untergruppen mit der Liste der vorhandenen.
      - Bleibt die Liste leer, schlägt das Tool alle Gruppen vor.
-   - **„Immer ausschliessen":** Wortteile im Gruppennamen, Vorgabe „Ehemalige".
-     - Solche Gruppen werden nie übernommen, auch nicht als Untergruppe, z.B. „Ehemalige Fachgruppen" oder „Ehemalige Ausschüsse".
+   - **„Immer ausschliessen":** Wortteile im Gruppennamen, eine pro Zeile. Vorgabe: Ehemalige, Archiv, Norwegen Lager 2025, ESG LTS 2025.
+     - Solche Gruppen werden nie übernommen, auch nicht als Untergruppe, z.B. „Ehemalige Fachgruppen" oder „Ehemalige Ausschüsse". Das gilt auch für Untergruppen aus Excel.
+     - Leerzeichen spielen keine Rolle, und 2025 = 25: „Norwegen Lager 2025" trifft auch „Norwegenlager 25".
      - Bereits übernommene werden beim nächsten Aktualisieren entfernt.
+     - Einzelne Untergruppen lassen sich auch direkt im Reiter Kategorien mit „✕ entfernen" ausschliessen.
    - **Mitgliederorganisationen (MIO)** sind eigene Ebenen mit vielen Mitgliedern. Übernommen wird darum nur die **Adresse der Organisation** (ein Brief pro Organisation), nicht deren Mitglieder. Stimmen Organisation und PLZ mit genau einem Excel-Eintrag überein, ist das ein Brief.
 5. Später genügt **„↻ Aus Cevi DB aktualisieren"**.
 

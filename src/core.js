@@ -45,6 +45,14 @@
 
   // Labels in „Hauptzuständigkeit", die keine echte Person sind
   const NON_OWNER = ['jeder seine', 'anlass-organisatoren', 'alle', ''];
+  /** Schlüssel einer Untergruppe innerhalb einer Kategorie ('' = keine eigene Untergruppe) */
+  function groupKey(catName, group) {
+    const cn = textKey(catName);
+    const drop = new Set([cn, cn.replace(/n$/, ''), cn.replace(/en$/, ''), 'fg', 'pg', 'und', '&', '+', '-']);
+    return textKey(group).split(' ').filter(w => w && !drop.has(w)).join('').replace(/[^a-z0-9]/g, '');
+  }
+  /** Zuständige einer Untergruppe (Kürzel/Namen) */
+  function groupPersonLabels(c, gk) { const g = c && c.groups && gk ? c.groups[gk] : null; return g && Array.isArray(g.persons) ? g.persons.map(str).filter(Boolean) : []; }
   /** Zuständige einer Kategorie (Liste von Kürzeln/Namen); kompatibel mit altem Feld „owner" */
   function catPersonLabels(c) { if (!c) return []; if (Array.isArray(c.persons)) return c.persons.map(str).filter(Boolean); return splitOwners(c.owner || ''); }
 
@@ -396,6 +404,14 @@
       if (!catPersonCache.has(catId)) catPersonCache.set(catId, [...new Set(catPersonLabels(catById[catId]).map(l => aliasOf(l)).filter(Boolean))]);
       return catPersonCache.get(catId);
     };
+    const groupPersonCache = new Map();
+    const groupPersons = (e) => {
+      const c = catById[e.catId]; if (!c || !c.groups) return [];
+      const gk = groupKey(c.name, e.group); if (!gk) return [];
+      const ck = e.catId + '|' + gk;
+      if (!groupPersonCache.has(ck)) groupPersonCache.set(ck, [...new Set(groupPersonLabels(c, gk).map(l => aliasOf(l)).filter(Boolean))]);
+      return groupPersonCache.get(ck);
+    };
     const aliasOf = (o) => { const s = normOwner(o); if (!s) return ''; return (opts.aliases && opts.aliases.get(fold(s))) || s; };
 
     const n = entries.length;
@@ -473,7 +489,8 @@
       const pkeys = es.map(e => e.email || (personNameKey(e) + '#' + key(e.zip))).sort();
       const pKey = pkeys[0];
       const best = es.slice().sort((a, b) => completeness(b) - completeness(a))[0];
-      const effOwner = (e) => aliasOf(e.owner) || catPersons(e.catId)[0] || '';
+      const effOwner = (e) => groupPersons(e)[0] || aliasOf(e.owner) || catPersons(e.catId)[0] || '';
+      const extraOwners = (e) => { const gp = groupPersons(e); if (gp.length) return { list: gp.slice(1), via: ' (Untergruppe)' }; return aliasOf(e.owner) ? { list: [], via: '' } : { list: catPersons(e.catId).slice(1), via: ' (Kategorie)' }; };
       const selfName = isPersonal(best) ? fold(best.first.split(' ')[0] + ' ' + best.last) : '';
       const isSelf = (o) => !!(o && selfName && codeNames[o] && fold(codeNames[o]) === selfName);
       const ranked = es.slice().sort((a, b) => (isSelf(effOwner(a)) - isSelf(effOwner(b))) || ((effOwner(a) ? 0 : 1) - (effOwner(b) ? 0 : 1)) || (prio(a.catId) - prio(b.catId)) || ((b.owner ? 1 : 0) - (a.owner ? 1 : 0)));
@@ -485,7 +502,7 @@
       const candidates = [];
       const addCand = (o, via) => { if (!o) return; let c = candidates.find(x => x.owner === o); if (!c) { c = { owner: o, via: [], self: isSelf(o) }; candidates.push(c); } if (via && !c.via.includes(via)) c.via.push(via); };
       const labelOf = (e) => ((catById[e.catId] || {}).name || 'ohne Kategorie') + (e.group && e.group !== (catById[e.catId] || {}).name ? ' › ' + e.group : '');
-      for (const e of ranked) { addCand(effOwner(e), labelOf(e)); if (!aliasOf(e.owner)) for (const o of catPersons(e.catId).slice(1)) addCand(o, labelOf(e) + ' (Kategorie)'); }
+      for (const e of ranked) { addCand(effOwner(e), labelOf(e)); const x = extraOwners(e); for (const o of x.list) addCand(o, labelOf(e) + x.via); }
       for (const e of ranked) if (e.extra) for (const part of splitOwners(e.extra)) addCand(aliasOf(part), 'Zus. Unterschrift bei ' + labelOf(e));
       let overridden = false;
       if (overrides[pKey]) { owner = overrides[pKey]; overridden = true; const m = es.find(e => effOwner(e) === owner); if (m) primary = m; }
@@ -494,7 +511,7 @@
       for (const e of ranked) {
         const label = ((catById[e.catId] || {}).name || 'ohne Kategorie') + (e.group && e.group !== (catById[e.catId] || {}).name ? ' › ' + e.group : '');
         addCo(effOwner(e), label);
-        if (!aliasOf(e.owner)) for (const o of catPersons(e.catId).slice(1)) addCo(o, label + ' (weitere Zuständige der Kategorie)');
+        { const x = extraOwners(e); for (const o of x.list) addCo(o, label + (x.via === ' (Untergruppe)' ? ' (weitere Zuständige der Untergruppe)' : ' (weitere Zuständige der Kategorie)')); }
         if (e.extra) for (const part of splitOwners(e.extra)) addCo(aliasOf(part), 'Spalte „Zus. Unterschriften" (' + label + ')');
       }
       const addrSet = new Map();
@@ -556,7 +573,7 @@
     const labels = new Set();
     const addObs = (v) => { for (const p of splitOwners(v)) { const o = normOwner(p); if (/^[A-Za-zÄÖÜäöü]{2,4}$/.test(o)) observed.add(o.toUpperCase()); if (o && !/^[A-ZÄÖÜ]{2,4}$/.test(o)) labels.add(o); } };
     for (const e of entries) { addObs(e.owner); addObs(e.extra); }
-    for (const c of cats) for (const p of catPersonLabels(c)) labels.add(str(p));
+    for (const c of cats) { for (const p of catPersonLabels(c)) labels.add(str(p)); for (const g of Object.values(c.groups || {})) for (const p of (g && g.persons) || []) labels.add(str(p)); }
     const staff = entries.filter(e => e.catId === 'cevi-schweiz' && e.first && isPersonal(e));
     const codeNames = {}, labelToCode = {}, byFirst = new Map();
     for (const e of staff) {
@@ -582,6 +599,6 @@
     return { codeNames, labelToCode, observed: [...observed].sort() };
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, deriveAliases, splitOwners, catPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);

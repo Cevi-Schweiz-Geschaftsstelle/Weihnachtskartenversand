@@ -26,7 +26,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - **Jede Ebene wird einzeln ausgewiesen**, z.B. Ausschüsse › Partner & Politik › ↳ SAJV. Ist bei einer tieferen Untergruppe niemand eingetragen, **erbt** sie die Zuständigkeit der Obergruppe.
      - **„✕ entfernen"** nimmt eine Untergruppe heraus, die nicht mehr gebraucht wird (z.B. ein vergangenes Lager). Ihre Adressen fallen weg, sofern sie nicht noch in einer anderen Liste stehen. Bei jedem weiteren Import aus der Cevi DB oder aus Excel wird sie ignoriert. Mit **↺** lässt sie sich wiederherstellen.
    - Die Reihenfolge der Kategorien (▲▼) bestimmt den Vorschlag, wenn jemand in mehreren Kategorien vorkommt.
-3. **Excel importieren:** Die Adressliste ins Fenster ziehen.
+3. **Excel importieren:** Die Adressliste ins Fenster ziehen oder **☰ Menü → „Aus Excel importieren"**.
    - Jedes Blatt bzw. jeder Block (z.B. „CCH › Vorstand") wird automatisch einer Kategorie zugeordnet.
    - Das Blatt „Überblick" liefert die Hauptzuständigkeiten. Die Sammelliste („Masterliste") wird ignoriert, damit nichts doppelt gezählt wird.
 4. **Unvollständig:** Alles, was noch eine Entscheidung braucht, in einem Reiter. Die Zahl am Reiter zeigt, wie viel noch offen ist.
@@ -40,12 +40,15 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - Sortiert nach Name oder PLZ, optional nur nicht erledigte.
      - Startposition für angebrauchte Bögen, Probedruck mit Rahmen, Vorschau.
      - Im Druckfenster Skalierung 100 % und Ränder „Keine" wählen.
-6. **Export Excel:** Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
+6. **Excel exportieren** (☰ Menü): Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
 
-**Menü „⚙ Daten"** (oben rechts):
+**☰ Menü** (oben rechts):
+- **Daten:** Aus Excel importieren · Aus Cevi DB aktualisieren · Excel exportieren
+- **Speichern:** Jede Änderung wird **automatisch gespeichert**, ohne Knopf. Das Menü zeigt, wann zuletzt gespeichert wurde und ob mit den anderen synchronisiert wird.
+  - Ohne Microsoft-365-Anbindung bleibt der Stand im eigenen Browser.
+  - Mit Anbindung („☁ Gemeinsam arbeiten") wird alles automatisch mit allen synchronisiert. Sind die Angaben der IT im Tool hinterlegt, fragt es beim ersten Öffnen nach der Anmeldung. Danach läuft der Abgleich von selbst.
 - „Erledigt"-Häkchen aus den Excel-Listen übernehmen (ein/aus)
-- Alle Erledigt-Häkchen zurücksetzen, Zuteilungen & Duplikat-Entscheide zurücksetzen, alle Daten auf diesem Computer löschen
-- **Einstellungen speichern/laden**: Damit lassen sich Zuständige, Kategorien und Zuteilungen auf einen anderen Computer oder von der Offline- in die Online-Version übertragen. Die Datei enthält Namen und gehört **nicht** in dieses Repository.
+- **Zurücksetzen:** Erledigt-Häkchen, Zuteilungen & Duplikat-Entscheide, alle Daten auf diesem Computer
 
 ## Gemeinsam arbeiten (Microsoft 365)
 
@@ -111,7 +114,7 @@ Einrichten:
      - Bereits übernommene werden beim nächsten Aktualisieren entfernt.
      - Einzelne Untergruppen lassen sich auch direkt im Reiter Kategorien mit „✕ entfernen" ausschliessen.
    - **Mitgliederorganisationen (MIO)** sind eigene Ebenen mit vielen Mitgliedern. Übernommen wird darum nur die **Adresse der Organisation** (ein Brief pro Organisation), nicht deren Mitglieder. Stimmen Organisation und PLZ mit genau einem Excel-Eintrag überein, ist das ein Brief.
-5. Später genügt **„↻ Aus Cevi DB aktualisieren"**.
+5. Später genügt **☰ Menü → „↻ Aus Cevi DB aktualisieren"**.
 
 Ohne Eintrag bei „Hosts mit API-Zugriff" (z.B. Datei per Doppelklick geöffnet) gibt es eine Alternative: `python3 start-tool.py` startet das Tool unter `http://localhost:8765` und leitet die Abfragen lokal weiter.
 
@@ -119,7 +122,7 @@ Der API-Key gibt Lesezugriff auf Personendaten. Er gehört nie ins Repository od
 
 ## Datenschutz
 
-- In dieses Repository gehören **keine** Adresslisten, Einstellungs-Dateien oder API-Keys. `.gitignore` blockiert Excel-, CSV- und Einstellungs-Dateien.
+- In dieses Repository gehören **keine** Adresslisten oder API-Keys. `.gitignore` blockiert Excel- und CSV-Dateien.
 - Im Code stehen bewusst keine Personennamen. Zuständige werden im Tool erfasst.
 
 ## Entwicklung

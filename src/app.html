@@ -37,10 +37,15 @@ header.top{background:var(--panel);border-bottom:1px solid var(--line);padding:1
 .menu .mh{font-size:11.5px;font-weight:650;text-transform:uppercase;letter-spacing:.04em;color:var(--soft);padding:8px 10px 3px}
 .menu .mi{display:flex;width:100%;gap:8px;align-items:flex-start;text-align:left;background:none;border:0;border-radius:8px;padding:8px 10px;font-size:13.5px;cursor:pointer;color:var(--text)}
 .menu .mi:hover{background:#f1f3f5}
+.menu .mi:disabled{opacity:.55;cursor:default}
 .menu .mi.danger{color:var(--bad)} .menu .mi.danger:hover{background:var(--bad-soft)}
 .menu label.mi input{margin-top:3px}
 .menu .msep{height:1px;background:var(--line2);margin:6px 4px}
 .menu .mnote{font-size:12px;color:var(--muted);padding:0 10px 6px}
+.menu .mrow{display:flex;gap:9px;padding:6px 10px;font-size:13.5px}
+.menu .mrow .mic{width:16px;text-align:center;flex:none}
+.menu .mrow.ok .mic{color:var(--ok)} .menu .mrow.warn .mic{color:var(--warn)}
+.menu .mnote0{font-size:12px;color:var(--muted);margin-top:1px}
 .kpis{display:flex;gap:10px;margin:14px 0 12px;flex-wrap:wrap}
 .kpi{background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:8px 14px;min-width:132px}
 .kpi .v{font-size:21px;font-weight:650;font-variant-numeric:tabular-nums}
@@ -264,24 +269,23 @@ body.print-labels #labelsPrint{display:block}
       </div>
       <div class="spacer"></div>
       <button class="btn" id="btnCloud" title="Gemeinsam arbeiten über Microsoft 365 (SharePoint)">☁ Gemeinsam arbeiten</button>
-      <button class="btn" id="btnImport" title="Excel- oder CSV-Dateien einlesen">⤓ Excel importieren</button>
-      <button class="btn" id="btnRefresh" title="Daten live aus der Cevi DB neu laden">↻ Aus Cevi DB aktualisieren</button>
-      <button class="btn primary" id="btnExport" title="Ergebnis als Excel herunterladen">⇩ Export Excel</button>
       <div class="menuwrap noprint">
-        <button class="btn" id="btnMenu" aria-haspopup="true" aria-expanded="false" title="Einstellungen sichern und Daten zurücksetzen">⚙ Daten</button>
+        <button class="btn" id="btnMenu" aria-haspopup="true" aria-expanded="false" title="Importieren, Aktualisieren, Exportieren, Speichern und Zurücksetzen">☰ Menü</button>
         <div class="menu" id="dataMenu" role="menu" hidden>
-          <label class="mi"><input type="checkbox" id="importDone"> „Erledigt"-Häkchen aus den Excel-Listen übernehmen</label>
+          <div class="mh">Daten</div>
+          <button class="mi" id="btnImport" title="Excel- oder CSV-Dateien einlesen">⤓ Aus Excel importieren</button>
+          <button class="mi" id="btnRefresh" title="Daten live aus der Cevi DB neu laden">↻ Aus Cevi DB aktualisieren</button>
+          <button class="mi" id="btnExport" title="Ergebnis als Excel herunterladen">⇩ Excel exportieren</button>
           <div class="msep"></div>
-          <div class="mh">Einstellungen sichern</div>
-          <button class="mi" data-action="settings-export" title="Zuständige, Kategorien, Zuteilungen und Duplikat-Entscheide als Datei sichern">⇩ Einstellungen speichern</button>
-          <button class="mi" data-action="settings-import">⤒ Einstellungen laden</button>
-          <div class="mnote">z.B. für einen anderen Computer. Die Datei enthält Namen – nicht öffentlich teilen.</div>
+          <div class="mh">Speichern</div>
+          <div id="saveStatus"></div>
+          <div class="msep"></div>
+          <label class="mi"><input type="checkbox" id="importDone"> „Erledigt"-Häkchen aus den Excel-Listen übernehmen</label>
           <div class="msep"></div>
           <div class="mh">Zurücksetzen</div>
           <button class="mi" data-action="reset-done">↺ Alle Erledigt-Häkchen zurücksetzen</button>
           <button class="mi" data-action="reset-manual">↺ Zuteilungen & Duplikat-Entscheide zurücksetzen</button>
           <button class="mi danger" data-action="wipe">🗑 Alle Daten auf diesem Computer löschen</button>
-          <input type="file" id="settingsInput" accept=".json,application/json" hidden>
         </div>
       </div>
       <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv" multiple hidden>
@@ -389,10 +393,32 @@ function load() {
     return s;
   } catch (e) { console.warn(e); return defaultState(); }
 }
+let LAST_SAVE = null;
+/** Menü „⚙ Daten" → Speichern: lokal immer automatisch; Abgleich mit allen über Microsoft 365 */
+function renderSaveStatus() {
+  const el = document.getElementById('saveStatus'); if (!el) return;
+  let C = null; try { C = Cloud; } catch (e) { /* noch nicht bereit */ }
+  const hm = (t) => new Date(t).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+  const row = (icon, title, note, cls = '') => `<div class="mrow ${cls}"><span class="mic">${icon}</span><div><b>${title}</b><div class="mnote0">${note}</div></div></div>`;
+  let h = row('✓', `Automatisch gespeichert${LAST_SAVE ? ' · ' + hm(LAST_SAVE) : ''}`, 'Jede Änderung wird sofort gesichert. Auch nach dem Schliessen ist alles noch da.', 'ok');
+  const st = C ? C.status : 'off';
+  if (st === 'ok') h += row('☁', `Automatisch synchronisiert${C.lastSync ? ' · ' + hm(C.lastSync) : ''}`, 'Alle im Team sehen denselben Stand. Abgleich alle 20 Sekunden.', 'ok')
+    + '<button class="mi" data-action="cloud-sync">↻ Jetzt abgleichen</button>';
+  else if (st === 'connecting') h += row('☁', 'Verbinde …', 'Der gemeinsame Stand wird geladen.');
+  else if (st === 'login') h += row('☁', 'Noch nicht angemeldet', 'Einmal mit dem Cevi-Konto anmelden – danach wird alles automatisch mit allen synchronisiert.', 'warn')
+    + '<button class="mi" data-action="cloud-open">☁ Mit Microsoft anmelden</button>';
+  else if (st === 'error') h += row('⚠', 'Abgleich gestört', esc(C.msg || 'Unbekannter Fehler'), 'warn')
+    + '<button class="mi" data-action="cloud-open">☁ Details und erneut verbinden</button>';
+  else if (C && C.configured()) h += row('☁', 'Abgleich mit anderen ist aus', 'Nur in diesem Browser gespeichert.', 'warn')
+    + '<button class="mi" data-action="cloud-open">☁ Verbinden</button>';
+  else h += row('☁', 'Noch kein Abgleich mit anderen', 'Gespeichert wird nur in diesem Browser. Sobald Microsoft 365 eingerichtet ist, wird alles automatisch mit allen synchronisiert.', 'warn')
+    + '<button class="mi" data-action="cloud-open">☁ Gemeinsam arbeiten einrichten</button>';
+  el.innerHTML = h;
+}
 function save(fromSync) {
   const copy = { ...S, db: { ...S.db } };
   if (!S.db.rememberToken) copy.db.token = '';
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(copy)); }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(copy)); LAST_SAVE = Date.now(); renderSaveStatus(); }
   catch (e) { toast('Konnte nicht lokal speichern: ' + e.message); }
   if (!fromSync && typeof Cloud !== 'undefined' && Cloud.status === 'ok') Cloud.schedulePush();
 }
@@ -785,32 +811,6 @@ function assign(key, owner) {
   if (!owner) { delete S.overrides[key]; } else S.overrides[key] = owner;
   save(); render();
 }
-const SETTINGS_TYPE = 'weihnachtsbrief-einstellungen';
-function exportSettings() {
-  const data = { type: SETTINGS_TYPE, version: 3, exportedAt: new Date().toISOString(), staff: S.staff, cats: S.cats, order: S.order,
-    overrides: S.overrides, decisions: S.decisions, done: S.done, ignoredSugg: S.ignoredSugg || [], db: { baseUrl: S.db.baseUrl, sources: S.db.sources, groupFilter: S.db.groupFilter, groupExclude: S.db.groupExclude, rootGroup: S.db.rootGroup } };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `Weihnachtsbrief-Einstellungen_${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-}
-async function importSettings(file) {
-  try {
-    const d = JSON.parse(await file.text());
-    if (!d || d.type !== SETTINGS_TYPE) throw new Error('Das ist keine Einstellungs-Datei dieses Tools.');
-    if (!confirm('Einstellungen laden? Zuständige, Kategorien und Zuteilungen werden durch die Datei ersetzt. Importierte Listen bleiben.')) return;
-    if (Array.isArray(d.staff)) S.staff = d.staff;
-    if (Array.isArray(d.cats)) {
-      S.cats = d.cats;
-      for (const c of WB.DEFAULT_CATEGORIES) { const ex = S.cats.find(x => x.id === c.id); if (ex) { ex.exact = c.exact; ex.strong = c.strong; ex.weak = c.weak; } }
-    }
-    if (Array.isArray(d.order)) S.order = d.order.filter(id => S.cats.some(c => c.id === id));
-    for (const c of S.cats) if (!S.order.includes(c.id)) S.order.push(c.id);
-    S.overrides = d.overrides || {}; S.decisions = d.decisions || {}; if (d.done) S.done = d.done; S.ignoredSugg = d.ignoredSugg || [];
-    if (d.db) { S.db.baseUrl = d.db.baseUrl || S.db.baseUrl; if (Array.isArray(d.db.sources)) S.db.sources = d.db.sources; for (const k of ['groupFilter', 'groupExclude', 'rootGroup']) if (d.db[k] !== undefined) S.db[k] = d.db[k]; }
-    save(); render(); toast(`Einstellungen geladen: ${S.staff.length} Zuständige, ${S.cats.length} Kategorien`);
-  } catch (e) { toast('Konnte Einstellungen nicht laden: ' + e.message); }
-}
 function exportAssign() {
   const rows = R.people.filter(p => p.isDuplicate || noOwnerAuto(p)).map(p => ({
     'Empfänger*in': p.displayName, 'Organisation': p.org !== p.displayName ? p.org : '', 'PLZ': p.zip, 'Ort': p.town,
@@ -1048,6 +1048,7 @@ const Cloud = {
     b.textContent = map[this.status] || map.off;
     b.classList.toggle('cloud-ok', this.status === 'ok'); b.classList.toggle('cloud-err', this.status === 'error');
     b.title = this.status === 'ok' ? `Gemeinsamer Stand in SharePoint · angemeldet als ${this.user}${t ? ' · zuletzt abgeglichen ' + t : ''}` : this.msg || 'Gemeinsam arbeiten über Microsoft 365 (SharePoint)';
+    renderSaveStatus();
   },
   async auth() {
     if (window.__WB_FAKE_AUTH) return window.__WB_FAKE_AUTH; // nur für automatische Tests
@@ -1132,7 +1133,7 @@ const Cloud = {
         applyShared(merged);
         if (J(merged) !== J(remote.data)) this.schedulePush();
       }
-      S.m365.enabled = true; S.m365.linked = true; save(true);
+      S.m365.enabled = true; S.m365.linked = true; S.m365.declined = false; save(true);
       this.lastSync = Date.now(); this.setStatus('ok'); render();
       this.startPolling();
     } catch (e) { console.error(e); this.setStatus('error', e.message || String(e)); if (interactive) toast(e.message || String(e)); }
@@ -1185,7 +1186,9 @@ const Cloud = {
     this.badge();
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.poll(); });
     if (S.m365.enabled && this.configured()) this.connect(false);
+    else if (this.fixed() && !S.m365.declined) this.setStatus('login', 'Einmal mit dem Cevi-Konto anmelden – danach wird alles automatisch synchronisiert.');
   },
+  fixed() { return !!(M365_DEFAULTS.tenantId && M365_DEFAULTS.clientId && M365_DEFAULTS.siteUrl); },
 };
 function cloudDialog() {
   const c = Cloud.cfg(), fixed = !!(M365_DEFAULTS.tenantId && M365_DEFAULTS.clientId && M365_DEFAULTS.siteUrl);
@@ -1862,7 +1865,7 @@ async function dbRefresh(demo = false) {
     const f = $('#dbRoot'); if (f) { f.focus(); f.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     return toast('Das Tool weiss noch nicht, welche Gruppen es laden soll: Unter „Gruppen automatisch übernehmen" den Link zur Gruppe Cevi Schweiz einfügen und auf „Gruppen lesen" klicken.');
   }
-  const btn = $('#btnRefresh'); btn.disabled = true; btn.textContent = '↻ lädt …';
+  const btn = $('#btnRefresh'); btn.disabled = true; btn.textContent = '↻ lädt …'; toast('Lade Daten aus der Cevi DB …');
   const now = new Date().toISOString();
   const fresh = [];
   const before = S.sources.length ? snapshotPeople() : null;
@@ -2094,11 +2097,10 @@ document.addEventListener('click', (ev) => {
     save(); render(); toast(`${todo.length} Vorschläge übernommen`);
   }
   else if (a === 'export-assign') exportAssign();
-  else if (a === 'settings-export') exportSettings();
-  else if (a === 'settings-import') $('#settingsInput').click();
+  else if (a === 'cloud-open') cloudDialog();
   else if (a === 'cloud-connect') { readCloudFields(); Cloud.app = null; Cloud.connect(true); }
   else if (a === 'cloud-sync') { Cloud.poll(); Cloud.schedulePush(); }
-  else if (a === 'cloud-off') { if (confirm('Vom gemeinsamen Stand trennen? Der aktuelle Stand bleibt auf diesem Computer, wird aber nicht mehr abgeglichen.')) { Cloud.disconnect(); cloudDialog(); } }
+  else if (a === 'cloud-off') { if (confirm('Vom gemeinsamen Stand trennen? Der aktuelle Stand bleibt auf diesem Computer, wird aber nicht mehr abgeglichen.')) { S.m365.declined = true; Cloud.disconnect(); cloudDialog(); } }
   else if (a === 'cloud-close') $('#cloudModal').hidden = true;
   else if (a === 'modal-save') saveCatDialog();
   else if (a === 'modal-close') closeCatDialog(true);
@@ -2237,7 +2239,7 @@ function readCloudFields() {
   save(true);
 }
 $('#btnCloud').addEventListener('click', () => cloudDialog());
-function setDataMenu(open) { $('#dataMenu').hidden = !open; $('#btnMenu').setAttribute('aria-expanded', String(open)); $('#btnMenu').classList.toggle('on', open); }
+function setDataMenu(open) { if (open) renderSaveStatus(); $('#dataMenu').hidden = !open; $('#btnMenu').setAttribute('aria-expanded', String(open)); $('#btnMenu').classList.toggle('on', open); }
 $('#btnMenu').addEventListener('click', (e) => { e.stopPropagation(); setDataMenu($('#dataMenu').hidden); });
 document.addEventListener('click', (e) => {
   if ($('#dataMenu').hidden) return;
@@ -2249,7 +2251,6 @@ $('#catModal').addEventListener('click', (e) => { if (e.target.id === 'catModal'
 $('#btnImport').addEventListener('click', () => $('#fileInput').click());
 $('#btnExport').addEventListener('click', () => exportExcel());
 $('#btnRefresh').addEventListener('click', () => dbRefresh(false));
-document.addEventListener('change', (e) => { if (e.target && e.target.id === 'settingsInput') { const f = e.target.files[0]; e.target.value = ''; if (f) importSettings(f); } });
 $('#fileInput').addEventListener('change', (e) => { const f = [...e.target.files]; e.target.value = ''; if (f.length) importFiles(f); });
 let dragN = 0;
 window.addEventListener('dragenter', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { dragN++; $('#dropmask').classList.add('show'); } });

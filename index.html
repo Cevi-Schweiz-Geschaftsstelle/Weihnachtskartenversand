@@ -136,6 +136,7 @@ table.subtab .chip.pers{font-size:12px;padding:2px 3px 2px 7px}
 .chk-row.sub{padding-left:34px;background:#fcfdfd} .chk-row.sub .nm{font-weight:450}
 .chip.cat.sub{background:#eef3fb}
 table.dbmap tr.off td{color:var(--soft)} table.dbmap tr.hdr td{background:#fafbfc}
+.dbcol{max-width:1100px}
 .modal-back{position:fixed;inset:0;background:rgba(17,24,39,.38);display:flex;align-items:flex-start;justify-content:center;z-index:70;padding:6vh 16px;overflow:auto}
 .modal-back[hidden]{display:none}
 .modal{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:min(560px,100%)}
@@ -1098,7 +1099,7 @@ function renderKpis() {
 }
 function renderTabs() {
   const tabs = [
-    ['settings', 'Zuständigkeit', S.staff.length], ['assign', 'Zuteilen', openDecisions().length, openDecisions().length ? 'warn' : ''], ['owners', 'Pro Zuständige*r'], ['all', 'Alle Adressen', R.people.length], ['dups', 'Duplikate prüfen', R.review.length, R.review.length ? 'warn' : ''],
+    ['settings', 'Zuständigkeit', S.staff.length], ['assign', 'Zuteilen', openDecisions().length, openDecisions().length ? 'warn' : ''], ['owners', 'Pro Zuständige*r'], ['all', 'Masterliste', R.people.length], ['dups', 'Duplikate', R.review.length, R.review.length ? 'warn' : ''],
     ['db', 'Cevi DB'],
   ];
   $('#tabs').innerHTML = tabs.map(([id, l, c, cls]) => `<button data-tab="${id}" class="${S.ui.tab === id ? 'on' : ''}">${l}${c !== undefined ? `<span class="count ${cls || ''}">${c}</span>` : ''}</button>`).join('');
@@ -1625,14 +1626,14 @@ function settingsView() {
 function dbView() {
   const d = S.db;
   const tok = token();
-  return `${ownerDatalist()}<div class="grid2">
+  return `${ownerDatalist()}<div class="dbcol">
     <div>
       <div class="panel">
         <div class="hd"><h2>Verbindung zur Cevi DB</h2>${d.lastRefresh ? `<span class="badge ok right">Stand ${fmtDate(d.lastRefresh)}</span>` : ''}</div>
         <div class="bd">
           <div class="form">
             <label>Adresse</label>${PROXY ? `<div><b>${esc(PROXY.target)}</b> <span class="badge ok">über start-tool.py</span><div class="small muted">Anfragen werden lokal weitergeleitet – kein CORS-Eintrag nötig.</div></div>` : `<input type="url" id="dbBase" value="${esc(d.baseUrl)}" placeholder="https://db.cevi.ch">`}
-            <label>API-Key (Service-Token)</label><input type="password" id="dbToken" value="${esc(tok)}" placeholder="wird in der Cevi DB unter „API-Keys" erstellt" autocomplete="off">
+            <label>API-Key (Service-Token)</label><input type="password" id="dbToken" value="${esc(tok)}" placeholder="wird in der Cevi DB unter „API-Keys“ erstellt" autocomplete="off">
             <span></span><label class="small"><input type="checkbox" id="dbRemember" ${d.rememberToken ? 'checked' : ''}> Token auf diesem Computer speichern (sonst nur bis zum Schliessen)</label>
           </div>
           <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
@@ -1650,7 +1651,7 @@ function dbView() {
           <textarea id="dbFilter" rows="9" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupFilter || '')}</textarea>
           <label class="small" for="dbExclude"><b>Immer ausschliessen</b> <span class="muted">(Wortteil im Gruppennamen, eine pro Zeile – z.B. „Ehemalige" entfernt „Ehemalige Fachgruppen", „Ehemalige Ausschüsse" usw.)</span></label>
           <textarea id="dbExclude" rows="2" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupExclude || '')}</textarea>
-          <div class="free" style="margin-top:0"><input type="text" id="dbRoot" value="${esc(d.rootGroup || '')}" placeholder="Gruppe „Cevi Schweiz": Nummer oder Link" style="flex:1;min-width:0"><button class="btn primary" data-action="db-read-groups">🔎 Gruppen lesen</button></div>
+          <div class="free" style="margin-top:0"><input type="text" id="dbRoot" value="${esc(d.rootGroup || '')}" placeholder="Gruppe „Cevi Schweiz“: Nummer oder Link" style="flex:1;min-width:0"><button class="btn primary" data-action="db-read-groups">🔎 Gruppen lesen</button></div>
         </div>
       </div>
       ${dbMapView()}
@@ -1670,20 +1671,6 @@ function dbView() {
         <div class="bd small muted">Die Gruppen-ID steht in der Adresszeile, z.B. <span class="kbd">db.cevi.ch/groups/<b>1234</b>/people</span>. Excel-Listen und DB-Daten werden zusammen ausgewertet. Beim Aktualisieren werden die DB-Daten komplett neu geladen – wer nicht mehr in der Gruppe ist, fällt raus. Mit „ersetzt Excel" wird die alte Excel-Liste derselben Kategorie ausgeschaltet.</div>
       </div>
       <div class="panel" style="margin-top:16px"><div class="hd"><h3>Protokoll</h3></div><div class="bd"><div class="log" id="dblog">${esc(dbLog.join('\n')) || 'Noch keine Abfrage.'}</div></div></div>
-    </div>
-    <div>
-      <div class="callout"><h4>So wird die Cevi DB angebunden</h4>
-        <ol style="margin:6px 0 0 18px;padding:0">
-          <li>Eine Person mit Leitungsrechten auf der Ebene „Cevi Schweiz" erstellt in der Cevi DB unter <b>Gruppe → Tab „API-Keys"</b> einen neuen Key: Berechtigung „<i>Leserechte auf dieser Ebene</i>" (bzw. „…und darunterliegenden Ebenen", falls Gruppen tiefer liegen), Zugriffsbereich <b>Personen</b> und <b>Gruppen</b>.</li>
-          <li>Im selben Formular unter <b>„Hosts mit API-Zugriff"</b> ${/^https?:$/.test(location.protocol) && !PROXY ? `diese Adresse eintragen: <span class="kbd">${esc(location.origin)}</span>` : 'die Web-Adresse eintragen, unter der das Tool läuft (z.B. die GitHub-Pages-Adresse). Als Datei per Doppelklick geöffnet geht das nicht – dann <span class="kbd">start-tool.py</span> verwenden'}. Ohne Eintrag blockiert der Browser die Anfrage.</li>
-          <li>Token oben einfügen, Gruppen eintragen, „Jetzt aktualisieren".</li>
-        </ol>
-      </div>
-      <div class="callout warn" style="margin-top:12px"><h4>Wichtig</h4>
-        Das Tool liest nur (keine Änderungen in der DB). Der Token gibt Zugriff auf Personendaten – nicht weitergeben, nur auf eigenen Geräten speichern und nach dem Versand in der Cevi DB löschen oder einschränken.
-        Kann der Browser die DB nicht direkt erreichen (Meldung „Failed to fetch"), das Tool über das beiliegende Skript <span class="kbd">start-tool.py</span> starten – es leitet die Anfragen lokal weiter.</div>
-      <div class="callout" style="margin-top:12px"><h4>Technisch</h4>
-        Abfrage über die offizielle hitobito JSON:API: <span class="kbd">GET /api/roles?filter[group_id]=…&amp;include=person,group</span> mit Header <span class="kbd">X-TOKEN</span>. Untergruppen über <span class="kbd">/api/groups?filter[parent_id]=…</span>. Dokumentation: <span class="kbd">${esc((d.baseUrl || 'https://db.cevi.ch').replace(/\/+$/, ''))}/api-docs</span></div>
     </div>
   </div>`;
 }
@@ -2183,7 +2170,7 @@ document.addEventListener('click', (ev) => {
     }
     for (const [pk, v] of Object.entries(S.overrides)) if (v === k) delete S.overrides[pk];
     S.ignoredSugg = [...new Set([...(S.ignoredSugg || []), k])];
-    save(); render(); toast(`${k} entfernt. Adressen, bei denen in der Excel „${k}" steht, bleiben bei „${k}" – umteilen im Tab „Alle Adressen".`); return;
+    save(); render(); toast(`${k} entfernt. Adressen, bei denen in der Excel „${k}" steht, bleiben bei „${k}" – umteilen im Tab „Masterliste".`); return;
   }
   if (t.dataset.staffQuick) {
     const label = t.dataset.staffQuick, m = staffFromData(label);

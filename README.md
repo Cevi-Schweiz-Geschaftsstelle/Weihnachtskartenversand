@@ -57,7 +57,14 @@ Einrichten:
    - Berechtigung: *Leserechte auf dieser Ebene* (oder *… und darunterliegenden Ebenen*).
    - Zugriffsbereich: **Personen** und **Gruppen**.
 2. Im selben Formular unter **Hosts mit API-Zugriff** eintragen: `https://fabulousteaching.github.io`
-3. Im Tool → Tab **Cevi DB**: Key einfügen, Gruppen-IDs oder -Links eintragen, „Jetzt aktualisieren".
+3. Im Tool im Tab **Cevi DB** den Key einfügen.
+4. **Gruppen automatisch übernehmen:**
+   - Die Gruppe „Cevi Schweiz" eintragen (Nummer oder Link) und auf **„Gruppen lesen"** klicken.
+   - Das Tool liest alle Gruppen dieser Ebene und schlägt pro Gruppe die Kategorie vor. Grundlage sind Gruppentyp (Vorstand, Geschäftsstelle, Spender …) und Name.
+   - Gruppen mit Untergruppen (z.B. Fachgruppen) werden als Untergruppen der Kategorie eingerichtet.
+   - Vorschlag prüfen, dann **„Übernehmen und Daten laden"**.
+   - Gruppen, deren Kategorie laut Überblick nicht aus der DB kommt (z.B. Fundraising/Abacus), sind abgewählt. Mitgliederorganisationen (eigene Ebenen) werden nicht geladen.
+5. Später genügt **„↻ Aus Cevi DB aktualisieren"**.
 
 Ohne Eintrag bei „Hosts mit API-Zugriff" (z.B. Datei per Doppelklick geöffnet) gibt es eine Alternative: `python3 start-tool.py` startet das Tool unter `http://localhost:8765` und leitet die Abfragen lokal weiter.
 

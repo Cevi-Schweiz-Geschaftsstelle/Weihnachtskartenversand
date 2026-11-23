@@ -371,7 +371,7 @@
         email: str(a.email).toLowerCase(), street, nr, careOf: str(a.address_care_of), zip: str(a.zip_code), town: str(a.town),
         country: str(a.country), owner: normOwner(source.owner), extra: '', done: false,
         group: groupName, catId, roles: str((r.attributes || {}).name || (r.attributes || {}).type),
-        dbPersonId: pid, rowNo: null,
+        dbPersonId: pid, groupId: gid, rowNo: null,
       });
     }
     return entries;

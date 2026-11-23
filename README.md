@@ -13,7 +13,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
    - Vorname und Nachname eintragen. Das **Kürzel entsteht automatisch** aus dem 1. Buchstaben des Vornamens und dem 1. und 2. Buchstaben des Nachnamens (z.B. Anna Beispiel → ABE). Ist es schon vergeben, nimmt das Tool die nächste Variante. Von Hand überschreiben ist möglich.
    - Nach dem Excel-Import schlägt das Tool die Personen vor, die es in den Listen findet. Mit ✕ lässt sich ein Vorschlag ausblenden.
    - Nach **„Erfassen"** öffnet sich ein Fenster: die Kategorien und Untergruppen anhaken, zu denen die Person gehört, dann **„Fertig"**. Später lässt sich das in der Personen-Tabelle über **„✎ Kategorien"** ändern.
-   - Rechts: importierte Listen und Daten (Häkchen zurücksetzen, Einstellungen speichern/laden).
+   - Rechts: die importierten Listen.
 2. **Kategorien** (eigener Reiter neben Zuständigkeit):
    - **„＋ Neue Kategorie"** steht zuoberst. Neue Kategorien kommen ans Ende der Liste und lassen sich mit ▲ nach oben schieben.
    - Personen den Kategorien zuordnen, auch mehrere pro Kategorie. **★** versendet, alle weiteren unterschreiben mit.
@@ -42,7 +42,10 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - Im Druckfenster Skalierung 100 % und Ränder „Keine" wählen.
 6. **Export Excel:** Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
 
-**Einstellungen speichern/laden** (Tab Zuständigkeit → Daten): Damit lassen sich Zuständige, Kategorien und Zuteilungen auf einen anderen Computer oder von der Offline- in die Online-Version übertragen. Die Datei enthält Namen und gehört **nicht** in dieses Repository.
+**Menü „⚙ Daten"** (oben rechts):
+- „Erledigt"-Häkchen aus den Excel-Listen übernehmen (ein/aus)
+- Alle Erledigt-Häkchen zurücksetzen, Zuteilungen & Duplikat-Entscheide zurücksetzen, alle Daten auf diesem Computer löschen
+- **Einstellungen speichern/laden**: Damit lassen sich Zuständige, Kategorien und Zuteilungen auf einen anderen Computer oder von der Offline- in die Online-Version übertragen. Die Datei enthält Namen und gehört **nicht** in dieses Repository.
 
 ## Gemeinsam arbeiten (Microsoft 365)
 

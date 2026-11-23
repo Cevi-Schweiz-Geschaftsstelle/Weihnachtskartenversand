@@ -39,7 +39,7 @@ Eine neue Version ersetzt die alte. Wer auf der neuen Liste nicht mehr steht, f�
 - **Excel:** Ersetzt werden alle Listen mit gleichem Datei- oder Blattnamen (z.B. 2026 statt 2025).
   - Eine Datei mit nur einem Blatt ersetzt nur dieses Blatt.
 - **Cevi DB:** Jeder Refresh lädt die DB-Daten komplett neu.
-- **Änderungsbericht:** Nach jeder Aktualisierung zeigt er, wer weggefallen, neu dazugekommen oder umgezogen ist und bei wem jetzt jemand anderes versendet. Mit **Rückgängig** geht es zurück.
+- Nach jeder Aktualisierung erscheint eine kurze Meldung mit Zahlen (z.B. „32 weggefallen, 3 neu“), ohne Namenslisten.
 - Entscheide aus „Zuteilen" bleiben bei einer neuen Version erhalten.
 
 ## Cevi DB anbinden (Live-Daten statt Excel)

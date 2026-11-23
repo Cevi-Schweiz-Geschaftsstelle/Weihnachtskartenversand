@@ -123,12 +123,18 @@ input.cell:hover{border-color:var(--line)} input.cell:focus{border-color:var(--a
 .lnk{border:0;background:transparent;cursor:pointer;color:var(--accent);padding:0 3px;font-size:12px}
 .lnk.x{color:var(--soft)} .lnk.x:hover{color:var(--bad)}
 .cand.sugg{min-width:0}
-.newcats{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:8px}
-.tog{border:1px solid var(--line);background:#fff;border-radius:999px;padding:2px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
-.tog:hover{border-color:#9fc9c1}
-.tog.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.tog.on::before{content:'✓ '}
-select.inline.mini{font-size:12px;padding:1px 4px;color:var(--muted);max-width:130px}
+.modal-back{position:fixed;inset:0;background:rgba(17,24,39,.38);display:flex;align-items:flex-start;justify-content:center;z-index:70;padding:6vh 16px;overflow:auto}
+.modal-back[hidden]{display:none}
+.modal{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:min(560px,100%)}
+.modal .hd{padding:16px 18px 6px} .modal .hd h3{margin:0;font-size:16px}
+.modal .bd{padding:6px 18px 4px}
+.modal .ft{padding:12px 18px 16px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line2);margin-top:8px}
+.checklist{display:flex;flex-direction:column;max-height:56vh;overflow:auto;border:1px solid var(--line2);border-radius:10px}
+.chk-row{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line2);cursor:pointer}
+.chk-row:first-child{border-top:0}
+.chk-row:hover{background:#f7faf9}
+.chk-row:has(input:checked){background:var(--accent-soft)}
+.chk-row .nm{font-weight:560}
 .chip.cat .lnk.x{margin-left:2px;padding:0 2px}
 .sugg-wrap{position:relative;display:inline-flex}
 .sugg-x{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--soft);font-size:10px;line-height:1;cursor:pointer;padding:0;z-index:1}
@@ -208,6 +214,7 @@ tr.decided td{background:#fbfdfc}
 </div>
 <div class="dropmask" id="dropmask">Excel-Datei hier loslassen</div>
 <div class="toast" id="toast"></div>
+<div class="modal-back" id="catModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="catModalTitle"></div></div>
 
 <script>/*__XLSX__*/</script>
 <script>/*__CORE__*/</script>
@@ -747,6 +754,41 @@ function parsePersonInput(txt) {
   return { code: '', name: t }; // Kürzel wird dann automatisch aus Vor- und Nachname erstellt
 }
 
+// ---------------------------------------------------------------- Dialog: Kategorien einer Person
+let catDialogKey = null;
+function openCatDialog(key, isNew) {
+  catDialogKey = key;
+  const st = S.staff.find(x => staffKey(x) === key);
+  const label = st ? [st.code, st.name].filter(Boolean).join(' · ') : key;
+  const first = st && st.first ? st.first : (st && st.name) || key;
+  const rows = S.order.map(id => S.cats.find(c => c.id === id)).filter(Boolean).map(c => {
+    const keys = catKeys(c), has = keys.includes(key), lead = keys[0];
+    const info = has ? (lead === key ? '★ versendet' : '☆ unterschreibt mit') : (lead ? `versendet: ${esc(ownerName(lead))}` : 'noch niemand – würde versenden');
+    return `<label class="chk-row"><input type="checkbox" data-mcat="${c.id}" ${has ? 'checked' : ''}><span class="nm">${esc(c.name)}</span><span class="small muted">${info}</span></label>`;
+  }).join('');
+  const m = $('#catModal');
+  m.querySelector('.modal').innerHTML = `
+    <div class="hd"><h3 id="catModalTitle">${isNew ? '✓ Erfasst: ' : ''}${esc(label)}</h3></div>
+    <div class="bd"><div style="margin-bottom:8px"><b>Zu welchen Kategorien gehört ${esc(first)}?</b> <span class="small muted">Ist die Kategorie noch leer, versendet ${esc(first)} (★), sonst unterschreibt ${esc(first)} mit (☆).</span></div>
+      <div class="checklist">${rows}</div></div>
+    <div class="ft"><button class="btn ghost" data-action="modal-close">${isNew ? 'Überspringen' : 'Abbrechen'}</button><button class="btn primary" data-action="modal-save">Fertig</button></div>`;
+  m.hidden = false;
+  const firstBox = m.querySelector('input[type=checkbox]'); if (firstBox) firstBox.focus();
+}
+function closeCatDialog(focusForm) { $('#catModal').hidden = true; catDialogKey = null; if (focusForm && $('#newFirst')) $('#newFirst').focus(); }
+function saveCatDialog() {
+  const key = catDialogKey; if (!key) return closeCatDialog();
+  const added = [], removed = [];
+  for (const box of document.querySelectorAll('#catModal [data-mcat]')) {
+    const c = S.cats.find(x => x.id === box.dataset.mcat); if (!c) continue;
+    const keys = catKeys(c), has = keys.includes(key);
+    if (box.checked && !has) { c.persons = [...keys, key]; c.personsManual = true; added.push(c.name); }
+    if (!box.checked && has) { c.persons = keys.filter(k => k !== key); c.personsManual = true; removed.push(c.name); }
+  }
+  save(); closeCatDialog(true); render();
+  toast(added.length || removed.length ? `${key}: ${[added.length ? '+ ' + added.join(', ') : '', removed.length ? '− ' + removed.join(', ') : ''].filter(Boolean).join(' · ')}` : `${key}: keine Kategorien geändert`);
+}
+
 function settingsView() {
   const usage = staffUsage();
   const sugg = staffSuggestions();
@@ -756,7 +798,7 @@ function settingsView() {
       <td><input class="cell" data-staff="${st.id}" data-k="first" value="${esc(st.first ?? splitName(st.name).first)}" placeholder="Vorname" style="width:100%;min-width:80px"></td>
       <td><input class="cell" data-staff="${st.id}" data-k="last" value="${esc(st.last ?? splitName(st.name).last)}" placeholder="Nachname" style="width:100%;min-width:90px"></td>
       <td><div class="cands" style="gap:4px;align-items:center">${catsOf(k).map(c => `<span class="chip cat" title="${catKeys(c)[0] === k ? 'versendet' : 'unterschreibt mit'}">${catKeys(c)[0] === k ? '★ ' : ''}${esc(c.name)}<button class="lnk x" data-cat-remove="${c.id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')}
-        <select class="inline mini" data-staff-cat-add="${esc(k)}"><option value="">＋ Kategorie</option>${S.order.map(id => S.cats.find(c => c.id === id)).filter(c => c && !catKeys(c).includes(k)).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div></td>
+        <button class="btn small ghost" data-cat-dialog="${esc(k)}" title="Kategorien dieser Person anpassen">✎ Kategorien</button></div></td>
       <td class="small" style="white-space:nowrap">${u.send ? `<a href="#" data-owner="${esc(k)}">${u.send} Briefe</a>` : '<span class="muted">0 Briefe</span>'}${u.co ? `<br><span class="muted">✍ ${u.co}× mit</span>` : ''}</td>
       <td><button class="btn small ghost danger" data-staff-del="${st.id}" title="Person entfernen">✕</button></td></tr>`; }).join('');
   const catRows = S.order.map((id, i) => {
@@ -794,7 +836,6 @@ function settingsView() {
         <div class="bd" style="padding-bottom:6px">
           <div class="free" style="margin-top:0"><input id="newFirst" placeholder="Vorname" style="min-width:0;flex:1"><input id="newLast" placeholder="Nachname" style="min-width:0;flex:1"><input id="newCode" placeholder="Kürzel" title="Wird automatisch erstellt (1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname) – bei Bedarf überschreiben" style="min-width:0;width:80px;text-transform:uppercase"><button class="btn small primary" data-action="staff-add">＋ Erfassen</button></div>
           <div class="small muted" style="margin-top:4px">Das Kürzel entsteht automatisch: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname (z.B. Anna Beispiel → ABE).</div>
-          <div class="newcats"><span class="small muted">Kategorien:</span>${S.order.map(id => { const c = S.cats.find(x => x.id === id); return c ? `<button type="button" class="tog" data-newcat="${id}" title="Beim Erfassen dieser Kategorie zuordnen">${esc(c.name)}</button>` : ''; }).join('')}</div>
         </div>
         ${S.staff.length ? `<div class="tablewrap"><table><thead><tr><th>Kürzel</th><th>Vorname</th><th>Nachname</th><th>Kategorien</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
         ${sugg.length ? `<div class="bd" style="border-top:1px solid var(--line2)">
@@ -1157,7 +1198,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-newcat],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -1167,7 +1208,7 @@ document.addEventListener('click', (ev) => {
     if (st) { renameKey(t.dataset.staffSugg, staffKey(st)); save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); }
     return;
   }
-  if (t.dataset.newcat) { t.classList.toggle('on'); return; }
+  if (t.dataset.catDialog) { openCatDialog(t.dataset.catDialog, false); return; }
   if (t.dataset.suggHide) { S.ignoredSugg = [...new Set([...(S.ignoredSugg || []), t.dataset.suggHide])]; save(); render(); return; }
   if (t.dataset.staffDel) {
     const st = S.staff.find(x => x.id === t.dataset.staffDel); if (!st) return;
@@ -1230,17 +1271,16 @@ document.addEventListener('click', (ev) => {
   else if (a === 'export-assign') exportAssign();
   else if (a === 'settings-export') exportSettings();
   else if (a === 'settings-import') $('#settingsInput').click();
+  else if (a === 'modal-save') saveCatDialog();
+  else if (a === 'modal-close') closeCatDialog(true);
   else if (a === 'staff-add') {
     const first = $('#newFirst').value, last = $('#newLast').value, codeIn = $('#newCode');
     const code = codeIn.dataset.manual === '1' ? codeIn.value : '';
     if (!first.trim() && !last.trim() && !codeIn.value.trim()) { toast('Bitte Vorname und Nachname eintragen.'); return; }
     const st = addStaff(code || (!first.trim() && !last.trim() ? codeIn.value : ''), '', undefined, first, last);
     if (st) {
-      const k = staffKey(st), chosen = [...document.querySelectorAll('[data-newcat].on')].map(b => b.dataset.newcat);
-      for (const id of chosen) { const c = S.cats.find(x => x.id === id); if (c && !catKeys(c).includes(k)) { c.persons = [...catKeys(c), k]; c.personsManual = true; } }
       save(); render();
-      toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ') + (chosen.length ? ' → ' + chosen.map(catName).join(', ') : ''));
-      $('#newFirst') && $('#newFirst').focus();
+      openCatDialog(staffKey(st), true);
     }
   }
   else if (a === 'sugg-unhide') { ev.preventDefault(); S.ignoredSugg = []; save(); render(); }
@@ -1290,11 +1330,6 @@ document.addEventListener('change', (ev) => {
     if (newKey !== oldKey) { st.aliases = [...new Set([...(st.aliases || []), oldKey])]; renameKey(oldKey, newKey); }
     save(); render(); return;
   }
-  if (t.dataset.staffCatAdd !== undefined) {
-    const c = S.cats.find(x => x.id === t.value), k = t.dataset.staffCatAdd;
-    if (c && k && !catKeys(c).includes(k)) { c.persons = [...catKeys(c), k]; c.personsManual = true; save(); toast(`${k} → ${c.name}`); }
-    render(); return;
-  }
   if (t.dataset.catAdd) {
     const c = S.cats.find(x => x.id === t.dataset.catAdd); let v = t.value;
     if (v === '__new') {
@@ -1319,6 +1354,11 @@ document.addEventListener('change', (ev) => {
   if (t.id === 'fcat' || t.id === 'fowner' || t.id === 'fonly') { S.ui.filter[{ fcat: 'cat', fowner: 'owner', fonly: 'only' }[t.id]] = t.value; save(); render(); return; }
 });
 document.addEventListener('keydown', (ev) => {
+  if (!$('#catModal').hidden) {
+    if (ev.key === 'Escape') { ev.preventDefault(); closeCatDialog(true); }
+    if (ev.key === 'Enter' && !(ev.target && ev.target.tagName === 'BUTTON')) { ev.preventDefault(); saveCatDialog(); }
+    return;
+  }
   if (ev.key !== 'Enter') return;
   const id = ev.target && ev.target.id;
   if (id === 'newCode' || id === 'newFirst' || id === 'newLast') { ev.preventDefault(); document.querySelector('[data-action="staff-add"]').click(); }
@@ -1333,6 +1373,7 @@ document.addEventListener('input', (ev) => {
   if (t.id === 'ownerSearch') { const q = WB.fold(t.value); document.querySelectorAll('.owner').forEach(b => { b.classList.toggle('hide', !!q && !WB.fold(b.textContent).includes(q)); }); }
   if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
 });
+$('#catModal').addEventListener('click', (e) => { if (e.target.id === 'catModal') closeCatDialog(true); });
 $('#btnImport').addEventListener('click', () => $('#fileInput').click());
 $('#btnExport').addEventListener('click', () => exportExcel());
 $('#btnRefresh').addEventListener('click', () => dbRefresh(false));

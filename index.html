@@ -199,7 +199,30 @@ tr.decided td{background:#fbfdfc}
 .change li{break-inside:avoid;margin-bottom:3px;font-size:13px}
 @media (max-width:1000px){.change ul{columns:1}}
 .hide{display:none!important}
+/* Etiketten */
+.modal.wide{width:min(980px,100%)}
+.lbl-grid{display:grid;grid-template-columns:300px 1fr;gap:20px}
+@media (max-width:860px){.lbl-grid{grid-template-columns:1fr}}
+.lbl-form{display:grid;grid-template-columns:1fr;gap:10px}
+.lbl-form label{font-size:12.5px;color:var(--muted);display:block;margin-bottom:3px}
+.lbl-form select,.lbl-form input[type=number]{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.lbl-form .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lbl-custom{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.lbl-custom input{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:6px}
+.lbl-preview-wrap{background:#eceff3;border-radius:10px;padding:14px;display:flex;justify-content:center;overflow:auto;max-height:62vh}
+.lbl-preview{transform-origin:top left}
+#labelsPrint{display:none}
+.lsheet{width:210mm;height:297mm;position:relative;overflow:hidden;background:#fff;page-break-after:always;break-after:page}
+.lsheet:last-child{page-break-after:auto;break-after:auto}
+.lcell{position:absolute;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;overflow:hidden;color:#000;font-family:Arial,Helvetica,sans-serif;line-height:1.22}
+.lcell div{overflow-wrap:anywhere}
+.lcell.framed,.lbl-preview .lcell{outline:0.2mm dashed #9aa3ad;outline-offset:-0.2mm}
+.lcell.empty{background:repeating-linear-gradient(45deg,#f3f4f6 0 2mm,#fff 2mm 4mm)}
+#labelsPrint .lcell.empty{background:none}
+body.print-labels #labelsPrint{display:block}
 @media print{
+  body.print-labels > *:not(#labelsPrint){display:none!important}
+  body.print-labels{background:#fff}
   header.top,.owners,.noprint,.toast,nav.tabs{display:none!important}
   main{padding:0}
   .split{display:block}
@@ -231,6 +254,8 @@ tr.decided td{background:#fbfdfc}
 </div>
 <div class="dropmask" id="dropmask">Excel-Datei hier loslassen</div>
 <div class="toast" id="toast"></div>
+<div class="modal-back" id="labelModal" hidden><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="labelTitle"></div></div>
+<div id="labelsPrint" aria-hidden="true"></div>
 <div class="modal-back" id="cloudModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cloudTitle"></div></div>
 <div class="modal-back" id="catModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="catModalTitle"></div></div>
 
@@ -1308,6 +1333,7 @@ function ownersView() {
               ${byCat.size ? ' · ' + [...byCat].map(([k, v]) => `${esc(k)} ${v}`).join(', ') : ''}</div>
           </div>
           <div class="right noprint" style="display:flex;gap:6px">
+            <button class="btn small primary" data-action="labels" title="Alle Adressen dieser Person als Etiketten drucken">🏷 Etiketten</button>
             <button class="btn small" data-action="print">⎙ Drucken</button>
             <button class="btn small" data-action="export-owner">⇩ Nur diese Liste</button>
           </div>
@@ -1554,6 +1580,99 @@ function parsePersonInput(txt) {
   return { code: '', name: t }; // Kürzel wird dann automatisch aus Vor- und Nachname erstellt
 }
 
+
+
+// ---------------------------------------------------------------- Etiketten (pro zuständige Person, A4-Bogen)
+// Masse in mm. top/left = Rand oben/links bis zum ersten Etikett, gx/gy = Abstand zwischen den Etiketten.
+const LABEL_FORMATS = [
+  { id: 'z3475', name: 'Avery Zweckform 3475 · 70 × 36 mm · 24 pro Bogen', cols: 3, rows: 8, w: 70, h: 36, top: 4.5, left: 0, gx: 0, gy: 0 },
+  { id: 'z3474', name: 'Avery Zweckform 3474 · 70 × 37 mm · 24 pro Bogen', cols: 3, rows: 8, w: 70, h: 37, top: 0.5, left: 0, gx: 0, gy: 0 },
+  { id: 'z3422', name: 'Avery Zweckform 3422 · 70 × 35 mm · 24 pro Bogen', cols: 3, rows: 8, w: 70, h: 35, top: 8.5, left: 0, gx: 0, gy: 0 },
+  { id: 'l7160', name: 'Avery L7160 · 63,5 × 38,1 mm · 21 pro Bogen', cols: 3, rows: 7, w: 63.5, h: 38.1, top: 15.15, left: 7.25, gx: 2.5, gy: 0 },
+  { id: 'l7163', name: 'Avery L7163 · 99,1 × 38,1 mm · 14 pro Bogen', cols: 2, rows: 7, w: 99.1, h: 38.1, top: 15.15, left: 4.65, gx: 2.5, gy: 0 },
+  { id: 'custom', name: 'Eigene Masse …', cols: 3, rows: 8, w: 70, h: 36, top: 4.5, left: 0, gx: 0, gy: 0 },
+];
+const LABEL_DEFAULTS = { fmt: 'z3475', onlyOpen: false, sort: 'name', start: 1, frame: false, font: 10, pad: 5, org: true, custom: { cols: 3, rows: 8, w: 70, h: 36, top: 4.5, left: 0, gx: 0, gy: 0 } };
+let LABEL_OWNER = '';
+function labelOpts() { S.ui.labels = Object.assign({}, LABEL_DEFAULTS, S.ui.labels || {}); S.ui.labels.custom = Object.assign({}, LABEL_DEFAULTS.custom, S.ui.labels.custom || {}); return S.ui.labels; }
+function labelGeometry() { const st = labelOpts(); return st.fmt === 'custom' ? { ...LABEL_FORMATS.at(-1), ...st.custom } : (LABEL_FORMATS.find(x => x.id === st.fmt) || LABEL_FORMATS[0]); }
+/** Adresszeilen nach Schweizer Post: Organisation, Name/z.Hd., Zusatz, Strasse Nr., PLZ Ort, Land (nur Ausland) */
+function labelLines(p, st) {
+  const L = [], name = String(p.displayName || '').trim();
+  const personal = !!p.last && !/^\s*(z\.?\s?h|c\/o|zuhanden|team)/i.test(p.first || '');
+  // „Projektgruppe", „Fachgruppe" o.ä. in der Spalte Organisation ist keine Anschrift
+  const placeholderOrg = /^(projektgruppen?|fachgruppen?|kommissionen?|ausschuss|ausschusse|vorstand|geschaftsstelle|team|gruppe)$/.test(WB.key(p.org || ''));
+  if (p.org && !placeholderOrg && p.org !== name && (st.org || !personal)) L.push(p.org);
+  if (name) L.push(name);
+  if (p.careOf) L.push(p.careOf);
+  const street = [p.street, p.nr].filter(Boolean).join(' '); if (street) L.push(street);
+  const city = [p.zip, p.town].filter(Boolean).join(' '); if (city) L.push(city);
+  const c = String(p.country || '').trim(); if (c && !/^(ch|che|schweiz|suisse|svizzera|switzerland)$/i.test(c)) L.push(c.toUpperCase());
+  return L;
+}
+function labelList() {
+  const st = labelOpts();
+  let list = (R.byOwner.get(LABEL_OWNER) || []).slice();
+  if (st.onlyOpen) list = list.filter(p => !p.done);
+  const complete = (p) => !!((p.street || p.careOf) && p.zip && p.town);
+  const ok = list.filter(complete), missing = list.filter(p => !complete(p));
+  if (st.sort === 'zip') ok.sort((a, b) => ((parseInt(a.zip, 10) || 0) - (parseInt(b.zip, 10) || 0)) || String(a.last || a.org).localeCompare(String(b.last || b.org), 'de'));
+  return { ok, missing };
+}
+function labelSheets(list, f, st) {
+  const per = f.cols * f.rows, skip = Math.max(0, Math.min(per - 1, (parseInt(st.start, 10) || 1) - 1));
+  const slots = [...Array(skip).fill(null), ...list], sheets = [];
+  for (let i = 0; i < slots.length; i += per) sheets.push(slots.slice(i, i + per));
+  if (!sheets.length) sheets.push([]);
+  const fmt = (n) => Math.round(n * 100) / 100;
+  return sheets.map(sh => `<div class="lsheet">${Array.from({ length: per }, (_, k) => {
+    const p = sh[k], r = Math.floor(k / f.cols), c = k % f.cols;
+    const x = fmt(f.left + c * (f.w + f.gx)), y = fmt(f.top + r * (f.h + f.gy));
+    return `<div class="lcell${p ? '' : ' empty'}${st.frame ? ' framed' : ''}" style="left:${x}mm;top:${y}mm;width:${f.w}mm;height:${f.h}mm;padding:0 ${st.pad}mm;font-size:${st.font}pt">${p ? labelLines(p, st).map(l => `<div>${esc(l)}</div>`).join('') : ''}</div>`;
+  }).join('')}</div>`);
+}
+function labelsDialog(owner) {
+  if (owner !== undefined) LABEL_OWNER = owner;
+  const st = labelOpts(), f = labelGeometry(), per = f.cols * f.rows, { ok, missing } = labelList();
+  const sheets = labelSheets(ok, f, st), scale = 0.62;
+  const num = (k, label, min, max, step) => `<div><label for="lbl-${k}">${label}</label><input type="number" id="lbl-${k}" data-lbl="${k}" value="${esc(st[k])}" min="${min}" max="${max}" step="${step}"></div>`;
+  const chk = (k, label) => `<label style="font-size:13px;color:var(--text)"><input type="checkbox" data-lbl="${k}" ${st[k] ? 'checked' : ''}> ${label}</label>`;
+  const cust = (k, label) => `<div><label style="font-size:11.5px">${label}</label><input type="number" step="0.1" data-lblc="${k}" value="${esc(st.custom[k])}"></div>`;
+  const m = $('#labelModal');
+  m.querySelector('.modal').innerHTML = `
+    <div class="hd"><h3 id="labelTitle">🏷 Etiketten – ${LABEL_OWNER ? ownerHtml(LABEL_OWNER) : 'ohne Zuständigkeit'}</h3></div>
+    <div class="bd"><div class="lbl-grid">
+      <div class="lbl-form">
+        <div><label for="lbl-fmt">Etikettenbogen (A4)</label><select id="lbl-fmt" data-lbl="fmt">${LABEL_FORMATS.map(x => `<option value="${x.id}" ${x.id === st.fmt ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
+        ${st.fmt === 'custom' ? `<div class="lbl-custom">${cust('cols', 'Spalten')}${cust('rows', 'Zeilen')}${cust('w', 'Breite mm')}${cust('h', 'Höhe mm')}${cust('top', 'Rand oben mm')}${cust('left', 'Rand links mm')}${cust('gx', 'Abstand quer mm')}${cust('gy', 'Abstand längs mm')}</div>` : ''}
+        <div class="row2"><div><label for="lbl-sort">Reihenfolge</label><select id="lbl-sort" data-lbl="sort"><option value="name" ${st.sort === 'name' ? 'selected' : ''}>Nachname</option><option value="zip" ${st.sort === 'zip' ? 'selected' : ''}>Postleitzahl</option></select></div>${num('start', 'Start bei Etikett', 1, per, 1)}</div>
+        <div class="row2">${num('font', 'Schriftgrösse (pt)', 7, 14, 0.5)}${num('pad', 'Innenrand links (mm)', 0, 15, 0.5)}</div>
+        ${chk('onlyOpen', 'nur noch nicht erledigte Briefe')}
+        ${chk('org', 'Organisation aufdrucken')}
+        ${chk('frame', 'Rahmen drucken (Probedruck auf Normalpapier)')}
+        <div class="callout small"><b>${ok.length} Etiketten auf ${sheets.length} ${sheets.length === 1 ? 'Bogen' : 'Bögen'}</b>${st.start > 1 ? ` · beginnt bei Etikett ${esc(st.start)}` : ''}<br>Im Druckfenster: Papier A4, Skalierung 100 % („Tatsächliche Grösse"), Ränder „Keine". Zuerst einen Probedruck auf Normalpapier machen und gegen den Bogen halten.</div>
+        ${missing.length ? `<details class="small"><summary style="cursor:pointer;color:var(--warn)">${missing.length} ohne vollständige Adresse – werden nicht gedruckt</summary><div class="muted" style="margin-top:4px">${missing.map(p => esc(p.displayName)).join(' · ')}</div></details>` : ''}
+      </div>
+      <div><div class="small muted" style="margin-bottom:6px">Vorschau: Bogen 1 von ${sheets.length}</div>
+        <div class="lbl-preview-wrap"><div style="width:calc(210mm * ${scale});height:calc(297mm * ${scale});overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.15)"><div class="lbl-preview" style="transform:scale(${scale})">${sheets[0]}</div></div></div>
+      </div>
+    </div></div>
+    <div class="ft"><button class="btn ghost" data-action="labels-close">Schliessen</button><button class="btn primary" data-action="labels-print" ${ok.length ? '' : 'disabled'}>⎙ ${ok.length} Etiketten drucken</button></div>`;
+  m.hidden = false;
+}
+function printLabels() {
+  const st = labelOpts(), f = labelGeometry(), { ok } = labelList();
+  if (!ok.length) return;
+  const box = $('#labelsPrint');
+  box.innerHTML = labelSheets(ok, f, st).join('');
+  let ps = document.getElementById('labelPageStyle');
+  if (!ps) { ps = document.createElement('style'); ps.id = 'labelPageStyle'; document.head.appendChild(ps); }
+  ps.textContent = '@page { size: A4 portrait; margin: 0; }';
+  document.body.classList.add('print-labels');
+  const done = () => { document.body.classList.remove('print-labels'); ps.textContent = ''; box.innerHTML = ''; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => window.print(), 60);
+}
 
 // ---------------------------------------------------------------- Gemeinsam arbeiten (Microsoft 365 / SharePoint)
 // Der gemeinsame Stand liegt als Datei in der SharePoint-Website von Cevi. Jede Person meldet sich mit dem
@@ -2521,6 +2640,9 @@ document.addEventListener('click', (ev) => {
   if (t.dataset.dbsDel) { S.db.sources = S.db.sources.filter(s => s.id !== t.dataset.dbsDel); save(); render(); return; }
   const a = t.dataset.action;
   if (a === 'print') window.print();
+  else if (a === 'labels') labelsDialog(S.ui.owner || '');
+  else if (a === 'labels-close') $('#labelModal').hidden = true;
+  else if (a === 'labels-print') { $('#labelModal').hidden = true; printLabels(); }
   else if (a === 'export-owner') exportExcel(S.ui.owner || '');
   else if (a === 'import') $('#fileInput').click();
   else if (a === 'reset-done') { if (confirm('Alle Erledigt-Häkchen entfernen?')) { S.done = {}; S.importDone = false; save(); render(); } }
@@ -2612,6 +2734,8 @@ document.addEventListener('change', (ev) => {
     if (v && c) { setGrp(c, gk, t.dataset.name, [...grpKeys(c, gk), v]); save(); }
     render(); return;
   }
+  if (t.dataset.lbl) { const st = labelOpts(), k = t.dataset.lbl; st[k] = t.type === 'checkbox' ? t.checked : (t.type === 'number' ? Number(t.value) : t.value); save(true); labelsDialog(); return; }
+  if (t.dataset.lblc) { const st = labelOpts(); st.custom[t.dataset.lblc] = Number(t.value) || 0; save(true); labelsDialog(); return; }
   if (t.dataset.catAdd) {
     const c = S.cats.find(x => x.id === t.dataset.catAdd); let v = t.value;
     if (v === '__new') {
@@ -2642,6 +2766,7 @@ document.addEventListener('change', (ev) => {
 });
 document.addEventListener('keydown', (ev) => {
   if (!$('#cloudModal').hidden && ev.key === 'Escape') { $('#cloudModal').hidden = true; return; }
+  if (!$('#labelModal').hidden && ev.key === 'Escape') { $('#labelModal').hidden = true; return; }
   if (!$('#catModal').hidden) {
     if (ev.key === 'Escape') { ev.preventDefault(); closeCatDialog(true); }
     if (ev.key === 'Enter' && !(ev.target && ev.target.tagName === 'BUTTON')) { ev.preventDefault(); saveCatDialog(); }
@@ -2672,6 +2797,7 @@ function readCloudFields() {
   save(true);
 }
 $('#btnCloud').addEventListener('click', () => cloudDialog());
+$('#labelModal').addEventListener('click', (e) => { if (e.target.id === 'labelModal') $('#labelModal').hidden = true; });
 $('#cloudModal').addEventListener('click', (e) => { if (e.target.id === 'cloudModal') $('#cloudModal').hidden = true; });
 $('#catModal').addEventListener('click', (e) => { if (e.target.id === 'catModal') closeCatDialog(true); });
 $('#btnImport').addEventListener('click', () => $('#fileInput').click());

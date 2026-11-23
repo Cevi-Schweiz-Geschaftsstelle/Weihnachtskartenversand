@@ -303,6 +303,22 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (/^[a-zäöü]{2,4}$/.test(s) || /^[A-ZÄÖÜ]{2,4}$/.test(s)) return s.toUpperCase();
     return s;
   }
+  /** Kürzel = 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname (z.B. Anna Beispiel → ABE) */
+  const LETTERS = /[^A-Za-zÄÖÜäöüÉÈÊËéèêëÀÂàâÇçÎÏîïÔôÛÙûù]/g;
+  function makeCode(first, last) {
+    const f = str(first).replace(LETTERS, ''), l = str(last).replace(LETTERS, '');
+    if (!f || l.length < 2) return '';
+    return (f.charAt(0) + l.slice(0, 2)).toUpperCase();
+  }
+  /** Weitere Varianten, falls das Kürzel schon vergeben ist */
+  function codeVariants(first, last) {
+    const f = str(first).replace(LETTERS, '').toUpperCase(), l = str(last).replace(LETTERS, '').toUpperCase();
+    if (!f || l.length < 2) return [];
+    const out = [f[0] + l[0] + l[1]];
+    for (let i = 2; i < l.length; i++) out.push(f[0] + l[0] + l[i]);
+    if (f.length > 1) out.push(f[0] + f[1] + l[0]);
+    return [...new Set(out)];
+  }
   function splitOwners(v) { return str(v).split(/\s*(?:[,;\/+&]|\bund\b)\s*/i).map(str).filter(Boolean); }
   function isEmail(s) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s); }
 
@@ -772,8 +788,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const staff = entries.filter(e => e.catId === 'cevi-schweiz' && e.first && isPersonal(e));
     const codeNames = {}, labelToCode = {}, byFirst = new Map();
     for (const e of staff) {
-      const ln = e.last.replace(/[^A-Za-zÄÖÜäöüÉÈéèàç]/g, '');
-      const code = (e.first.charAt(0) + ln.slice(0, 2)).toUpperCase();
+      const code = makeCode(e.first, e.last);
       if (!observed.has(code)) continue;
       const full = e.first.split(' ')[0] + ' ' + e.last;
       if (codeNames[code] && codeNames[code] !== full) { codeNames[code] = codeNames[code] + ' / ' + full; continue; }
@@ -795,7 +810,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return { codeNames, labelToCode, observed: [...observed].sort() };
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, deriveAliases, splitOwners, catPersonLabels, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, deriveAliases, splitOwners, catPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -853,6 +868,7 @@ function load() {
       s.version = 3;
     }
     s.staff = s.staff || [];
+    for (const st of s.staff) if (st.first === undefined && st.last === undefined) Object.assign(st, splitName(st.name));
     return s;
   } catch (e) { console.warn(e); return defaultState(); }
 }
@@ -866,6 +882,16 @@ function token() { return S.db.rememberToken ? S.db.token : sessionToken; }
 
 // ---------------------------------------------------------------- Berechnung
 const staffKey = (st) => String((st && (st.code || st.name)) || '').trim();
+const fullName = (first, last) => [first, last].map(x => String(x || '').trim()).filter(Boolean).join(' ');
+function splitName(name) { const t = String(name || '').trim().replace(/\s+/g, ' '); const i = t.indexOf(' '); return i < 0 ? { first: t, last: '' } : { first: t.slice(0, i), last: t.slice(i + 1) }; }
+/** Kürzel automatisch: 1. Buchstabe Vorname + 1./2. Buchstabe Nachname; falls vergeben, nächste Variante */
+function autoCode(first, last, except) {
+  const taken = (c) => S.staff.some(x => x !== except && x.code === c);
+  for (const c of WB.codeVariants(first, last)) if (!taken(c)) return c;
+  const base = WB.makeCode(first, last); if (!base) return '';
+  for (let n = 2; n < 100; n++) if (!taken(base + n)) return base + n;
+  return '';
+}
 function parseAliasText() {
   const map = new Map(), names = {};
   for (const line of (S.aliasText || '').split('\n')) {
@@ -1272,8 +1298,7 @@ function staffFromData(label) {
   for (const e of R.entries) if (e.catId === 'cevi-schweiz' && e.first && e.last && WB.fold(e.first.split(' ')[0]) === f) hits.set(WB.key(e.first + e.last), e);
   if (hits.size !== 1) return null;
   const e = [...hits.values()][0];
-  const ln = e.last.replace(/[^A-Za-zÄÖÜäöüÉÈéèàç]/g, '');
-  return { code: (e.first.charAt(0) + ln.slice(0, 2)).toUpperCase(), name: e.first.split(' ')[0] + ' ' + e.last };
+  return { code: WB.makeCode(e.first, e.last), name: e.first.split(' ')[0] + ' ' + e.last };
 }
 function staffUsage() {
   const m = new Map();
@@ -1300,11 +1325,14 @@ function staffSuggestions() {
   }
   return [...out.values()].sort((x, y) => (y.send + y.co) - (x.send + x.co) || x.label.localeCompare(y.label));
 }
-function addStaff(code, name, alias) {
-  code = String(code || '').trim().toUpperCase(); name = String(name || '').trim();
+function addStaff(code, name, alias, first, last) {
+  code = String(code || '').trim().toUpperCase();
+  if (first === undefined && last === undefined) ({ first, last } = splitName(name));
+  first = String(first || '').trim(); last = String(last || '').trim(); name = fullName(first, last);
   if (!code && !name) return null;
   if (code && S.staff.some(st => st.code === code)) { toast(`Kürzel ${code} ist schon erfasst.`); return null; }
-  const st = { id: uid(), code, name, aliases: alias && alias !== code && alias !== name ? [alias] : [] };
+  if (!code) code = autoCode(first, last);
+  const st = { id: uid(), code, first, last, name, aliases: alias && alias !== code && alias !== name ? [alias] : [] };
   S.staff.push(st);
   return st;
 }
@@ -1319,7 +1347,7 @@ function parsePersonInput(txt) {
   const m = t.match(/^([A-Za-zÄÖÜ]{2,4})(?:\s*[:\-–]\s*|\s+)(.+)$/);
   if (m && m[1] === m[1].toUpperCase()) return { code: m[1], name: m[2].trim() };
   if (/^[A-ZÄÖÜ]{2,4}$/.test(t)) return { code: t, name: '' };
-  return { code: '', name: t };
+  return { code: '', name: t }; // Kürzel wird dann automatisch aus Vor- und Nachname erstellt
 }
 
 function settingsView() {
@@ -1328,7 +1356,8 @@ function settingsView() {
   const catsOf = (k) => S.order.map(id => S.cats.find(c => c.id === id)).filter(c => c && catKeys(c).includes(k));
   const staffRows = S.staff.map(st => { const k = staffKey(st); const u = usage.get(k) || { send: 0, co: 0 }; return `<tr>
       <td><input class="cell" data-staff="${st.id}" data-k="code" value="${esc(st.code)}" placeholder="Kürzel" style="width:70px;text-transform:uppercase"></td>
-      <td><input class="cell" data-staff="${st.id}" data-k="name" value="${esc(st.name)}" placeholder="Vorname Nachname" style="width:100%;min-width:150px"></td>
+      <td><input class="cell" data-staff="${st.id}" data-k="first" value="${esc(st.first ?? splitName(st.name).first)}" placeholder="Vorname" style="width:100%;min-width:80px"></td>
+      <td><input class="cell" data-staff="${st.id}" data-k="last" value="${esc(st.last ?? splitName(st.name).last)}" placeholder="Nachname" style="width:100%;min-width:90px"></td>
       <td><input class="cell" data-staff="${st.id}" data-k="aliases" value="${esc((st.aliases || []).filter(a => a !== st.code && a !== st.name).join(', '))}" placeholder="–" title="Weitere Kürzel oder Namen, unter denen diese Person in den Listen steht (mit Komma trennen). Beispiel: GL – dann gehen alle GL-Briefe an diese Person." style="width:100%;min-width:70px"></td>
       <td>${catsOf(k).map(c => `<span class="chip cat">${catKeys(c)[0] === k ? '★ ' : ''}${esc(c.name)}</span>`).join('') || '<span class="muted small">–</span>'}</td>
       <td class="small" style="white-space:nowrap">${u.send ? `<a href="#" data-owner="${esc(k)}">${u.send} Briefe</a>` : '<span class="muted">0 Briefe</span>'}${u.co ? `<br><span class="muted">✍ ${u.co}× mit</span>` : ''}</td>
@@ -1366,9 +1395,10 @@ function settingsView() {
       <div class="panel">
         <div class="hd"><h2>1 · Zuständige Personen</h2><span class="muted small">${S.staff.length} erfasst</span></div>
         <div class="bd" style="padding-bottom:6px">
-          <div class="free" style="margin-top:0"><input id="newCode" placeholder="Kürzel" style="min-width:0;width:100px;text-transform:uppercase"><input id="newName" placeholder="Vorname Nachname" style="min-width:0;flex:1"><button class="btn small primary" data-action="staff-add">＋ Erfassen</button></div>
+          <div class="free" style="margin-top:0"><input id="newFirst" placeholder="Vorname" style="min-width:0;flex:1"><input id="newLast" placeholder="Nachname" style="min-width:0;flex:1"><input id="newCode" placeholder="Kürzel" title="Wird automatisch erstellt (1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname) – bei Bedarf überschreiben" style="min-width:0;width:80px;text-transform:uppercase"><button class="btn small primary" data-action="staff-add">＋ Erfassen</button></div>
+          <div class="small muted" style="margin-top:4px">Das Kürzel entsteht automatisch: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname (z.B. Anna Beispiel → ABE).</div>
         </div>
-        ${S.staff.length ? `<div class="tablewrap"><table><thead><tr><th>Kürzel</th><th>Name</th><th title="Weitere Kürzel/Namen aus den Listen, z.B. GL">Auch genannt</th><th>Kategorien</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
+        ${S.staff.length ? `<div class="tablewrap"><table><thead><tr><th>Kürzel</th><th>Vorname</th><th>Nachname</th><th title="Weitere Kürzel/Namen aus den Listen, z.B. GL">Auch genannt</th><th>Kategorien</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
         ${sugg.length ? `<div class="bd" style="border-top:1px solid var(--line2)">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b class="small">In den Listen gefunden – noch nicht erfasst (${sugg.length})</b>${sugg.some(x => x.code && x.name && x.name !== x.code) ? `<button class="btn small right" data-action="staff-accept-all" title="Übernimmt alle Vorschläge mit Kürzel und Namen">Alle erkannten Personen übernehmen (${sugg.filter(x => x.code && x.name && x.name !== x.code).length})</button>` : ''}</div>
           <div class="cands">${sugg.map(x => `<span class="sugg-wrap"><button class="sugg-x" data-sugg-hide="${esc(x.label)}" title="Nicht mehr vorschlagen">✕</button><button class="cand sugg" data-staff-sugg="${esc(x.label)}" data-code="${esc(x.code)}" data-name="${esc(x.name)}" title="Übernehmen (danach bearbeitbar)">
@@ -1802,10 +1832,11 @@ document.addEventListener('click', (ev) => {
   else if (a === 'settings-export') exportSettings();
   else if (a === 'settings-import') $('#settingsInput').click();
   else if (a === 'staff-add') {
-    const code = $('#newCode').value, name = $('#newName').value;
-    if (!code.trim() && !name.trim()) { toast('Bitte Kürzel und/oder Name eintragen.'); return; }
-    const st = addStaff(code, name);
-    if (st) { save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); $('#newCode') && $('#newCode').focus(); }
+    const first = $('#newFirst').value, last = $('#newLast').value, codeIn = $('#newCode');
+    const code = codeIn.dataset.manual === '1' ? codeIn.value : '';
+    if (!first.trim() && !last.trim() && !codeIn.value.trim()) { toast('Bitte Vorname und Nachname eintragen.'); return; }
+    const st = addStaff(code || (!first.trim() && !last.trim() ? codeIn.value : ''), '', undefined, first, last);
+    if (st) { save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); $('#newFirst') && $('#newFirst').focus(); }
   }
   else if (a === 'sugg-unhide') { ev.preventDefault(); S.ignoredSugg = []; save(); render(); }
   else if (a === 'staff-accept-all') {
@@ -1849,8 +1880,14 @@ document.addEventListener('change', (ev) => {
     }
     let v = t.value.trim(); if (k === 'code') v = v.toUpperCase();
     if (k === 'code' && v && S.staff.some(x => x !== st && x.code === v)) { toast(`Kürzel ${v} ist schon vergeben.`); render(); return; }
+    if (st.first === undefined && st.last === undefined) Object.assign(st, splitName(st.name));
     const prev = st[k]; st[k] = v;
-    if (!staffKey(st)) { st[k] = prev; toast('Kürzel oder Name braucht es mindestens.'); render(); return; }
+    if (k === 'first' || k === 'last') st.name = fullName(st.first, st.last);
+    // Kürzel automatisch, wenn keines eingetragen ist (oder es geleert wurde)
+    let auto = '';
+    if (!st.code && st.first && st.last) { st.code = auto = autoCode(st.first, st.last, st); }
+    if (!staffKey(st)) { st[k] = prev; st.name = fullName(st.first, st.last); toast('Name oder Kürzel braucht es mindestens.'); render(); return; }
+    if (auto) toast(`Kürzel ${auto} erstellt`);
     const newKey = staffKey(st);
     if (newKey !== oldKey) { st.aliases = [...new Set([...(st.aliases || []), oldKey])]; renameKey(oldKey, newKey); }
     save(); render(); return;
@@ -1881,13 +1918,15 @@ document.addEventListener('change', (ev) => {
 document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Enter') return;
   const id = ev.target && ev.target.id;
-  if (id === 'newCode' || id === 'newName') { ev.preventDefault(); document.querySelector('[data-action="staff-add"]').click(); }
+  if (id === 'newCode' || id === 'newFirst' || id === 'newLast') { ev.preventDefault(); document.querySelector('[data-action="staff-add"]').click(); }
   if (id === 'newCat') { ev.preventDefault(); document.querySelector('[data-action="cat-add"]').click(); }
 });
 let qT;
 document.addEventListener('input', (ev) => {
   const t = ev.target;
   if (t.id === 'q') { clearTimeout(qT); qT = setTimeout(() => { S.ui.filter.q = t.value; const pos = t.selectionStart; render(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }, 180); }
+  if (t.id === 'newFirst' || t.id === 'newLast') { const c = $('#newCode'); if (c && c.dataset.manual !== '1') c.value = autoCode($('#newFirst').value, $('#newLast').value); }
+  if (t.id === 'newCode') t.dataset.manual = t.value.trim() ? '1' : '';
   if (t.id === 'ownerSearch') { const q = WB.fold(t.value); document.querySelectorAll('.owner').forEach(b => { b.classList.toggle('hide', !!q && !WB.fold(b.textContent).includes(q)); }); }
   if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
 });

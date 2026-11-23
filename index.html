@@ -135,6 +135,7 @@ table.subtab select.inline{max-width:118px;font-size:12.5px;padding:2px 6px}
 table.subtab .chip.pers{font-size:12px;padding:2px 3px 2px 7px}
 .chk-row.sub{padding-left:34px;background:#fcfdfd} .chk-row.sub .nm{font-weight:450}
 .chip.cat.sub{background:#eef3fb}
+table.dbmap tr.off td{color:var(--soft)} table.dbmap tr.hdr td{background:#fafbfc}
 .modal-back{position:fixed;inset:0;background:rgba(17,24,39,.38);display:flex;align-items:flex-start;justify-content:center;z-index:70;padding:6vh 16px;overflow:auto}
 .modal-back[hidden]{display:none}
 .modal{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:min(560px,100%)}
@@ -625,7 +626,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         email: str(a.email).toLowerCase(), street, nr, careOf: str(a.address_care_of), zip: str(a.zip_code), town: str(a.town),
         country: str(a.country), owner: normOwner(source.owner), extra: '', done: false,
         group: groupName, catId, roles: str((r.attributes || {}).name || (r.attributes || {}).type),
-        dbPersonId: pid, rowNo: null,
+        dbPersonId: pid, groupId: gid, rowNo: null,
       });
     }
     return entries;
@@ -1002,7 +1003,7 @@ function subgroupsOf(c) {
     g.count++;
     const o = e.owner ? resolveOwner(e.owner) : ''; if (o) g.codes.set(o, (g.codes.get(o) || 0) + 1);
   }
-  for (const [gk, sg] of Object.entries(c.groups || {})) if (!m.has(gk) && (sg.manual || (sg.persons || []).length)) m.set(gk, { gk, name: sg.name || gk, count: 0, codes: new Map(), manual: !!sg.manual });
+  for (const [gk, sg] of Object.entries(c.groups || {})) if (!m.has(gk) && (sg.manual || sg.fromDb || (sg.persons || []).length)) m.set(gk, { gk, name: sg.name || gk, count: 0, codes: new Map(), manual: !!sg.manual, fromDb: sg.fromDb });
   return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
 }
 const showSubs = (c) => SUB_DEFAULT_OPEN.includes(c.id) || subgroupsOf(c).length >= 2 || Object.keys(c.groups || {}).length > 0;
@@ -1615,6 +1616,14 @@ function dbView() {
         </div>
       </div>
       <div class="panel" style="margin-top:16px">
+        <div class="hd"><h2>Gruppen automatisch übernehmen</h2></div>
+        <div class="bd">
+          <div class="small muted" style="margin-bottom:8px">Das Tool liest alle Gruppen von Cevi Schweiz aus der DB, schlägt die passende Kategorie vor und richtet die Untergruppen (z.B. alle Fachgruppen) ein.</div>
+          <div class="free" style="margin-top:0"><input type="text" id="dbRoot" value="${esc(d.rootGroup || '')}" placeholder="Gruppe „Cevi Schweiz": Nummer oder Link" style="flex:1;min-width:0"><button class="btn primary" data-action="db-read-groups">🔎 Gruppen lesen</button></div>
+        </div>
+      </div>
+      ${dbMapView()}
+      <div class="panel" style="margin-top:16px">
         <div class="hd"><h2>Welche Gruppen sollen geladen werden?</h2><button class="btn small right" data-action="db-add">＋ Gruppe</button></div>
         <div class="tablewrap"><table>
           <thead><tr><th>Bezeichnung</th><th>Gruppen-ID(s) oder Link</th><th>Kategorie</th><th>Zuständig</th><th title="Alle Untergruppen mitladen">inkl. Unter&shy;gruppen</th><th title="Excel-Listen derselben Kategorie ausschalten, sobald die DB-Daten geladen sind">ersetzt Excel</th><th></th></tr></thead>
@@ -1782,16 +1791,112 @@ async function apiAll(path, params, size = 100) {
   return pages;
 }
 async function expandSubgroups(ids) {
-  const all = new Set(ids); let frontier = ids.slice();
-  for (let depth = 0; depth < 5 && frontier.length; depth++) {
+  const all = new Set(ids), parent = new Map(), name = new Map(); let frontier = ids.slice();
+  for (let depth = 0; depth < 6 && frontier.length; depth++) {
     const next = [];
     for (let i = 0; i < frontier.length; i += 25) {
       const pages = await apiAll('/api/groups', { 'filter[parent_id]': frontier.slice(i, i + 25).join(',') });
-      for (const p of pages) for (const g of p.data || []) if (!all.has(g.id)) { all.add(g.id); next.push(g.id); }
+      for (const p of pages) for (const g of p.data || []) {
+        parent.set(String(g.id), String(g.attributes.parent_id)); name.set(String(g.id), g.attributes.display_name || g.attributes.name);
+        if (!all.has(String(g.id))) { all.add(String(g.id)); next.push(String(g.id)); }
+      }
     }
     frontier = next;
   }
-  return [...all];
+  return { ids: [...all], parent, name };
+}
+/** Rolle in einer tieferen Gruppe → Name der obersten Untergruppe unter der geladenen Gruppe */
+function topSubgroupName(gid, roots, tree) {
+  let cur = String(gid), guard = 0;
+  while (guard++ < 20) { const p = tree.parent.get(cur); if (!p || roots.has(cur)) return null; if (roots.has(p)) return tree.name.get(cur) || null; cur = p; }
+  return null;
+}
+let DBMAP = null; // Vorschlag (nur im Speicher, bis „Übernehmen")
+function typeCategory(g) {
+  const t = String(g.type || '').replace(/^Group::/, '');
+  if (/Mitgliederorganisation$/.test(t)) return { catId: 'mio', skip: true, why: 'eigene Ebene (Mitgliederorganisation) – Adressen kommen aus der Excel' };
+  if (/(Vorstand|Geschaeftsstelle)$/.test(t)) return { catId: 'cevi-schweiz', why: t.endsWith('Vorstand') ? 'Gruppentyp Vorstand' : 'Gruppentyp Geschäftsstelle' };
+  if (/Spender$/.test(t)) return { catId: 'fundraising', why: 'Gruppentyp Spender' };
+  return null;
+}
+function proposeMapping(groups, rootId) {
+  const kids = new Map();
+  for (const g of groups) { const p = g.parent_id ? String(g.parent_id) : ''; if (!kids.has(p)) kids.set(p, []); kids.get(p).push(g); }
+  for (const arr of kids.values()) arr.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  const units = [];
+  const includeByDefault = (catId) => { const c = S.cats.find(x => x.id === catId); return catId === 'cevi-schweiz' || /\bDB\b|alle/i.test((c && c.source) || ''); };
+  const visit = (g, depth) => {
+    const ch = kids.get(String(g.id)) || [];
+    let m = typeCategory(g);
+    if (!m) { const d = WB.detectCategory(g.name, S.cats); if (d && d.score >= 2) m = { catId: d.catId, why: 'am Namen erkannt' }; }
+    if (m) {
+      const c = S.cats.find(x => x.id === m.catId);
+      const inc = !m.skip && includeByDefault(m.catId);
+      units.push({ id: String(g.id), name: g.name, depth, catId: m.catId, include: inc, why: m.why + (!m.skip && !inc ? ` · laut Überblick aus „${(c && c.source) || '–'}"` : ''), container: ch.length > 0, children: ch.map(x => ({ id: String(x.id), name: x.name })) });
+      return;
+    }
+    if (ch.length) { units.push({ id: String(g.id), name: g.name, depth, header: true }); for (const x of ch) visit(x, depth + 1); return; }
+    units.push({ id: String(g.id), name: g.name, depth, catId: '', include: false, why: 'nicht erkannt – Kategorie wählen oder weglassen', container: false, children: [] });
+  };
+  for (const x of kids.get(String(rootId)) || []) visit(x, 0);
+  return units;
+}
+async function dbReadGroups() {
+  if (!token()) { toast('Bitte zuerst den API-Key eintragen.'); return; }
+  const start = parseGroupIds(S.db.rootGroup || '')[0];
+  if (!start) { toast('Bitte die Gruppe „Cevi Schweiz" (Nummer oder Link) eintragen.'); $('#dbRoot') && $('#dbRoot').focus(); return; }
+  try {
+    logDb('Lese Gruppenstruktur …');
+    const one = await apiGet('/api/groups/' + start, {});
+    const layer = String((one.data.attributes || {}).layer_group_id || start);
+    const pages = await apiAll('/api/groups', { 'filter[layer_group_id]': layer });
+    const groups = pages.flatMap(p => p.data || []).map(g => ({ id: String(g.id), name: g.attributes.display_name || g.attributes.name, parent_id: g.attributes.parent_id, type: g.attributes.type, layer: g.attributes.layer }));
+    const root = groups.find(g => g.id === layer);
+    DBMAP = { layer, rootName: root ? root.name : layer, units: proposeMapping(groups, layer), count: groups.length };
+    logDb(`OK ✓ ${groups.length} Gruppen in „${DBMAP.rootName}" gefunden`);
+    render();
+    const el = $('#dbmap'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) { logDb('Fehler: ' + e.message); toast(e.message); }
+}
+function applyMapping() {
+  if (!DBMAP) return;
+  const fresh = [];
+  for (const u of DBMAP.units) {
+    if (u.header || !u.include || !u.catId) continue;
+    fresh.push({ id: 'auto-' + u.id, label: u.name, groupIds: u.id, catId: u.catId, owner: '', subgroups: u.container, replaceExcel: false, auto: true });
+    const c = S.cats.find(x => x.id === u.catId); if (!c) continue;
+    const addSub = (name, dbId) => {
+      const gk = WB.groupKey(c.name, name); if (!gk) return;
+      c.groups = c.groups || {};
+      const g = c.groups[gk] || (c.groups[gk] = { name, persons: [] });
+      g.fromDb = dbId; if (!g.name) g.name = name;
+    };
+    if (u.container) for (const ch of u.children) addSub(ch.name, ch.id); else addSub(u.name, u.id);
+  }
+  const covered = new Set(fresh.map(x => x.groupIds));
+  const keep = S.db.sources.filter(x => !x.auto && parseGroupIds(x.groupIds).length && !parseGroupIds(x.groupIds).every(id => covered.has(id)));
+  S.db.sources = [...fresh, ...keep];
+  DBMAP = null; save();
+  toast(`${fresh.length} Gruppen übernommen – Daten werden geladen …`);
+  dbRefresh(false);
+}
+function dbMapView() {
+  if (!DBMAP) return '';
+  const opts = (sel) => `<option value="">– nicht zuordnen –</option>${S.order.map(id => `<option value="${id}" ${sel === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}`;
+  const n = DBMAP.units.filter(u => !u.header && u.include && u.catId).length;
+  return `<div class="panel" id="dbmap" style="margin-top:16px">
+    <div class="hd"><h2>Vorschlag: Gruppen aus „${esc(DBMAP.rootName)}"</h2><span class="muted small">${DBMAP.count} Gruppen gelesen · ${n} zum Laden ausgewählt</span></div>
+    <div class="bd small muted" style="padding-bottom:0">Gruppen mit Untergruppen (z.B. Fachgruppen) werden als <b>Untergruppen</b> der Kategorie übernommen – dort kannst du danach pro Untergruppe die Zuständigen festlegen. Bitte kurz prüfen und bei Bedarf anpassen.</div>
+    <div class="tablewrap"><table class="dbmap">
+      <thead><tr><th>Gruppe in der Cevi DB</th><th>Kategorie im Tool</th><th style="text-align:center">laden</th></tr></thead>
+      <tbody>${DBMAP.units.map((u, i) => u.header
+        ? `<tr class="hdr"><td colspan="3" style="padding-left:${10 + u.depth * 18}px"><b>${esc(u.name)}</b> <span class="small muted">enthält:</span></td></tr>`
+        : `<tr class="${u.include && u.catId ? '' : 'off'}"><td style="padding-left:${10 + u.depth * 18}px"><b>${esc(u.name)}</b><div class="small muted">${esc(u.why || '')}</div>${u.container ? `<div class="small">↳ ${u.children.length} Untergruppen: ${u.children.map(x => esc(x.name)).join(', ')}</div>` : ''}</td>
+            <td><select class="inline" data-map-cat="${i}">${opts(u.catId)}</select></td>
+            <td style="text-align:center"><input type="checkbox" data-map-inc="${i}" ${u.include && u.catId ? 'checked' : ''} ${u.catId ? '' : 'disabled'}></td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="bd" style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" data-action="map-cancel">Abbrechen</button><button class="btn primary" data-action="map-apply">✓ Übernehmen und Daten laden</button></div>
+  </div>`;
 }
 async function dbTest() {
   if (!token()) return toast('Bitte zuerst den API-Key eintragen.');
@@ -1818,12 +1923,15 @@ async function dbRefresh(demo = false) {
       let pages;
       if (demo) { pages = demoPages(s); logDb(`Demo: ${s.label} – erfundene Testdaten`); }
       else {
-        let ids = parseGroupIds(s.groupIds);
-        if (s.subgroups) { logDb(`${s.label}: suche Untergruppen von ${ids.join(', ')} …`); ids = await expandSubgroups(ids); logDb(`  → ${ids.length} Gruppen`); }
+        let ids = parseGroupIds(s.groupIds), tree = null; const roots = new Set(ids);
+        if (s.subgroups) { logDb(`${s.label}: suche Untergruppen von ${ids.join(', ')} …`); tree = await expandSubgroups(ids); ids = tree.ids; logDb(`  → ${ids.length} Gruppen`); }
+        s._tree = tree; s._roots = roots;
         pages = [];
         for (let i = 0; i < ids.length; i += 20) pages.push(...await apiAll('/api/roles', { 'filter[group_id]': ids.slice(i, i + 20).join(','), include: 'person,group' }));
       }
       const entries = WB.entriesFromJsonApi(pages, { label: s.label, catId: s.catId, owner: s.owner }, S.cats);
+      if (s._tree) for (const e of entries) { const top = topSubgroupName(e.groupId, s._roots, s._tree); if (top) e.group = top; }
+      delete s._tree; delete s._roots;
       const det = s.catId ? null : (entries[0] ? { catId: entries[0].catId } : null);
       logDb(`${s.label}: ${entries.length} Personen/Rollen geladen`);
       fresh.push({ id: 'db:' + s.id, kind: 'db', file: 'Cevi DB', sheet: '', block: '', label: s.label + (demo ? ' (Demo)' : ''), group: s.label,
@@ -2025,6 +2133,9 @@ document.addEventListener('click', (ev) => {
   }
   else if (a === 'dismiss-change') { if (S.lastChange) S.lastChange.dismissed = true; save(); render(); }
   else if (a === 'db-test') dbTest();
+  else if (a === 'db-read-groups') dbReadGroups();
+  else if (a === 'map-apply') applyMapping();
+  else if (a === 'map-cancel') { DBMAP = null; render(); }
   else if (a === 'db-refresh') dbRefresh(false);
   else if (a === 'db-demo') dbRefresh(true);
   else if (a === 'db-add') { S.db.sources.push({ id: uid(), label: 'Neue Gruppe', groupIds: '', catId: '', owner: '', subgroups: false }); save(); render(); }
@@ -2087,6 +2198,9 @@ document.addEventListener('change', (ev) => {
   if (t.id === 'aliasText') { S.aliasText = t.value; save(); render(); return; }
   if (t.id === 'autoAliases') { S.autoAliases = t.checked; save(); render(); return; }
   if (t.id === 'importDone') { S.importDone = t.checked; save(); render(); return; }
+  if (t.id === 'dbRoot') { S.db.rootGroup = t.value.trim(); save(); return; }
+  if (t.dataset.mapCat !== undefined && DBMAP) { const u = DBMAP.units[+t.dataset.mapCat]; u.catId = t.value; u.include = !!t.value; render(); return; }
+  if (t.dataset.mapInc !== undefined && DBMAP) { const u = DBMAP.units[+t.dataset.mapInc]; u.include = t.checked; render(); return; }
   if (t.id === 'dbBase') { S.db.baseUrl = t.value.trim(); save(); return; }
   if (t.id === 'dbToken') { if (S.db.rememberToken) S.db.token = t.value.trim(); sessionToken = t.value.trim(); save(); return; }
   if (t.id === 'dbRemember') { S.db.rememberToken = t.checked; S.db.token = t.checked ? sessionToken : ''; save(); return; }
@@ -2101,6 +2215,7 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Enter') return;
   const id = ev.target && ev.target.id;
   if (id === 'newCode' || id === 'newFirst' || id === 'newLast') { ev.preventDefault(); document.querySelector('[data-action="staff-add"]').click(); }
+  if (id === 'dbRoot') { ev.preventDefault(); S.db.rootGroup = ev.target.value.trim(); save(); dbReadGroups(); return; }
   if (id === 'newCat') { ev.preventDefault(); document.querySelector('[data-action="cat-add"]').click(); }
   if (ev.target && ev.target.dataset && ev.target.dataset.subNewname) { ev.preventDefault(); document.querySelector(`[data-sub-new="${ev.target.dataset.subNewname}"]`).click(); }
 });

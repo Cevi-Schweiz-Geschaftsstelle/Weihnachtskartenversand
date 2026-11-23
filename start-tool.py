@@ -25,11 +25,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urllib.parse.urlsplit(self.path).path
-        if path in ("/", "/index.html"):
-            self.send_response(302)
-            self.send_header("Location", "/" + urllib.parse.quote(HTML))
-            self.end_headers()
-            return
+        if path == "/":
+            # Startseite = das Tool (ohne Umleitung)
+            self.path = "/" + urllib.parse.quote(HTML)
+            return super().do_GET()
         if path == "/proxy-info.json":
             body = json.dumps({"target": TARGET}).encode()
             self.send_response(200)

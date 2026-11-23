@@ -123,6 +123,9 @@ input.cell:hover{border-color:var(--line)} input.cell:focus{border-color:var(--a
 .lnk{border:0;background:transparent;cursor:pointer;color:var(--accent);padding:0 3px;font-size:12px}
 .lnk.x{color:var(--soft)} .lnk.x:hover{color:var(--bad)}
 .cand.sugg{min-width:0}
+.sugg-wrap{position:relative;display:inline-flex}
+.sugg-x{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--soft);font-size:10px;line-height:1;cursor:pointer;padding:0;z-index:1}
+.sugg-x:hover{color:var(--bad);border-color:var(--bad)}
 .cand.sugg .who::before{content:none!important}
 .cand .code{font-variant:all-small-caps;letter-spacing:.04em;color:var(--accent-ink)}
 details.panel>summary{list-style:none} details.panel>summary::-webkit-details-marker{display:none}
@@ -1201,7 +1204,7 @@ function assign(key, owner) {
 const SETTINGS_TYPE = 'weihnachtsbrief-einstellungen';
 function exportSettings() {
   const data = { type: SETTINGS_TYPE, version: 3, exportedAt: new Date().toISOString(), staff: S.staff, cats: S.cats, order: S.order,
-    overrides: S.overrides, decisions: S.decisions, done: S.done, db: { baseUrl: S.db.baseUrl, sources: S.db.sources } };
+    overrides: S.overrides, decisions: S.decisions, done: S.done, ignoredSugg: S.ignoredSugg || [], db: { baseUrl: S.db.baseUrl, sources: S.db.sources } };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = `Weihnachtsbrief-Einstellungen_${new Date().toISOString().slice(0, 10)}.json`;
@@ -1219,7 +1222,7 @@ async function importSettings(file) {
     }
     if (Array.isArray(d.order)) S.order = d.order.filter(id => S.cats.some(c => c.id === id));
     for (const c of S.cats) if (!S.order.includes(c.id)) S.order.push(c.id);
-    S.overrides = d.overrides || {}; S.decisions = d.decisions || {}; if (d.done) S.done = d.done;
+    S.overrides = d.overrides || {}; S.decisions = d.decisions || {}; if (d.done) S.done = d.done; S.ignoredSugg = d.ignoredSugg || [];
     if (d.db) { S.db.baseUrl = d.db.baseUrl || S.db.baseUrl; if (Array.isArray(d.db.sources)) S.db.sources = d.db.sources; }
     save(); render(); toast(`Einstellungen geladen: ${S.staff.length} Zuständige, ${S.cats.length} Kategorien`);
   } catch (e) { toast('Konnte Einstellungen nicht laden: ' + e.message); }
@@ -1283,7 +1286,7 @@ function staffSuggestions() {
   const usage = staffUsage();
   const out = new Map();
   const add = (label, code, name) => {
-    if (!label || known.has(label) || out.has(label)) return;
+    if (!label || known.has(label) || out.has(label) || (S.ignoredSugg || []).includes(label)) return;
     if (code && S.staff.some(st => st.code === code)) return;
     const u = usage.get(label) || { send: 0, co: 0 };
     out.set(label, { label, code, name, send: u.send, co: u.co });
@@ -1326,6 +1329,7 @@ function settingsView() {
   const staffRows = S.staff.map(st => { const k = staffKey(st); const u = usage.get(k) || { send: 0, co: 0 }; return `<tr>
       <td><input class="cell" data-staff="${st.id}" data-k="code" value="${esc(st.code)}" placeholder="Kürzel" style="width:70px;text-transform:uppercase"></td>
       <td><input class="cell" data-staff="${st.id}" data-k="name" value="${esc(st.name)}" placeholder="Vorname Nachname" style="width:100%;min-width:150px"></td>
+      <td><input class="cell" data-staff="${st.id}" data-k="aliases" value="${esc((st.aliases || []).filter(a => a !== st.code && a !== st.name).join(', '))}" placeholder="–" title="Weitere Kürzel oder Namen, unter denen diese Person in den Listen steht (mit Komma trennen). Beispiel: GL – dann gehen alle GL-Briefe an diese Person." style="width:100%;min-width:70px"></td>
       <td>${catsOf(k).map(c => `<span class="chip cat">${catKeys(c)[0] === k ? '★ ' : ''}${esc(c.name)}</span>`).join('') || '<span class="muted small">–</span>'}</td>
       <td class="small" style="white-space:nowrap">${u.send ? `<a href="#" data-owner="${esc(k)}">${u.send} Briefe</a>` : '<span class="muted">0 Briefe</span>'}${u.co ? `<br><span class="muted">✍ ${u.co}× mit</span>` : ''}</td>
       <td><button class="btn small ghost danger" data-staff-del="${st.id}" title="Person entfernen">✕</button></td></tr>`; }).join('');
@@ -1343,7 +1347,7 @@ function settingsView() {
               ${j === 0 ? '<b title="Versendet">★</b>' : `<button class="lnk" data-cat-primary="${id}" data-key="${esc(k)}" title="Zur Hauptperson machen">☆</button>`}
               ${ownerHtml(k)}${isStaff(k) ? '' : ` <button class="lnk" data-staff-quick="${esc(k)}" title="Als Person erfassen">noch nicht erfasst – erfassen</button>`}
               <button class="lnk x" data-cat-remove="${id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')}
-          <select class="inline" data-cat-add="${id}"><option value="">＋ Person zuordnen …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc(st.code ? st.code + ' · ' : '')}${esc(st.name)}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
+          <select class="inline" data-cat-add="${id}"><option value="">＋ Person zuordnen …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc([st.code, st.name].filter(Boolean).join(' · '))}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
           ${!keys.length ? '<span class="small" style="color:var(--warn)">niemand zugeordnet – Zuständigkeit kommt aus der Liste</span>' : ''}
         </div>
       </div>
@@ -1364,14 +1368,15 @@ function settingsView() {
         <div class="bd" style="padding-bottom:6px">
           <div class="free" style="margin-top:0"><input id="newCode" placeholder="Kürzel" style="min-width:0;width:100px;text-transform:uppercase"><input id="newName" placeholder="Vorname Nachname" style="min-width:0;flex:1"><button class="btn small primary" data-action="staff-add">＋ Erfassen</button></div>
         </div>
-        ${S.staff.length ? `<div class="tablewrap"><table><thead><tr><th>Kürzel</th><th>Name</th><th>Kategorien</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
+        ${S.staff.length ? `<div class="tablewrap"><table><thead><tr><th>Kürzel</th><th>Name</th><th title="Weitere Kürzel/Namen aus den Listen, z.B. GL">Auch genannt</th><th>Kategorien</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
         ${sugg.length ? `<div class="bd" style="border-top:1px solid var(--line2)">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b class="small">In den Listen gefunden – noch nicht erfasst (${sugg.length})</b>${sugg.some(x => x.code && x.name && x.name !== x.code) ? `<button class="btn small right" data-action="staff-accept-all" title="Übernimmt alle Vorschläge mit Kürzel und Namen">Alle erkannten Personen übernehmen (${sugg.filter(x => x.code && x.name && x.name !== x.code).length})</button>` : ''}</div>
-          <div class="cands">${sugg.map(x => `<button class="cand sugg" data-staff-sugg="${esc(x.label)}" data-code="${esc(x.code)}" data-name="${esc(x.name)}" title="Übernehmen (danach bearbeitbar)">
+          <div class="cands">${sugg.map(x => `<span class="sugg-wrap"><button class="sugg-x" data-sugg-hide="${esc(x.label)}" title="Nicht mehr vorschlagen">✕</button><button class="cand sugg" data-staff-sugg="${esc(x.label)}" data-code="${esc(x.code)}" data-name="${esc(x.name)}" title="Übernehmen (danach bearbeitbar)">
             <div class="who">＋ ${x.code ? `<span class="code">${esc(x.code)}</span>` : ''} ${esc(x.name || '')}</div>
-            <div class="via">${x.send || x.co ? `${x.send} Briefe${x.co ? ` · ✍ ${x.co}× mit` : ''}` : 'aus Kategorie/Überblick'}${x.label !== x.code && x.label !== x.name ? ` · in Liste als „${esc(x.label)}"` : ''}</div></button>`).join('')}</div>
-          <div class="small muted" style="margin-top:8px">Kürzel und Namen stammen aus den Listen (Kürzel aus der Spalte „Zuständigkeit", Namen aus dem Blatt CCH). Gruppen wie „GL" oder „Team" kannst du auch erfassen oder ignorieren.</div>
+            <div class="via">${x.send || x.co ? `${x.send} Briefe${x.co ? ` · ✍ ${x.co}× mit` : ''}` : 'aus Kategorie/Überblick'}${x.label !== x.code && x.label !== x.name ? ` · in Liste als „${esc(x.label)}"` : ''}</div></button></span>`).join('')}</div>
+          <div class="small muted" style="margin-top:8px">Kürzel und Namen stammen aus den Listen (Kürzel aus der Spalte „Zuständigkeit", Namen aus dem Blatt CCH). Mit ✕ blendest du einen Vorschlag aus, z.B. Gruppen wie „GL" oder „Team".</div>
         </div>` : ''}
+        ${(S.ignoredSugg || []).length ? `<div class="bd small muted" style="border-top:1px solid var(--line2)">Ausgeblendet: ${S.ignoredSugg.map(esc).join(', ')} · <a href="#" data-action="sugg-unhide">wieder anzeigen</a></div>` : ''}
       </div>
       <details class="panel" style="margin-top:16px" ${S.sources.length ? '' : 'open'}>
         <summary class="hd" style="cursor:pointer"><h3>Importierte Listen</h3><span class="muted small">${S.sources.length} Listen aus ${new Set(S.sources.map(s => s.file)).size} Quellen</span></summary>
@@ -1724,7 +1729,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -1734,14 +1739,20 @@ document.addEventListener('click', (ev) => {
     if (st) { renameKey(t.dataset.staffSugg, staffKey(st)); save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); }
     return;
   }
+  if (t.dataset.suggHide) { S.ignoredSugg = [...new Set([...(S.ignoredSugg || []), t.dataset.suggHide])]; save(); render(); return; }
   if (t.dataset.staffDel) {
     const st = S.staff.find(x => x.id === t.dataset.staffDel); if (!st) return;
     const k = staffKey(st);
     if (!confirm(`${[st.code, st.name].filter(Boolean).join(' · ')} aus der Liste der Zuständigen entfernen?`)) return;
     S.staff = S.staff.filter(x => x !== st);
-    for (const c of S.cats) if (Array.isArray(c.persons)) c.persons = c.persons.filter(l => l !== k && resolveOwner(l) !== k);
+    for (const c of S.cats) {
+      const before = WB.catPersonLabels(c);
+      const after = before.filter(l => l !== k && resolveOwner(l) !== k);
+      if (after.length !== before.length) { c.persons = after; c.personsManual = true; }
+    }
     for (const [pk, v] of Object.entries(S.overrides)) if (v === k) delete S.overrides[pk];
-    save(); render(); return;
+    S.ignoredSugg = [...new Set([...(S.ignoredSugg || []), k])];
+    save(); render(); toast(`${k} entfernt. Briefe, bei denen in der Excel „${k}" steht, bleiben bei „${k}" – umleiten über „Auch genannt" bei einer Person.`); return;
   }
   if (t.dataset.staffQuick) {
     const label = t.dataset.staffQuick, m = staffFromData(label);
@@ -1796,6 +1807,7 @@ document.addEventListener('click', (ev) => {
     const st = addStaff(code, name);
     if (st) { save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); $('#newCode') && $('#newCode').focus(); }
   }
+  else if (a === 'sugg-unhide') { ev.preventDefault(); S.ignoredSugg = []; save(); render(); }
   else if (a === 'staff-accept-all') {
     const list = staffSuggestions().filter(x => x.code && x.name && x.name !== x.code); let n = 0;
     for (const x of list) { const st = addStaff(x.code, x.name, x.label); if (st) { renameKey(x.label, staffKey(st)); n++; } }
@@ -1828,6 +1840,13 @@ document.addEventListener('change', (ev) => {
   if (t.dataset.staff) {
     const st = S.staff.find(x => x.id === t.dataset.staff); if (!st) return;
     const k = t.dataset.k, oldKey = staffKey(st);
+    if (k === 'aliases') {
+      const list = t.value.split(/[,;]+/).map(x => x.trim()).filter(Boolean);
+      const taken = list.find(a => S.staff.some(o => o !== st && (o.code === a.toUpperCase() || (o.aliases || []).some(b => WB.fold(b) === WB.fold(a)))));
+      if (taken) { toast(`„${taken}" ist schon einer anderen Person zugeordnet.`); render(); return; }
+      st.aliases = list;
+      save(); render(); toast(list.length ? `${list.join(', ')} → ${[st.code, st.name].filter(Boolean).join(' · ')}` : 'Gespeichert'); return;
+    }
     let v = t.value.trim(); if (k === 'code') v = v.toUpperCase();
     if (k === 'code' && v && S.staff.some(x => x !== st && x.code === v)) { toast(`Kürzel ${v} ist schon vergeben.`); render(); return; }
     const prev = st[k]; st[k] = v;

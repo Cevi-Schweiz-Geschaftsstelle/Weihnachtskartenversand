@@ -1774,7 +1774,9 @@ const Cloud = {
       if (!this.account) { this.setStatus('login', 'Bitte mit Microsoft anmelden.'); return; }
       this.user = this.account.username || this.account.name || '';
       const u = new URL(this.cfg().siteUrl);
-      const sres = await this.gfetch(`/sites/${u.hostname}:${u.pathname.replace(/\/+$/, '')}`);
+      // nur „/sites/<Name>" bzw. „/teams/<Name>" – Reste wie „/SitePages/Home.aspx" oder „/Freigegebene Dokumente" weglassen
+      const m = decodeURIComponent(u.pathname).match(/^\/(sites|teams)\/[^/]+/i);
+      const sres = await this.gfetch(`/sites/${u.hostname}:${m ? encodeURI(m[0]) : u.pathname.replace(/\/+$/, '')}`);
       if (!sres.ok) throw await this.fail(sres);
       this.siteId = (await sres.json()).id;
       const remote = await this.download();

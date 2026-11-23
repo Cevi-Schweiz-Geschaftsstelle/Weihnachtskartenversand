@@ -33,6 +33,27 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
 
 **Einstellungen speichern/laden** (Tab Zuständigkeit → Daten): Damit lassen sich Zuständige, Kategorien und Zuteilungen auf einen anderen Computer oder von der Offline- in die Online-Version übertragen. Die Datei enthält Namen und gehört **nicht** in dieses Repository.
 
+## Gemeinsam arbeiten (Microsoft 365)
+
+Mit dem Knopf **„☁ Gemeinsam arbeiten"** liegt der Stand des Tools in einer SharePoint-Website von Cevi statt nur im eigenen Browser. Dazu gehören Listen, Zuständige, Kategorien, Zuteilungen, Duplikat-Entscheide und Erledigt-Häkchen.
+
+- Jede Person meldet sich mit ihrem **eigenen Cevi-Microsoft-Konto** an.
+- Alle Mitglieder der Website sehen denselben Stand. Änderungen erscheinen bei den anderen nach etwa 20 Sekunden.
+- **Gleichzeitige Änderungen** werden zusammengeführt. Haben zwei Personen denselben Wert verschieden geändert, gilt die zuletzt gespeicherte Änderung.
+- Der **API-Key der Cevi DB** wird nicht geteilt. Die Person, die die Daten aus der DB lädt, speichert sie für alle. Alle anderen brauchen keinen Key.
+- Gespeichert wird die Datei `Weihnachtsbrief-Tool/zustand.json` in der Standard-Dokumentbibliothek der Website.
+
+**Einrichtung durch die IT:**
+- SharePoint-Website anlegen.
+- App-Registrierung in Entra ID:
+  - Single-Page-Anwendung,
+  - Umleitungs-URI `https://fabulousteaching.github.io/Weihnachtskartenversand/auth.html`,
+  - delegierte Graph-Berechtigungen `User.Read` und `Sites.ReadWrite.All`,
+  - Administratorzustimmung.
+- Zurückmelden: Tenant-ID, Client-ID und die Adresse der Website. Diese Werte trägt man einmal im Fenster „Gemeinsam arbeiten" ein. Später werden sie in `src/app.html` (`M365_DEFAULTS`) fest hinterlegt.
+
+Ohne diese Einrichtung arbeitet das Tool wie bisher nur auf dem eigenen Computer.
+
 ## Liste aktualisieren
 
 Eine neue Version ersetzt die alte. Wer auf der neuen Liste nicht mehr steht, fällt raus.
@@ -88,10 +109,11 @@ Der API-Key gibt Lesezugriff auf Personendaten. Er gehört nie ins Repository od
 ## Entwicklung
 
 ```
-src/app.html        Oberfläche (HTML/CSS/JS)
+src/app.html        Oberfläche (HTML/CSS/JS), inkl. Abgleich mit Microsoft 365
+src/auth.html       Rückkehrseite für die Microsoft-Anmeldung (MSAL „Redirect Bridge")
 src/core.js         Logik: Einlesen, Kategorien, Duplikate, Zuteilung
-vendor/             SheetJS (Excel lesen/schreiben, Apache-2.0)
-build.py            baut daraus index.html (eine Datei, läuft offline)
+vendor/             SheetJS (Excel, Apache-2.0), MSAL (Microsoft-Anmeldung, MIT)
+build.py            baut daraus index.html (eine Datei, läuft offline) und auth.html
 start-tool.py       lokaler Start mit Weiterleitung zur Cevi DB
 tests/test_core.js  Schnelltest der Logik mit erfundenen Daten
 ```

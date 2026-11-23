@@ -658,6 +658,44 @@
     return { codeNames, labelToCode, observed: [...observed].sort() };
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+
+  // ---------------------------------------------------------------------------
+  // Gemeinsamer Stand: Drei-Wege-Zusammenführung (Microsoft 365 / SharePoint)
+  // ---------------------------------------------------------------------------
+  const J = (x) => JSON.stringify(x === undefined ? null : x);
+  const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+  const keyedArr = (a) => Array.isArray(a) && a.length > 0 && a.every(x => isObj(x) && x.id !== undefined && x.id !== null);
+  /** Drei-Wege-Zusammenführung: base = letzter gemeinsamer Stand, l = meine Änderungen, r = Änderungen der anderen */
+  function merge3(b, l, r) {
+    if (J(l) === J(b)) return r;
+    if (J(r) === J(b)) return l;
+    if (J(l) === J(r)) return l;
+    if (isObj(l) && isObj(r)) {
+      const bb = isObj(b) ? b : {}, out = {};
+      for (const k of new Set([...Object.keys(bb), ...Object.keys(l), ...Object.keys(r)])) {
+        const inL = k in l, inR = k in r, inB = k in bb;
+        if (!inL && inB && J(r[k]) === J(bb[k])) continue;   // bei mir gelöscht
+        if (!inR && inB && J(l[k]) === J(bb[k])) continue;   // bei anderen gelöscht
+        if (!inL) { out[k] = r[k]; continue; }
+        if (!inR) { out[k] = l[k]; continue; }
+        out[k] = merge3(bb[k], l[k], r[k]);
+      }
+      return out;
+    }
+    if (Array.isArray(l) && Array.isArray(r) && (keyedArr(l) || keyedArr(r))) {
+      const toMap = (a) => new Map((Array.isArray(a) ? a : []).filter(isObj).map(x => [String(x.id), x]));
+      const mb = toMap(b), ml = toMap(l), mr = toMap(r), out = [];
+      for (const id of [...ml.keys(), ...[...mr.keys()].filter(i => !ml.has(i))]) {
+        const inL = ml.has(id), inR = mr.has(id), inB = mb.has(id);
+        if (!inL && inB && J(mr.get(id)) === J(mb.get(id))) continue;
+        if (!inR && inB && J(ml.get(id)) === J(mb.get(id))) continue;
+        out.push(!inL ? mr.get(id) : !inR ? ml.get(id) : merge3(mb.get(id), ml.get(id), mr.get(id)));
+      }
+      return out;
+    }
+    return l; // beide haben denselben Wert verschieden geändert → die eigene Änderung gilt
+  }
+
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, merge3, J, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);

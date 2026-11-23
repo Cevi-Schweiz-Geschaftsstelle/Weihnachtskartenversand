@@ -137,6 +137,8 @@ table.subtab .chip.pers{font-size:12px;padding:2px 3px 2px 7px}
 .chip.cat.sub{background:#eef3fb}
 table.dbmap tr.off td{color:var(--soft)} table.dbmap tr.hdr td{background:#fafbfc}
 .dbcol{max-width:1100px}
+#btnCloud.cloud-ok{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}
+#btnCloud.cloud-err{border-color:#e6b366;color:var(--warn);background:var(--warn-soft)}
 .modal-back{position:fixed;inset:0;background:rgba(17,24,39,.38);display:flex;align-items:flex-start;justify-content:center;z-index:70;padding:6vh 16px;overflow:auto}
 .modal-back[hidden]{display:none}
 .modal{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:min(560px,100%)}
@@ -216,6 +218,7 @@ tr.decided td{background:#fbfdfc}
         <div class="sub" id="subline">Adressen zusammenführen · Duplikate erkennen · Zuständigkeiten verteilen</div>
       </div>
       <div class="spacer"></div>
+      <button class="btn" id="btnCloud" title="Gemeinsam arbeiten über Microsoft 365 (SharePoint)">☁ Gemeinsam arbeiten</button>
       <button class="btn" id="btnImport" title="Excel- oder CSV-Dateien einlesen">⤓ Excel importieren</button>
       <button class="btn" id="btnRefresh" title="Daten live aus der Cevi DB neu laden">↻ Aus Cevi DB aktualisieren</button>
       <button class="btn primary" id="btnExport" title="Ergebnis als Excel herunterladen">⇩ Export Excel</button>
@@ -228,9 +231,11 @@ tr.decided td{background:#fbfdfc}
 </div>
 <div class="dropmask" id="dropmask">Excel-Datei hier loslassen</div>
 <div class="toast" id="toast"></div>
+<div class="modal-back" id="cloudModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cloudTitle"></div></div>
 <div class="modal-back" id="catModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="catModalTitle"></div></div>
 
 <script>/*__XLSX__*/</script>
+<script>/*__MSAL__*/</script>
 <script>/*__CORE__*/</script>
 <script>
 'use strict';
@@ -250,6 +255,7 @@ function defaultState() {
     decisions: {}, overrides: {}, done: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
           sources: [] },
+    m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
     ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', owner: '', only: '' }, assignFilter: 'open' },
   };
 }
@@ -300,6 +306,7 @@ function load() {
       s.version = 5;
     }
     s.staff = s.staff || [];
+    s.m365 = Object.assign({ tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false }, s.m365 || {});
     if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';
     if (s.db.groupExclude === undefined) s.db.groupExclude = 'Ehemalige';
     // alter, nie ausgefüllter Beispiel-Eintrag
@@ -308,11 +315,12 @@ function load() {
     return s;
   } catch (e) { console.warn(e); return defaultState(); }
 }
-function save() {
+function save(fromSync) {
   const copy = { ...S, db: { ...S.db } };
   if (!S.db.rememberToken) copy.db.token = '';
   try { localStorage.setItem(STORE_KEY, JSON.stringify(copy)); }
   catch (e) { toast('Konnte nicht lokal speichern: ' + e.message); }
+  if (!fromSync && typeof Cloud !== 'undefined' && Cloud.status === 'ok') Cloud.schedulePush();
 }
 function token() { return S.db.rememberToken ? S.db.token : sessionToken; }
 
@@ -461,6 +469,7 @@ function renderNow() {
   $('#subline').textContent = S.sources.length
     ? `${S.sources.filter(s => s.kind === 'excel').length} Excel-Listen` + (S.sources.some(s => s.kind === 'db') ? ` · ${S.sources.filter(s => s.kind === 'db').length} Cevi-DB-Quellen (Stand ${fmtDate(S.db.lastRefresh)})` : '')
     : 'Adressen zusammenführen · Duplikate erkennen · Zuständigkeiten verteilen';
+  if (typeof Cloud !== 'undefined') Cloud.badge();
 }
 let NEW_KEYS = new Set();
 const isNew = (p) => NEW_KEYS.has(diffKey(p) + '#' + WB.key(p.zip));
@@ -816,6 +825,209 @@ function parsePersonInput(txt) {
   if (m && m[1] === m[1].toUpperCase()) return { code: m[1], name: m[2].trim() };
   if (/^[A-ZÄÖÜ]{2,4}$/.test(t)) return { code: t, name: '' };
   return { code: '', name: t }; // Kürzel wird dann automatisch aus Vor- und Nachname erstellt
+}
+
+
+// ---------------------------------------------------------------- Gemeinsam arbeiten (Microsoft 365 / SharePoint)
+// Der gemeinsame Stand liegt als Datei in der SharePoint-Website von Cevi. Jede Person meldet sich mit dem
+// eigenen Microsoft-Konto an; das Tool liest/schreibt die Datei über Microsoft Graph (mit eTag) und gleicht
+// regelmässig ab. Ändern zwei Personen gleichzeitig, werden beide Änderungen zusammengeführt.
+const M365_DEFAULTS = { tenantId: '', clientId: '', siteUrl: '' }; // nach Rückmeldung der IT hier fest eintragen
+const GRAPH = 'https://graph.microsoft.com/v1.0';
+const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
+const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'importDone', 'notes', 'ignoredSugg', 'version'];
+const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh'];
+const J = WB.J;
+/** Was alle teilen (ohne Ansicht, ohne API-Key, ohne Microsoft-Einstellungen) */
+function sharedOf(s) {
+  const o = {};
+  for (const k of SHARED_KEYS) if (s[k] !== undefined) o[k] = s[k];
+  o.db = {}; for (const k of DB_SHARED_KEYS) if (s.db[k] !== undefined) o.db[k] = s.db[k];
+  return JSON.parse(JSON.stringify(o));
+}
+function applyShared(sh) {
+  if (!sh) return;
+  sh = JSON.parse(JSON.stringify(sh)); // eigene Kopie: der eigene Stand darf den gemeinsamen Stand (base) nie mitverändern
+  for (const k of SHARED_KEYS) if (sh[k] !== undefined) S[k] = sh[k];
+  S.db = { ...S.db, ...(sh.db || {}) };
+}
+const merge3 = WB.merge3;
+const isEditing = () => { const a = document.activeElement; return !!a && (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !/^(checkbox|radio|button|file)$/i.test(a.type))); };
+class GraphError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
+
+const Cloud = {
+  status: 'off', msg: '', user: '', siteId: '', eTag: '', base: null, lastSync: null, busy: false, again: false, pushT: null, pollT: null, app: null, account: null,
+  cfg() { const c = { ...M365_DEFAULTS }; for (const k of ['tenantId', 'clientId', 'siteUrl']) if (S.m365[k]) c[k] = S.m365[k]; c.folder = S.m365.folder || 'Weihnachtsbrief-Tool'; return c; },
+  configured() { const c = this.cfg(); return !!(c.tenantId && c.clientId && c.siteUrl); },
+  setStatus(st, msg) { this.status = st; this.msg = msg || ''; this.badge(); if (!$('#cloudModal').hidden) cloudDialog(); },
+  badge() {
+    const b = $('#btnCloud'); if (!b) return;
+    const t = this.lastSync ? new Date(this.lastSync).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
+    const map = { off: '☁ Gemeinsam arbeiten', login: '☁ Anmelden', connecting: '☁ verbinde …', ok: `☁ Gemeinsam ✓${t ? ' ' + t : ''}`, error: '☁ Gemeinsam ⚠' };
+    b.textContent = map[this.status] || map.off;
+    b.classList.toggle('cloud-ok', this.status === 'ok'); b.classList.toggle('cloud-err', this.status === 'error');
+    b.title = this.status === 'ok' ? `Gemeinsamer Stand in SharePoint · angemeldet als ${this.user}${t ? ' · zuletzt abgeglichen ' + t : ''}` : this.msg || 'Gemeinsam arbeiten über Microsoft 365 (SharePoint)';
+  },
+  async auth() {
+    if (window.__WB_FAKE_AUTH) return window.__WB_FAKE_AUTH; // nur für automatische Tests
+    if (typeof msal === 'undefined') throw new Error('Die Microsoft-Anmeldebibliothek fehlt.');
+    if (!this.app) {
+      const c = this.cfg(), back = new URL('auth.html', location.href).href;
+      this.app = new msal.PublicClientApplication({ auth: { clientId: c.clientId, authority: 'https://login.microsoftonline.com/' + c.tenantId, redirectUri: back, postLogoutRedirectUri: back }, cache: { cacheLocation: 'localStorage' } });
+      await this.app.initialize();
+    }
+    const app = this.app;
+    return {
+      account: () => app.getAllAccounts()[0] || null,
+      login: async () => (await app.loginPopup({ scopes: SCOPES })).account,
+      token: async (acc) => { try { return (await app.acquireTokenSilent({ scopes: SCOPES, account: acc })).accessToken; } catch (e) { return (await app.acquireTokenPopup({ scopes: SCOPES, account: acc })).accessToken; } },
+      logout: async (acc) => { try { await app.logoutPopup({ account: acc }); } catch (e) { /* Fenster geschlossen */ } },
+    };
+  },
+  async gfetch(url, opts = {}) {
+    const a = await this.auth(), tok = await a.token(this.account);
+    return fetch(url.startsWith('http') ? url : GRAPH + url, { ...opts, headers: { Authorization: 'Bearer ' + tok, ...(opts.headers || {}) } });
+  },
+  async fail(res) {
+    let d = ''; try { const j = await res.json(); d = (j.error && (j.error.message || j.error.code)) || ''; } catch (e) { /* leer */ }
+    const hint = res.status === 401 ? ' – Anmeldung abgelaufen?' : res.status === 403 ? ' – keine Berechtigung auf die SharePoint-Website (Mitglied? Rechte der App?)' : res.status === 404 ? ' – SharePoint-Website nicht gefunden (Adresse prüfen)' : '';
+    return new GraphError(res.status, `Microsoft 365: HTTP ${res.status}${d ? ' ' + d : ''}${hint}`);
+  },
+  path() { return `/sites/${this.siteId}/drive/root:/${encodeURIComponent(this.cfg().folder)}/zustand.json`; },
+  // letzter gemeinsamer Stand auch lokal merken: so gehen Änderungen kurz vor einem Neuladen nicht verloren
+  keepBase() { try { localStorage.setItem(STORE_KEY + '-gemeinsam', JSON.stringify({ eTag: this.eTag, base: this.base })); } catch (e) { /* zu gross → nur im Speicher */ } },
+  storedBase() { try { return JSON.parse(localStorage.getItem(STORE_KEY + '-gemeinsam') || 'null'); } catch (e) { return null; } },
+  async download() {
+    const res = await this.gfetch(this.path());
+    if (res.status === 404) return null;
+    if (!res.ok) throw await this.fail(res);
+    const item = await res.json(), url = item['@microsoft.graph.downloadUrl'];
+    const r2 = url ? await fetch(url, { cache: 'no-store' }) : await this.gfetch(this.path() + ':/content');
+    if (!r2.ok) throw await this.fail(r2);
+    return { data: await r2.json(), eTag: item.eTag };
+  },
+  async upload(data, eTag) {
+    const send = () => this.gfetch(this.path() + ':/content', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(eTag ? { 'If-Match': eTag } : { 'If-None-Match': '*' }) }, body: JSON.stringify(data) });
+    let res = await send();
+    if (res.status === 404) { // Ordner fehlt → anlegen, dann nochmals
+      const mk = await this.gfetch(`/sites/${this.siteId}/drive/root/children`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: this.cfg().folder, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }) });
+      if (!mk.ok && mk.status !== 409) throw await this.fail(mk);
+      res = await send();
+    }
+    if (res.status === 412) return { conflict: true };
+    if (!res.ok) throw await this.fail(res);
+    return { eTag: (await res.json()).eTag };
+  },
+  async connect(interactive) {
+    if (!this.configured()) { if (interactive) cloudDialog(); return; }
+    this.setStatus('connecting', 'Verbinde mit Microsoft 365 …');
+    try {
+      const a = await this.auth();
+      this.account = a.account();
+      if (!this.account && interactive) this.account = await a.login();
+      if (!this.account) { this.setStatus('login', 'Bitte mit Microsoft anmelden.'); return; }
+      this.user = this.account.username || this.account.name || '';
+      const u = new URL(this.cfg().siteUrl);
+      const sres = await this.gfetch(`/sites/${u.hostname}:${u.pathname.replace(/\/+$/, '')}`);
+      if (!sres.ok) throw await this.fail(sres);
+      this.siteId = (await sres.json()).id;
+      const remote = await this.download();
+      if (!remote) {
+        const local = sharedOf(S), r = await this.upload(local, null);
+        if (r.conflict) return this.connect(interactive); // jemand war schneller
+        this.base = local; this.eTag = r.eTag; this.keepBase();
+        toast('Gemeinsamer Stand in SharePoint angelegt – alle Mitglieder der Website sehen jetzt dasselbe.');
+      } else {
+        const local = sharedOf(S);
+        const localHasData = (S.sources || []).length || (S.staff || []).length;
+        if (!S.m365.linked && localHasData && J(local) !== J(remote.data) &&
+            !confirm('In SharePoint gibt es schon einen gemeinsamen Stand.\n\nDiesen übernehmen? Dein bisheriger Stand auf diesem Computer wird dabei ersetzt.')) { this.disconnect(true); return; }
+        // schon verbunden gewesen: eigene, noch nicht übertragene Änderungen zusammenführen
+        const prior = this.base || (S.m365.linked && (this.storedBase() || {}).base) || null;
+        const merged = S.m365.linked && prior ? merge3(prior, local, remote.data) : remote.data;
+        this.base = remote.data; this.eTag = remote.eTag; this.keepBase();
+        applyShared(merged);
+        if (J(merged) !== J(remote.data)) this.schedulePush();
+      }
+      S.m365.enabled = true; S.m365.linked = true; save(true);
+      this.lastSync = Date.now(); this.setStatus('ok'); render();
+      this.startPolling();
+    } catch (e) { console.error(e); this.setStatus('error', e.message || String(e)); if (interactive) toast(e.message || String(e)); }
+  },
+  disconnect(silent) {
+    clearInterval(this.pollT); clearTimeout(this.pushT);
+    S.m365.enabled = false; S.m365.linked = false; this.base = null; this.eTag = ''; save(true);
+    try { localStorage.removeItem(STORE_KEY + '-gemeinsam'); } catch (e) { /* egal */ }
+    this.setStatus('off'); if (!silent) toast('Getrennt – das Tool arbeitet wieder nur auf diesem Computer.');
+  },
+  schedulePush() { clearTimeout(this.pushT); this.pushT = setTimeout(() => this.push(), 1200); },
+  async push() {
+    if (this.status !== 'ok') return;
+    if (this.busy) { this.again = true; return; }
+    this.busy = true;
+    try {
+      for (let i = 0; i < 6; i++) {
+        const local = sharedOf(S);
+        if (this.base && J(local) === J(this.base)) break;
+        const r = await this.upload(local, this.eTag);
+        if (!r.conflict) { this.base = local; this.eTag = r.eTag; this.keepBase(); this.lastSync = Date.now(); break; }
+        // jemand anderes hat inzwischen gespeichert → holen, zusammenführen, nochmals
+        const remote = await this.download();
+        const merged = merge3(this.base || {}, local, remote.data);
+        this.base = remote.data; this.eTag = remote.eTag; this.keepBase();
+        applyShared(merged); save(true); if (!isEditing()) render();
+      }
+      this.badge();
+    } catch (e) { console.error(e); this.setStatus('error', e.message || String(e)); }
+    finally { this.busy = false; if (this.again) { this.again = false; this.schedulePush(); } }
+  },
+  async poll() {
+    if (this.status !== 'ok' || this.busy || isEditing() || document.hidden) return;
+    try {
+      const res = await this.gfetch(this.path() + '?$select=eTag');
+      if (res.status === 404) { this.eTag = ''; this.base = null; return this.schedulePush(); } // Datei gelöscht → neu anlegen
+      if (!res.ok) throw await this.fail(res);
+      const m = await res.json();
+      this.lastSync = Date.now();
+      if (m.eTag === this.eTag) { this.badge(); return; }
+      const remote = await this.download(), local = sharedOf(S);
+      const merged = merge3(this.base || {}, local, remote.data);
+      this.base = remote.data; this.eTag = remote.eTag; this.keepBase();
+      applyShared(merged); save(true); render();
+      if (J(merged) !== J(remote.data)) this.schedulePush();
+    } catch (e) { console.error(e); this.setStatus('error', e.message || String(e)); }
+  },
+  startPolling() { clearInterval(this.pollT); this.pollT = setInterval(() => this.poll(), window.__WB_POLL_MS || 20000); },
+  start() {
+    this.badge();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.poll(); });
+    if (S.m365.enabled && this.configured()) this.connect(false);
+  },
+};
+function cloudDialog() {
+  const c = Cloud.cfg(), fixed = !!(M365_DEFAULTS.tenantId && M365_DEFAULTS.clientId && M365_DEFAULTS.siteUrl);
+  const st = { off: 'Nur auf diesem Computer', login: 'Anmeldung nötig', connecting: 'Verbinde …', ok: 'Verbunden – alle sehen denselben Stand', error: 'Fehler' }[Cloud.status];
+  const m = $('#cloudModal');
+  m.querySelector('.modal').innerHTML = `
+    <div class="hd"><h3 id="cloudTitle">☁ Gemeinsam arbeiten (Microsoft 365)</h3></div>
+    <div class="bd">
+      <p class="small" style="margin-top:0">Mit Microsoft angemeldet, liegt der Stand des Tools in der SharePoint-Website von Cevi: Listen, Zuständige, Zuteilungen, Erledigt-Häkchen. Alle Mitglieder der Website sehen und bearbeiten denselben Stand; Änderungen erscheinen bei den anderen nach etwa 20 Sekunden. Der API-Key der Cevi DB bleibt auf diesem Computer.</p>
+      <div class="callout ${Cloud.status === 'error' ? 'warn' : ''}" style="margin:10px 0"><b>Status:</b> ${esc(st)}${Cloud.user && Cloud.status === 'ok' ? ` · angemeldet als ${esc(Cloud.user)}` : ''}${Cloud.lastSync && Cloud.status === 'ok' ? ` · abgeglichen ${new Date(Cloud.lastSync).toLocaleTimeString('de-CH')}` : ''}${Cloud.msg && Cloud.status !== 'ok' ? `<div class="small" style="margin-top:4px">${esc(Cloud.msg)}</div>` : ''}</div>
+      <details ${fixed || Cloud.configured() ? '' : 'open'}><summary class="small" style="cursor:pointer"><b>Angaben der IT</b> ${Cloud.configured() ? '<span class="muted">(eingetragen)</span>' : '<span style="color:var(--warn)">(fehlen noch)</span>'}</summary>
+        <div class="form" style="margin-top:10px;grid-template-columns:150px 1fr">
+          <label for="m365Tenant">Verzeichnis-ID</label><input type="text" id="m365Tenant" value="${esc(c.tenantId)}" placeholder="Tenant-ID (GUID)" ${fixed ? 'disabled' : ''}>
+          <label for="m365Client">Anwendungs-ID</label><input type="text" id="m365Client" value="${esc(c.clientId)}" placeholder="Client-ID (GUID)" ${fixed ? 'disabled' : ''}>
+          <label for="m365Site">SharePoint-Website</label><input type="url" id="m365Site" value="${esc(c.siteUrl)}" placeholder="https://….sharepoint.com/sites/…" ${fixed ? 'disabled' : ''}>
+        </div>
+        <div class="small muted" style="margin-top:6px">Die Anmelde-Rückkehrseite für die App-Registrierung: <span class="kbd">${esc(new URL('auth.html', location.href).href)}</span></div>
+      </details>
+    </div>
+    <div class="ft">
+      ${Cloud.status === 'ok' ? '<button class="btn ghost danger" data-action="cloud-off">Trennen</button><button class="btn" data-action="cloud-sync">↻ Jetzt abgleichen</button>' : ''}
+      <button class="btn ghost" data-action="cloud-close">Schliessen</button>
+      ${Cloud.status !== 'ok' ? '<button class="btn primary" data-action="cloud-connect">Mit Microsoft anmelden und verbinden</button>' : ''}
+    </div>`;
+  m.hidden = false;
 }
 
 // ---------------------------------------------------------------- Dialog: Kategorien einer Person
@@ -1586,7 +1798,7 @@ document.addEventListener('click', (ev) => {
   else if (a === 'import') $('#fileInput').click();
   else if (a === 'reset-done') { if (confirm('Alle Erledigt-Häkchen entfernen?')) { S.done = {}; S.importDone = false; save(); render(); } }
   else if (a === 'reset-manual') { if (confirm('Manuelle Zuteilungen und Duplikat-Entscheide zurücksetzen?')) { S.overrides = {}; S.decisions = {}; save(); render(); } }
-  else if (a === 'wipe') { if (confirm('Wirklich alle importierten Daten und Einstellungen auf diesem Computer löschen?')) { localStorage.removeItem(STORE_KEY); S = defaultState(); sessionToken = ''; render(); } }
+  else if (a === 'wipe') { if (confirm('Wirklich alle importierten Daten und Einstellungen auf diesem Computer löschen?' + (Cloud.status === 'ok' ? '\n\nDer gemeinsame Stand in SharePoint bleibt erhalten; dieser Computer wird davon getrennt.' : ''))) { Cloud.disconnect(true); localStorage.removeItem(STORE_KEY); localStorage.removeItem(STORE_KEY + '-gemeinsam'); S = defaultState(); sessionToken = ''; render(); } }
   else if (a === 'accept-all') {
     const todo = R.people.filter(p => !p.overridden && p.isDuplicate && p.owner && needsChoice(p));
     if (!todo.length) return toast('Nichts mehr offen.');
@@ -1597,6 +1809,10 @@ document.addEventListener('click', (ev) => {
   else if (a === 'export-assign') exportAssign();
   else if (a === 'settings-export') exportSettings();
   else if (a === 'settings-import') $('#settingsInput').click();
+  else if (a === 'cloud-connect') { readCloudFields(); Cloud.app = null; Cloud.connect(true); }
+  else if (a === 'cloud-sync') { Cloud.poll(); Cloud.schedulePush(); }
+  else if (a === 'cloud-off') { if (confirm('Vom gemeinsamen Stand trennen? Der aktuelle Stand bleibt auf diesem Computer, wird aber nicht mehr abgeglichen.')) { Cloud.disconnect(); cloudDialog(); } }
+  else if (a === 'cloud-close') $('#cloudModal').hidden = true;
   else if (a === 'modal-save') saveCatDialog();
   else if (a === 'modal-close') closeCatDialog(true);
   else if (a === 'staff-add') {
@@ -1698,6 +1914,7 @@ document.addEventListener('change', (ev) => {
   if (t.id === 'fcat' || t.id === 'fowner' || t.id === 'fonly') { S.ui.filter[{ fcat: 'cat', fowner: 'owner', fonly: 'only' }[t.id]] = t.value; save(); render(); return; }
 });
 document.addEventListener('keydown', (ev) => {
+  if (!$('#cloudModal').hidden && ev.key === 'Escape') { $('#cloudModal').hidden = true; return; }
   if (!$('#catModal').hidden) {
     if (ev.key === 'Escape') { ev.preventDefault(); closeCatDialog(true); }
     if (ev.key === 'Enter' && !(ev.target && ev.target.tagName === 'BUTTON')) { ev.preventDefault(); saveCatDialog(); }
@@ -1721,6 +1938,14 @@ document.addEventListener('input', (ev) => {
 });
 // Auf-/Zuklappen der Untergruppen merken („toggle" bubbelt nicht → capture)
 document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } }, true);
+function readCloudFields() {
+  const v = (id) => { const el = $(id); return el && !el.disabled ? el.value.trim() : undefined; };
+  const t = v('#m365Tenant'), c = v('#m365Client'), s2 = v('#m365Site');
+  if (t !== undefined) S.m365.tenantId = t; if (c !== undefined) S.m365.clientId = c; if (s2 !== undefined) S.m365.siteUrl = s2;
+  save(true);
+}
+$('#btnCloud').addEventListener('click', () => cloudDialog());
+$('#cloudModal').addEventListener('click', (e) => { if (e.target.id === 'cloudModal') $('#cloudModal').hidden = true; });
 $('#catModal').addEventListener('click', (e) => { if (e.target.id === 'catModal') closeCatDialog(true); });
 $('#btnImport').addEventListener('click', () => $('#fileInput').click());
 $('#btnExport').addEventListener('click', () => exportExcel());
@@ -1735,6 +1960,7 @@ window.addEventListener('drop', (e) => { e.preventDefault(); dragN = 0; $('#drop
 if (S.db.rememberToken) sessionToken = S.db.token;
 render();
 detectProxy();
+Cloud.start();
 </script>
 </body>
 </html>

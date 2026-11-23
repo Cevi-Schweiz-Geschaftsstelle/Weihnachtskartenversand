@@ -103,6 +103,28 @@ assert.strictEqual(WB.buildPeople(mixed, { cats, aliases: new Map(), codeNames: 
   assert.strictEqual(r.people[0].owner, 'SJV', 'eigene Zuständigkeit geht vor');
 }
 
+// Gemeinsamer Stand: gleichzeitige Änderungen zusammenführen
+{
+  const base = { staff: [{ id: 'a', code: 'AAA' }], done: {}, decisions: {}, order: ['x', 'y'], cats: [{ id: 'k', name: 'K', persons: [] }] };
+  const mine = JSON.parse(JSON.stringify(base)); mine.staff.push({ id: 'z', code: 'ZZE' }); mine.done.p1 = true;
+  const theirs = JSON.parse(JSON.stringify(base)); theirs.decisions.q = 'different'; theirs.cats[0].persons = ['AAA']; theirs.done.p2 = true;
+  const m = WB.merge3(base, mine, theirs);
+  assert.deepStrictEqual(m.staff.map(x => x.id), ['a', 'z'], 'neue Person von mir bleibt');
+  assert.deepStrictEqual(m.done, { p1: true, p2: true }, 'Häkchen beider bleiben');
+  assert.strictEqual(m.decisions.q, 'different', 'Entscheid der anderen bleibt');
+  assert.deepStrictEqual(m.cats[0].persons, ['AAA'], 'Zuordnung der anderen bleibt');
+  // gelöscht bei mir, unverändert bei den anderen → bleibt gelöscht
+  const del = JSON.parse(JSON.stringify(base)); del.staff = [];
+  assert.deepStrictEqual(WB.merge3(base, del, base).staff, []);
+  // gelöscht bei den anderen, von mir unverändert → bleibt gelöscht; von mir geändert → bleibt
+  assert.deepStrictEqual(WB.merge3(base, base, del).staff, []);
+  const chg = JSON.parse(JSON.stringify(base)); chg.staff[0].code = 'BBB';
+  assert.deepStrictEqual(WB.merge3(base, chg, del).staff.map(x => x.code), ['BBB']);
+  // derselbe Wert verschieden geändert → eigene Änderung gilt
+  const a1 = { done: { p: true } }, b1 = { done: { p: false } };
+  assert.strictEqual(WB.merge3({ done: {} }, a1, b1).done.p, true);
+}
+
 // Kürzel-Regel: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname
 assert.strictEqual(WB.makeCode('Anna', 'Beispiel'), 'ABE');
 assert.strictEqual(WB.makeCode('Lea Sophie', 'Müller'), 'LMÜ');

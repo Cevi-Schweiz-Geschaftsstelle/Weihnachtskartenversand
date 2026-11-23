@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Anmeldung – Weihnachtsbrief-Tool</title>
+</head>
+<body style="font:15px system-ui,sans-serif;color:#555;padding:24px">
+<p id="msg">Anmeldung wird abgeschlossen …</p>
+<!-- Rückkehrseite für die Microsoft-Anmeldung (MSAL v5 „Redirect Bridge"): gibt die Antwort an das Tool-Fenster weiter -->
+<script>/*__BRIDGE__*/</script>
+<script>
+msalRedirectBridge.broadcastResponseToMainFrame().catch(function (e) {
+  document.getElementById('msg').textContent = 'Anmeldung konnte nicht abgeschlossen werden: ' + (e && e.message || e);
+});
+</script>
+</body>
+</html>

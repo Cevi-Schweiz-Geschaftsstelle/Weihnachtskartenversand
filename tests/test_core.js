@@ -84,6 +84,25 @@ assert.deepStrictEqual([orgs[0].org, orgs[0].street, orgs[0].nr, orgs[0].zip], [
 const mixed = [{ ...orgs[0], uid: 900, origin: 'db' }, { org: 'Cevi Region Test', first: 'z.Hd. Team', last: '', street: 'Testweg', nr: '9', zip: '3000', town: 'Bern', catId: 'mio', group: 'Regionalverbände', uid: 901, origin: 'excel' }];
 assert.strictEqual(WB.buildPeople(mixed, { cats, aliases: new Map(), codeNames: {} }).people.length, 1, 'gleiche Organisation + PLZ = ein Brief');
 
+// Verschachtelte Untergruppen: jede Ebene einzeln, Vererbung von der Obergruppe
+{
+  const t = WB.subgroupTree('Ausschüsse', ['1'], [
+    { id: '2', name: 'Liegenschaften & Projekte', parentId: '1' }, { id: '3', name: 'Partner & Politik', parentId: '1' },
+    { id: '4', name: 'SAJV', parentId: '3' }, { id: '5', name: 'Leitung', parentId: '2' }, { id: '6', name: 'Leitung', parentId: '3' }]);
+  const by = Object.fromEntries(t.subs.map(x => [x.name, x]));
+  assert.deepStrictEqual(t.subs.map(x => x.name), ['Liegenschaften & Projekte', 'Liegenschaften & Projekte › Leitung', 'Partner & Politik', 'Partner & Politik › Leitung', 'SAJV']);
+  assert.strictEqual(by['SAJV'].parentGk, by['Partner & Politik'].gk);
+  assert.strictEqual(by['SAJV'].depth, 1);
+  assert.strictEqual(by['SAJV'].gk, WB.groupKey('Ausschüsse', 'SAJV'), 'passt zum Excel-Block „SAJV"');
+  const ca = cats.map(c => c.id === 'ausschuesse' ? { ...c, groups: Object.fromEntries(t.subs.map(x => [x.gk, { name: x.name, persons: x.name === 'Partner & Politik' ? ['PPO'] : [], parentGk: x.parentGk }])) } : c);
+  const es = [{ first: 'Sara', last: 'Sajv', zip: '3000', street: 'Weg', nr: '1', catId: 'ausschuesse', group: 'SAJV', owner: '', uid: 1, origin: 'db' }];
+  let r = WB.buildPeople(es, { cats: ca, aliases: new Map(), codeNames: {} });
+  assert.strictEqual(r.people[0].owner, 'PPO', 'SAJV erbt von Partner & Politik');
+  ca.find(c => c.id === 'ausschuesse').groups[by['SAJV'].gk].persons = ['SJV'];
+  r = WB.buildPeople(es, { cats: ca, aliases: new Map(), codeNames: {} });
+  assert.strictEqual(r.people[0].owner, 'SJV', 'eigene Zuständigkeit geht vor');
+}
+
 // Kürzel-Regel: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname
 assert.strictEqual(WB.makeCode('Anna', 'Beispiel'), 'ABE');
 assert.strictEqual(WB.makeCode('Lea Sophie', 'Müller'), 'LMÜ');

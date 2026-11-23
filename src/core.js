@@ -51,6 +51,33 @@
     const drop = new Set([cn, cn.replace(/n$/, ''), cn.replace(/en$/, ''), 'fg', 'pg', 'und', '&', '+', '-']);
     return textKey(group).split(' ').filter(w => w && !drop.has(w)).join('').replace(/[^a-z0-9]/g, '');
   }
+  /**
+   * Baum einer geladenen DB-Gruppe → Untergruppen der Kategorie.
+   * nodes: [{id, name, parentId}] (ohne die Wurzel); rootIds: Set der geladenen Gruppen.
+   * Jede Gruppe wird eine eigene Untergruppe (auch tiefere Ebenen). Name = eigener Name,
+   * bei gleichnamigen Gruppen innerhalb der Kategorie „Obergruppe › Gruppe".
+   * Gibt { subs: [{id, gk, name, parentGk, depth, order}], nameOf: Map(id → Name) } zurück.
+   */
+  function subgroupTree(catName, rootIds, nodes) {
+    const byId = new Map(nodes.map(n => [String(n.id), n]));
+    const kids = new Map();
+    for (const n of nodes) { const p = String(n.parentId || ''); if (!kids.has(p)) kids.set(p, []); kids.get(p).push(n); }
+    for (const a of kids.values()) a.sort((x, y) => String(x.name).localeCompare(String(y.name), 'de'));
+    const own = (n) => groupKey(catName, n.name);
+    const count = new Map(); for (const n of nodes) { const k = own(n); if (k) count.set(k, (count.get(k) || 0) + 1); }
+    const label = (n) => { const k = own(n); if (k && count.get(k) === 1) return str(n.name); const p = byId.get(String(n.parentId)); return p ? str(p.name) + ' › ' + str(n.name) : str(n.name); };
+    const subs = [], nameOf = new Map(); let order = 0;
+    const walk = (parentId, depth, parentGk) => {
+      for (const n of kids.get(String(parentId)) || []) {
+        const name = label(n), gk = groupKey(catName, name);
+        nameOf.set(String(n.id), name);
+        if (gk) subs.push({ id: String(n.id), gk, name, parentGk: parentGk || '', depth, order: order++ });
+        walk(n.id, depth + 1, gk || parentGk);
+      }
+    };
+    for (const r of rootIds) walk(r, 0, '');
+    return { subs, nameOf };
+  }
   /** Zuständige einer Untergruppe (Kürzel/Namen) */
   function groupPersonLabels(c, gk) { const g = c && c.groups && gk ? c.groups[gk] : null; return g && Array.isArray(g.persons) ? g.persons.map(str).filter(Boolean) : []; }
   /** Zuständige einer Kategorie (Liste von Kürzeln/Namen); kompatibel mit altem Feld „owner" */
@@ -423,7 +450,16 @@
       const c = catById[e.catId]; if (!c || !c.groups) return [];
       const gk = groupKey(c.name, e.group); if (!gk) return [];
       const ck = e.catId + '|' + gk;
-      if (!groupPersonCache.has(ck)) groupPersonCache.set(ck, [...new Set(groupPersonLabels(c, gk).map(l => aliasOf(l)).filter(Boolean))]);
+      if (!groupPersonCache.has(ck)) {
+        // eigene Zuständige, sonst von der Obergruppe erben (z.B. SAJV → Partner & Politik)
+        let cur = gk, list = [], guard = 0;
+        while (cur && guard++ < 15) {
+          list = [...new Set(groupPersonLabels(c, cur).map(l => aliasOf(l)).filter(Boolean))];
+          if (list.length) break;
+          cur = c.groups[cur] && c.groups[cur].parentGk;
+        }
+        groupPersonCache.set(ck, list);
+      }
       return groupPersonCache.get(ck);
     };
     const aliasOf = (o) => { const s = normOwner(o); if (!s) return ''; return (opts.aliases && opts.aliases.get(fold(s))) || s; };
@@ -622,6 +658,6 @@
     return { codeNames, labelToCode, observed: [...observed].sort() };
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);

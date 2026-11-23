@@ -50,8 +50,10 @@ main{flex:1;padding:18px 22px 40px}
 .panel>.bd{padding:14px 16px}
 .muted{color:var(--muted)} .small{font-size:12.5px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.catcol{max-width:1180px}
 .grid2.resp{grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr)}
-@media (max-width:1100px){.grid2{grid-template-columns:1fr}}
+.grid2.resp.wl{grid-template-columns:minmax(0,1.65fr) minmax(300px,1fr)}
+@media (max-width:1100px){.grid2,.grid2.resp.wl{grid-template-columns:1fr}}
 /* Zuständigkeiten */
 .split{display:grid;grid-template-columns:290px 1fr;gap:16px;align-items:start}
 @media (max-width:900px){.split{grid-template-columns:1fr}}
@@ -130,6 +132,7 @@ details.subs>summary::-webkit-details-marker{display:none}
 details.subs>summary::before{content:'▸';color:var(--soft)} details.subs[open]>summary::before{content:'▾'}
 table.subtab{width:100%;margin-top:6px} table.subtab td{border-bottom:1px solid var(--line2);padding:7px 6px;vertical-align:top}
 table.subtab tr:last-child td{border-bottom:0}
+table.subtab .sub-x{margin-left:auto;opacity:.5;white-space:nowrap} table.subtab tr:hover .sub-x{opacity:1}
 table.subtab td.sgname{width:32%;padding-top:9px}
 table.subtab select.inline{max-width:118px;font-size:12.5px;padding:2px 6px}
 table.subtab .chip.pers{font-size:12px;padding:2px 3px 2px 7px}
@@ -276,9 +279,9 @@ function defaultState() {
     cats: WB.DEFAULT_CATEGORIES.map(c => ({ ...c })),
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
-    aliasText: '', autoAliases: true, version: 5,
+    aliasText: '', autoAliases: true, version: 6,
     decisions: {}, overrides: {}, done: {}, importDone: true,
-    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
+    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
     ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', owner: '', only: '' }, assignFilter: 'open' },
@@ -330,10 +333,20 @@ function load() {
       if (s.db && typeof s.db.groupFilter === 'string') s.db.groupFilter = s.db.groupFilter.replace(/^\s*Krisenmanagement\s*$/m, 'Krisenmanagement › Cevi CH');
       s.version = 5;
     }
+    if (s.version < 6) {
+      // Version 6: abgeschlossene Projektgruppen und Archiv ausschliessen; alte Untergruppen ausserhalb von „Gruppe › Untergruppe" aufräumen
+      if (s.db && typeof s.db.groupExclude === 'string') {
+        const have = s.db.groupExclude.split(/\n+/).map(exclNorm).filter(Boolean);
+        const add = ['Archiv', 'Norwegen Lager 2025', 'ESG LTS 2025'].filter(t => !have.some(h => exclNorm(t).includes(h)));
+        if (add.length) s.db.groupExclude = [s.db.groupExclude.trim(), ...add].filter(Boolean).join('\n');
+      }
+      s._pruneV6 = true;
+      s.version = 6;
+    }
     s.staff = s.staff || [];
     s.m365 = Object.assign({ tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false }, s.m365 || {});
     if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';
-    if (s.db.groupExclude === undefined) s.db.groupExclude = 'Ehemalige';
+    if (s.db.groupExclude === undefined) s.db.groupExclude = 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025';
     // alter, nie ausgefüllter Beispiel-Eintrag
     s.db.sources = (s.db.sources || []).filter(x => !(x.label === 'Fachgruppen' && !String(x.groupIds || '').trim() && !x.auto));
     for (const st of s.staff) if (st.first === undefined && st.last === undefined) Object.assign(st, splitName(st.name));
@@ -375,10 +388,13 @@ function parseAliasText() {
 function recompute() {
   const entries = [];
   let n = 0;
+  const hidden = entryFilter();
   for (const src of S.sources) {
     if (src.enabled === false) continue;
     for (const e of src.entries) {
-      entries.push({ ...e, catId: src.perRow ? (e.catId || src.catId) : src.catId, uid: ++n, sourceId: src.id,
+      const catId = src.perRow ? (e.catId || src.catId) : src.catId;
+      if (hidden(catId, e.group)) continue;
+      entries.push({ ...e, catId, uid: ++n, sourceId: src.id,
         sourceLabel: (src.kind === 'db' ? 'Cevi DB: ' : '') + src.label, origin: src.kind === 'db' ? 'db' : 'excel' });
     }
   }
@@ -428,7 +444,7 @@ function subgroupsOf(c) {
     g.count++;
     const o = e.owner ? resolveOwner(e.owner) : ''; if (o) g.codes.set(o, (g.codes.get(o) || 0) + 1);
   }
-  for (const [gk, sg] of Object.entries(c.groups || {})) if (!m.has(gk) && (sg.manual || sg.fromDb || (sg.persons || []).length)) m.set(gk, { gk, name: sg.name || gk, count: 0, codes: new Map(), manual: !!sg.manual, fromDb: sg.fromDb });
+  for (const [gk, sg] of Object.entries(c.groups || {})) if (!m.has(gk) && !grpHidden(c, gk) && (sg.manual || sg.fromDb || (sg.persons || []).length)) m.set(gk, { gk, name: sg.name || gk, count: 0, codes: new Map(), manual: !!sg.manual, fromDb: sg.fromDb });
   for (const g of m.values()) { const sg = (c.groups || {})[g.gk] || {}; g.depth = sg.depth || 0; g.order = sg.order; g.parentGk = sg.parentGk || ''; }
   // Baum-Reihenfolge (Obergruppe vor ihren Untergruppen); Gruppen ohne Baum alphabetisch dahinter
   return [...m.values()].sort((a, b) => ((a.order ?? 1e6) - (b.order ?? 1e6)) || a.name.localeCompare(b.name, 'de'));
@@ -476,19 +492,20 @@ function render() {
   if (renderAgain) { renderAgain = false; setTimeout(render, 0); }
 }
 function renderNow() {
+  if (S.ui.tab === 'dups') S.ui.tab = 'assign'; // früherer Reiter „Duplikate" ist jetzt Teil von „Unvollständig"
   recompute();
   renderKpis();
   renderTabs();
   const t = S.ui.tab;
   const main = $('#main');
-  if (!S.sources.length && t !== 'db' && t !== 'settings') { main.innerHTML = emptyView(); bindDrop($('#bigdrop')); return; }
+  if (!S.sources.length && t !== 'db' && t !== 'settings' && t !== 'cats') { main.innerHTML = emptyView(); bindDrop($('#bigdrop')); return; }
   NEW_KEYS = new Set(((S.lastChange && S.lastChange.added) || []).map(a => a.k + '#' + a.zip));
   const top = '';
   if (t === 'owners') main.innerHTML = top + ownersView();
   else if (t === 'assign') main.innerHTML = assignView();
   else if (t === 'all') main.innerHTML = top + allView();
-  else if (t === 'dups') main.innerHTML = dupsView();
   else if (t === 'settings') main.innerHTML = top + settingsView();
+  else if (t === 'cats') main.innerHTML = catsView();
   else if (t === 'db') main.innerHTML = top + dbView();
   const big = $('#bigdrop'); if (big) bindDrop(big);
   $('#subline').textContent = S.sources.length
@@ -512,9 +529,10 @@ function renderKpis() {
     <div class="kpi ${open ? 'warn' : ''}"><div class="v">${open}</div><div class="l">ohne Zuständigkeit</div></div>
     <div class="kpi"><div class="v">${done} / ${P.length}</div><div class="l">erledigt (${pct}%)</div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
 }
+const openCount = () => openDecisions().length + R.review.length;
 function renderTabs() {
   const tabs = [
-    ['settings', 'Zuständigkeit', S.staff.length], ['assign', 'Zuteilen', openDecisions().length, openDecisions().length ? 'warn' : ''], ['owners', 'Pro Zuständige*r'], ['all', 'Masterliste', R.people.length], ['dups', 'Duplikate', R.review.length, R.review.length ? 'warn' : ''],
+    ['settings', 'Zuständigkeit', S.staff.length], ['cats', 'Kategorien', S.cats.length], ['assign', 'Unvollständig', openCount(), openCount() ? 'warn' : ''], ['owners', 'Pro Zuständige*r'], ['all', 'Masterliste', R.people.length],
     ['db', 'Cevi DB'],
   ];
   $('#tabs').innerHTML = tabs.map(([id, l, c, cls]) => `<button data-tab="${id}" class="${S.ui.tab === id ? 'on' : ''}">${l}${c !== undefined ? `<span class="count ${cls || ''}">${c}</span>` : ''}</button>`).join('');
@@ -611,7 +629,7 @@ function ownersView() {
             <button class="btn small" data-action="export-owner">⇩ Nur diese Liste</button>
           </div>
         </div>
-        ${!sel ? `<div class="bd"><div class="callout warn">Diese Empfänger haben weder in der Liste noch in der Kategorie eine Zuständigkeit. Im Tab <a href="#" data-tab="assign">Zuteilen</a> frei eine Person eintragen – oder eine Standard-Zuständigkeit pro Kategorie unter „Quellen & Einstellungen" setzen.</div></div>` : ''}
+        ${!sel ? `<div class="bd"><div class="callout warn">Diese Empfänger haben weder in der Liste noch in der Kategorie eine Zuständigkeit. Im Tab <a href="#" data-tab="assign">Unvollständig</a> frei eine Person eintragen – oder im Tab <a href="#" data-tab="cats">Kategorien</a> eine Zuständigkeit pro Kategorie setzen.</div></div>` : ''}
         ${send.length ? `<div class="tablewrap"><table>
           <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th>${!sel ? '<th>Zuständig</th>' : ''}<th>Unterschreiben auch</th></tr></thead>
           <tbody>${send.map(p => personRow(p, { showOwner: !sel })).join('')}</tbody></table></div>` : '<div class="empty">Keine eigenen Briefe.</div>'}
@@ -701,6 +719,7 @@ function assignView() {
   const decided = dups.filter(p => p.overridden || !needsChoice(p)).length;
   const showDup = dups.filter(p => f === 'all' ? true : f === 'done' ? (p.overridden || !needsChoice(p)) : (!p.overridden && needsChoice(p)));
   const showWithout = without.filter(p => f === 'all' ? true : f === 'done' ? p.overridden : !p.overridden);
+  const nOpen = openCount();
   const row = (p, kind) => `<tr class="${p.overridden ? 'decided' : ''}">
       <td style="min-width:190px"><div class="name">${esc(p.displayName)}</div>${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}<div class="org">${esc([p.zip, p.town].filter(Boolean).join(' '))}</div>
         <div style="margin-top:4px">${statusCell(p)}</div></td>
@@ -710,17 +729,19 @@ function assignView() {
   return `${ownerDatalist()}
   <div class="panel noprint" style="margin-bottom:16px"><div class="bd" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
     <div class="seg">${[['open', 'Noch zu entscheiden'], ['done', 'Erledigt'], ['all', 'Alle']].map(([k, l]) => `<button data-afilter="${k}" class="${f === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-    <span class="muted small">Klick auf eine Person = Hauptverantwortung (versendet den Brief). Alle anderen unterschreiben automatisch mit.</span>
+    <span class="muted small">${nOpen ? `<b>${nOpen} offen</b> · ` : '<b>Alles geklärt ✓</b> · '}Hier landet alles, was noch eine Entscheidung braucht: mögliche Duplikate, Adressen ohne Zuständigkeit und Personen in mehreren Listen.</span>
     <span class="right" style="display:flex;gap:6px"><button class="btn small" data-action="accept-all" title="Alle noch offenen Doppelten mit dem Vorschlag festlegen">✓ Restliche Vorschläge übernehmen</button><button class="btn small" data-action="export-assign">⇩ Liste als Excel</button><button class="btn small" data-action="print">⎙ Drucken</button></span>
   </div></div>
+  ${reviewPanel()}
+  <div class="section-title"><h3>2 · Ohne Zuständigkeit</h3><span class="muted small">${without.filter(p => p.overridden).length} von ${without.length} zugewiesen – Person frei eintragen (auch jemand, der in keiner Liste steht)</span></div>
   <div class="panel">
-    <div class="hd"><h2>Ohne Zuständigkeit</h2><span class="muted small">${without.filter(p => p.overridden).length} von ${without.length} zugewiesen – Person frei eintragen (auch jemand, der in keiner Liste steht)</span></div>
     ${showWithout.length ? `<div class="tablewrap"><table><thead><tr><th>Empfänger*in</th><th>Gefunden in · zuständig</th><th>Unterschreiben auch</th></tr></thead><tbody>${showWithout.map(p => row(p, 'none')).join('')}</tbody></table></div>` : `<div class="empty">${without.length ? 'Alle zugewiesen ✓' : 'Keine.'}</div>`}
   </div>
-  <div class="section-title"><h3>Mehrfach gelistet – Hauptverantwortung wählen</h3><span class="muted small">${decided} von ${dups.length} geklärt${dups.length - decided ? ` · <b>${dups.length - decided} offen</b>` : ' ✓'}</span></div>
+  <div class="section-title" id="sec-multi"><h3>3 · Mehrfach gelistet – Hauptverantwortung wählen</h3><span class="muted small">${decided} von ${dups.length} geklärt${dups.length - decided ? ` · <b>${dups.length - decided} offen</b>` : ' ✓'}</span></div>
   <div class="panel">
     ${showDup.length ? `<div class="tablewrap"><table><thead><tr><th>Empfänger*in</th><th>Zur Auswahl (Zuständige aus den Listen)</th><th>Unterschreiben auch</th></tr></thead><tbody>${showDup.map(p => row(p, 'dup')).join('')}</tbody></table></div>` : `<div class="empty">${f === 'open' ? 'Alles entschieden 🎉' : 'Keine.'}</div>`}
-  </div>`;
+  </div>
+  ${mergedPanel()}`;
 }
 function assign(key, owner) {
   if (!key) return;
@@ -763,8 +784,8 @@ function exportAssign() {
     'Unterschreiben auch': p.coSigners.map(c => c.owner).join(', '),
   }));
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheetFrom(rows, { 'Empfänger*in': 24, 'Organisation': 22, 'Gefunden in (Liste → zuständig)': 60, 'Zur Auswahl': 34, 'Name': 18, 'Unterschreiben auch': 20 }), 'Zuteilen');
-  XLSX.writeFile(wb, `Weihnachtsbriefe_Zuteilen_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, sheetFrom(rows, { 'Empfänger*in': 24, 'Organisation': 22, 'Gefunden in (Liste → zuständig)': 60, 'Zur Auswahl': 34, 'Name': 18, 'Unterschreiben auch': 20 }), 'Unvollständig');
+  XLSX.writeFile(wb, `Weihnachtsbriefe_Unvollstaendig_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 function whoBox(p) {
@@ -772,23 +793,27 @@ function whoBox(p) {
     <div class="small">${[p.street, p.nr].filter(Boolean).map(esc).join(' ')}${p.zip ? ', ' + esc(p.zip + ' ' + p.town) : ''}${p.email ? '<br>' + esc(p.email) : ''}</div>
     <div style="margin-top:4px">${membershipChips(p, false)}</div><div class="small muted">zuständig: ${ownerHtml(p.owner)}</div></div>`;
 }
-function dupsView() {
-  const merged = R.people.filter(p => p.isDuplicate);
-  return `<div class="panel">
-    <div class="hd"><h2>Bitte prüfen</h2><span class="muted small">Ähnliche Einträge, die nicht automatisch zusammengeführt wurden</span></div>
+function reviewPanel() {
+  return `<div class="section-title"><h3>1 · Mögliche Duplikate prüfen</h3><span class="muted small">Ähnliche Einträge, die nicht automatisch zusammengeführt wurden${R.review.length ? ` · <b>${R.review.length} offen</b>` : ' ✓'}</span></div>
+  <div class="panel">
     ${R.review.length ? R.review.map(r => `<div class="pair"><div><div class="why">${esc(r.why)}</div>${whoBox(r.a)}</div><div><div class="why">&nbsp;</div>${whoBox(r.b)}</div>
       <div class="acts"><button class="btn small primary" data-decide="same" data-pair="${esc(r.pairKey)}">Dieselbe Person</button><button class="btn small" data-decide="different" data-pair="${esc(r.pairKey)}">Verschiedene Personen</button></div></div>`).join('')
-    : '<div class="empty">Nichts zu prüfen 🎉</div>'}
-  </div>
-  <div class="section-title"><h3>Automatisch zusammengeführt (${merged.length})</h3><span class="muted small">Jede Person erhält nur einen Brief – die anderen Zuständigen unterschreiben mit.</span></div>
-  <div class="panel"><div class="tablewrap"><table>
-    <thead><tr><th>Person</th><th>Gefunden in (zuständig)</th><th>Erkannt über</th><th>Versendet von <a href="#" data-tab="assign" class="small">(ändern)</a></th><th>Unterschreiben auch</th><th></th></tr></thead>
+    : '<div class="empty" style="padding:14px">Nichts zu prüfen ✓</div>'}
+  </div>`;
+}
+function mergedPanel() {
+  const merged = R.people.filter(p => p.isDuplicate);
+  if (!merged.length) return '';
+  return `<details class="panel" data-merged style="margin-top:22px" ${S.ui.mergedOpen ? 'open' : ''}>
+    <summary class="hd" style="cursor:pointer"><h3>Automatisch zusammengeführt (${merged.length})</h3><span class="muted small">Jede Person erhält nur einen Brief – die anderen Zuständigen unterschreiben mit. Falsch zusammengeführt? „Trennen".</span></summary>
+    <div class="tablewrap"><table>
+    <thead><tr><th>Person</th><th>Gefunden in (zuständig)</th><th>Erkannt über</th><th>Versendet von <a href="#sec-multi" class="small">(ändern)</a></th><th>Unterschreiben auch</th><th></th></tr></thead>
     <tbody>${merged.map(p => `<tr><td><div class="name">${esc(p.displayName)}</div><div class="org">${esc([p.zip, p.town].filter(Boolean).join(' '))}</div>${notesHtml(p)}</td>
       <td>${p.memberships.map(m => `<div class="small">${m.origin === 'db' ? '● ' : ''}${esc(m.cat)}${m.group && m.group !== m.cat ? ' › ' + esc(m.group) : ''} <span class="muted">(${esc(m.owner || 'offen')})</span></div>`).join('')}</td>
       <td class="small">${p.mergeReasons.map(esc).join(', ')}</td>
       <td>${ownerHtml(p.owner)}<div>${statusCell(p)}</div></td><td>${coChips(p)}</td>
       <td><button class="btn small ghost" data-split="${esc(p.key)}" title="Falls das verschiedene Personen sind">Trennen</button></td></tr>`).join('')}</tbody>
-  </table></div></div>`;
+  </table></div></details>`;
 }
 
 function staffFromData(label) {
@@ -1196,6 +1221,7 @@ function saveCatDialog() {
   toast(added.length || removed.length ? `${key}: ${[added.length ? '+ ' + added.join(', ') : '', removed.length ? '− ' + removed.join(', ') : ''].filter(Boolean).join(' · ')}` : `${key}: keine Kategorien geändert`);
 }
 
+const removedOf = (c) => Object.entries(c.groups || {}).filter(([, g]) => g.removed).sort((a, b) => String(a[1].name).localeCompare(String(b[1].name), 'de'));
 function subsBlock(c) {
   const subs = subgroupsOf(c);
   const assigned = subs.filter(g => grpKeys(c, g.gk).length).length;
@@ -1217,13 +1243,14 @@ function subsBlock(c) {
           ${ownerHtml(k)}<button class="lnk x" data-sub-remove="${ref}" data-key="${esc(k)}" title="Aus Untergruppe entfernen">✕</button></span>`).join('')}
         <select class="inline" data-sub-add="${ref}" data-name="${esc(g.name)}"><option value="">＋ Person …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc([st.code, st.name].filter(Boolean).join(' · '))}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
         ${inh ? `<span class="small muted" title="Solange hier niemand eingetragen ist, gilt die Zuständigkeit der Obergruppe">erbt von ${esc(inh.name)}: ${inh.keys.map(k => `<span title="${esc(ownerName(k))}">${esc(k)}</span>`).join(', ')}</span>` : now}${!inh && !keys.length && top.length ? `<button class="lnk" data-sub-adopt="${ref}" data-name="${esc(g.name)}" data-val="${esc(top[0][0])}" title="${esc(ownerName(top[0][0]))} fest als Zuständige*n dieser Untergruppe eintragen">übernehmen</button>` : ''}
-        ${g.manual && !g.count ? `<button class="lnk x" data-sub-del="${ref}" title="Untergruppe löschen">löschen</button>` : ''}
+        <button class="lnk x sub-x" data-sub-hide="${ref}" data-name="${esc(g.name)}" title="Untergruppe entfernen – wird auch bei künftigen Importen ignoriert">✕ entfernen</button>
       </div></td></tr>`;
   };
   return `<details class="subs" data-subs="${c.id}" ${open ? 'open' : ''}>
     <summary><b>Untergruppen</b> <span class="small muted">${assigned} von ${subs.length} mit eigener Zuständigkeit</span>
       ${adoptable ? `<button class="btn small ghost" data-sub-adopt-all="${c.id}" title="Bei allen Untergruppen ohne Zuständigkeit die häufigste aus der Excel übernehmen">Alle aus Excel übernehmen (${adoptable})</button>` : ''}</summary>
     ${subs.length ? `<table class="subtab"><tbody>${subs.map(row).join('')}</tbody></table>` : '<div class="small muted" style="padding:6px 0">Noch keine Untergruppen – erscheinen nach dem Excel-Import oder hier von Hand anlegen.</div>'}
+    ${removedOf(c).length ? `<div class="small muted" style="padding:6px 0">Entfernt (wird beim Import ignoriert): ${removedOf(c).map(([gk, g]) => `${esc(g.name || gk)} <button class="lnk" data-sub-unhide="${c.id}|${esc(gk)}" title="Wiederherstellen">↺</button>`).join(' · ')}</div>` : ''}
     <div class="free"><input data-sub-newname="${c.id}" placeholder="Neue Untergruppe, z.B. Informatik" style="min-width:0;flex:1"><button class="btn small" data-sub-new="${c.id}">＋ Untergruppe</button></div>
   </details>`;
 }
@@ -1241,28 +1268,6 @@ function settingsView() {
         <button class="btn small ghost" data-cat-dialog="${esc(k)}" title="Kategorien dieser Person anpassen">✎ Kategorien</button></div></td>
       <td class="small" style="white-space:nowrap">${u.send ? `<a href="#" data-owner="${esc(k)}">${u.send} Briefe</a>` : '<span class="muted">0 Briefe</span>'}${u.co ? `<br><span class="muted">✍ ${u.co}× mit</span>` : ''}</td>
       <td><button class="btn small ghost danger" data-staff-del="${st.id}" title="Person entfernen">✕</button></td></tr>`; }).join('');
-  const catRows = S.order.map((id, i) => {
-    const c = S.cats.find(x => x.id === id); if (!c) return '';
-    const keys = catKeys(c);
-    const avail = S.staff.filter(st => !keys.includes(staffKey(st)));
-    return `<li>
-      <span class="rank">${i + 1}.</span>
-      <div>
-        <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><input class="cell catname" data-cat-name="${id}" value="${esc(c.name)}" title="Kategorie umbenennen">
-          <span class="small muted">${esc([c.source && !/\bDB\b/i.test(c.source) ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · '))}</span></div>
-        <div class="cands" style="margin-top:6px;align-items:center">
-          ${keys.map((k, j) => `<span class="chip pers ${isStaff(k) ? '' : 'unknown'}" title="${j === 0 ? 'Versendet standardmässig' : 'Unterschreibt mit – Klick auf ☆ macht diese Person zur Hauptperson'}">
-              ${j === 0 ? '<b title="Versendet">★</b>' : `<button class="lnk" data-cat-primary="${id}" data-key="${esc(k)}" title="Zur Hauptperson machen">☆</button>`}
-              ${ownerHtml(k)}${isStaff(k) ? '' : ` <button class="lnk" data-staff-quick="${esc(k)}" title="Als Person erfassen">noch nicht erfasst – erfassen</button>`}
-              <button class="lnk x" data-cat-remove="${id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')}
-          <select class="inline" data-cat-add="${id}"><option value="">＋ Person zuordnen …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc([st.code, st.name].filter(Boolean).join(' · '))}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
-          ${!keys.length ? `<span class="small" style="color:var(--warn)">${showSubs(c) ? 'auf Kategorie-Ebene niemand – Zuständigkeit pro Untergruppe' : 'niemand zugeordnet – Zuständigkeit kommt aus der Liste'}</span>` : ''}
-        </div>
-        ${showSubs(c) ? subsBlock(c) : ''}
-      </div>
-      <span style="white-space:nowrap"><button class="btn small ghost" data-move="${id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Höhere Priorität">▲</button><button class="btn small ghost" data-move="${id}" data-dir="1" ${i === S.order.length - 1 ? 'disabled' : ''} title="Tiefere Priorität">▼</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕</button>` : ''}</span>
-    </li>`;
-  }).join('');
   const srcRows = S.sources.map(s => `<tr>
     <td><input type="checkbox" data-src-enable="${esc(s.id)}" ${s.enabled !== false ? 'checked' : ''} title="Liste verwenden"></td>
     <td><div class="name">${esc(s.label)}</div><div class="org">${s.kind === 'db' ? 'Cevi DB · Stand ' + fmtDate(s.importedAt) : esc(s.file)}</div></td>
@@ -1270,10 +1275,10 @@ function settingsView() {
     <td>${s.perRow ? '<span class="muted small">pro Zeile (Spalte Kategorie/Rollen)</span>' : `<select class="inline" data-src-cat="${esc(s.id)}"><option value="">– keine –</option>${S.order.map(id => `<option value="${id}" ${s.catId === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select>`}</td>
     <td><span class="badge ${s.confidence === 'sicher' || s.confidence === 'manuell' ? 'ok' : s.confidence === 'wahrscheinlich' ? 'info' : 'warn'}">${esc(s.confidence)}</span><div class="small muted">${esc(s.detectedBy || '')}</div>${s.enabled === false && s.disabledBy ? `<div class="small" style="color:var(--warn)">ausgeschaltet – ersetzt durch ${esc(s.disabledBy)}</div>` : ''}</td>
     <td><button class="btn small ghost danger" data-src-del="${esc(s.id)}" title="Liste entfernen">✕</button></td></tr>`).join('');
-  return `<div class="grid2 resp">
+  return `<div class="grid2 resp wl">
     <div>
       <div class="panel">
-        <div class="hd"><h2>1 · Zuständige Personen</h2><span class="muted small">${S.staff.length} erfasst</span></div>
+        <div class="hd"><h2>Zuständige Personen</h2><span class="muted small">${S.staff.length} erfasst</span></div>
         <div class="bd" style="padding-bottom:6px">
           <div class="free" style="margin-top:0"><input id="newFirst" placeholder="Vorname" style="min-width:0;flex:1"><input id="newLast" placeholder="Nachname" style="min-width:0;flex:1"><input id="newCode" placeholder="Kürzel" title="Wird automatisch erstellt (1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname) – bei Bedarf überschreiben" style="min-width:0;width:80px;text-transform:uppercase"><button class="btn small primary" data-action="staff-add">＋ Erfassen</button></div>
           <div class="small muted" style="margin-top:4px">Das Kürzel entsteht automatisch: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname (z.B. Anna Beispiel → ABE).</div>
@@ -1288,7 +1293,9 @@ function settingsView() {
         </div>` : ''}
         ${(S.ignoredSugg || []).length ? `<div class="bd small muted" style="border-top:1px solid var(--line2)">Ausgeblendet: ${S.ignoredSugg.map(esc).join(', ')} · <a href="#" data-action="sugg-unhide">wieder anzeigen</a></div>` : ''}
       </div>
-      <details class="panel" style="margin-top:16px" ${S.sources.length ? '' : 'open'}>
+    </div>
+    <div>
+      <details class="panel" ${S.sources.length ? '' : 'open'}>
         <summary class="hd" style="cursor:pointer"><h3>Importierte Listen</h3><span class="muted small">${S.sources.length} Listen aus ${new Set(S.sources.map(s => s.file)).size} Quellen</span></summary>
         <div class="bd" style="display:flex;gap:8px"><button class="btn small" data-action="import">＋ Excel hinzufügen</button></div>
         ${S.sources.length ? `<div class="tablewrap"><table><thead><tr><th></th><th>Liste</th><th>Einträge</th><th>Kategorie</th><th>Erkennung</th><th></th></tr></thead><tbody>${srcRows}</tbody></table></div>`
@@ -1311,17 +1318,42 @@ function settingsView() {
         </div>
       </div>
     </div>
-    <div>
+  </div>`;
+}
+
+function catsView() {
+  const catRows = S.order.map((id, i) => {
+    const c = S.cats.find(x => x.id === id); if (!c) return '';
+    const keys = catKeys(c);
+    const avail = S.staff.filter(st => !keys.includes(staffKey(st)));
+    return `<li>
+      <span class="rank">${i + 1}.</span>
+      <div>
+        <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><input class="cell catname" data-cat-name="${id}" value="${esc(c.name)}" title="Kategorie umbenennen">
+          <span class="small muted">${esc([c.source && !/\bDB\b/i.test(c.source) ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · '))}</span></div>
+        <div class="cands" style="margin-top:6px;align-items:center">
+          ${keys.map((k, j) => `<span class="chip pers ${isStaff(k) ? '' : 'unknown'}" title="${j === 0 ? 'Versendet standardmässig' : 'Unterschreibt mit – Klick auf ☆ macht diese Person zur Hauptperson'}">
+              ${j === 0 ? '<b title="Versendet">★</b>' : `<button class="lnk" data-cat-primary="${id}" data-key="${esc(k)}" title="Zur Hauptperson machen">☆</button>`}
+              ${ownerHtml(k)}${isStaff(k) ? '' : ` <button class="lnk" data-staff-quick="${esc(k)}" title="Als Person erfassen">noch nicht erfasst – erfassen</button>`}
+              <button class="lnk x" data-cat-remove="${id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')}
+          <select class="inline" data-cat-add="${id}"><option value="">＋ Person zuordnen …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc([st.code, st.name].filter(Boolean).join(' · '))}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
+          ${!keys.length ? `<span class="small" style="color:var(--warn)">${showSubs(c) ? 'auf Kategorie-Ebene niemand – Zuständigkeit pro Untergruppe' : 'niemand zugeordnet – Zuständigkeit kommt aus der Liste'}</span>` : ''}
+        </div>
+        ${showSubs(c) ? subsBlock(c) : ''}
+      </div>
+      <span style="white-space:nowrap"><button class="btn small ghost" data-move="${id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Höhere Priorität">▲</button><button class="btn small ghost" data-move="${id}" data-dir="1" ${i === S.order.length - 1 ? 'disabled' : ''} title="Tiefere Priorität">▼</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕</button>` : ''}</span>
+    </li>`;
+  }).join('');
+  return `<div class="catcol">
       <div class="panel">
-        <div class="hd"><h2>2 · Kategorien</h2><span class="muted small">Personen zuordnen – auch mehrere pro Kategorie</span></div>
+        <div class="hd"><h2>Kategorien</h2><span class="muted small">Zuständige Personen zuordnen – auch mehrere pro Kategorie und pro Untergruppe</span></div>
         <div class="bd">
           <div class="callout" style="margin-bottom:6px"><b>★ versendet</b> den Brief, alle weiteren Personen der Kategorie unterschreiben mit (☆ anklicken macht jemand zur Hauptperson).
-            Bei <b>Untergruppen</b> (z.B. Fachgruppen › Informatik) lässt sich die Zuständigkeit einzeln festlegen – sie gilt vor allem anderen. Sonst gilt ein Kürzel in der Excel (Spalte „Zuständigkeit"), danach die Kategorie. Kommt jemand in mehreren Kategorien vor, ist die <b>obere</b> Kategorie der Vorschlag – festlegen im Tab <a href="#" data-tab="assign">Zuteilen</a>.</div>
+            Bei <b>Untergruppen</b> (z.B. Fachgruppen › Informatik) lässt sich die Zuständigkeit einzeln festlegen – sie gilt vor allem anderen. Sonst gilt ein Kürzel in der Excel (Spalte „Zuständigkeit"), danach die Kategorie. Kommt jemand in mehreren Kategorien vor, ist die <b>obere</b> Kategorie der Vorschlag – festlegen im Tab <a href="#" data-tab="assign">Unvollständig</a>.</div>
           <ul class="catlist">${catRows}</ul>
           <div class="free"><input id="newCat" placeholder="Neue Kategorie …" style="min-width:0;flex:1"><button class="btn small" data-action="cat-add">＋ Kategorie</button></div>
         </div>
       </div>
-    </div>
   </div>`;
 }
 
@@ -1351,8 +1383,8 @@ function dbView() {
           <div class="small muted" style="margin-bottom:8px">Das Tool liest alle Gruppen von Cevi Schweiz aus der DB, schlägt die passende Kategorie vor und richtet die Untergruppen (z.B. alle Fachgruppen) ein.</div>
           <label class="small" for="dbFilter"><b>Nur diese Gruppen übernehmen</b> <span class="muted">(eine pro Zeile · leer = alle · nur eine Untergruppe: „Gruppe › Untergruppe“)</span></label>
           <textarea id="dbFilter" rows="9" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupFilter || '')}</textarea>
-          <label class="small" for="dbExclude"><b>Immer ausschliessen</b> <span class="muted">(Wortteil im Gruppennamen, eine pro Zeile – z.B. „Ehemalige" entfernt „Ehemalige Fachgruppen", „Ehemalige Ausschüsse" usw.)</span></label>
-          <textarea id="dbExclude" rows="2" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupExclude || '')}</textarea>
+          <label class="small" for="dbExclude"><b>Immer ausschliessen</b> <span class="muted">(Wortteil im Gruppennamen, eine pro Zeile – z.B. „Ehemalige" entfernt „Ehemalige Fachgruppen", „Ehemalige Ausschüsse" usw. Gilt auch für Untergruppen aus Excel. Einzelne Untergruppen lassen sich auch im Tab Kategorien mit „✕ entfernen" ausschliessen.)</span></label>
+          <textarea id="dbExclude" rows="4" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupExclude || '')}</textarea>
           <div class="free" style="margin-top:0"><input type="text" id="dbRoot" value="${esc(d.rootGroup || '')}" placeholder="Gruppe „Cevi Schweiz“: Nummer oder Link" style="flex:1;min-width:0"><button class="btn primary" data-action="db-read-groups">🔎 Gruppen lesen</button></div>
         </div>
       </div>
@@ -1497,12 +1529,13 @@ async function apiAll(path, params, size = 100) {
 }
 async function expandSubgroups(ids) {
   const all = new Set(ids), parent = new Map(), name = new Map(); let frontier = ids.slice();
+  const removed = removedDbIds();
   for (let depth = 0; depth < 6 && frontier.length; depth++) {
     const next = [];
     for (let i = 0; i < frontier.length; i += 25) {
       const pages = await apiAll('/api/groups', { 'filter[parent_id]': frontier.slice(i, i + 25).join(',') });
       for (const p of pages) for (const g of p.data || []) {
-        if (isExcluded(g.attributes.display_name || g.attributes.name)) continue; // z.B. „Ehemalige Fachgruppen" samt Untergruppen
+        if (isExcluded(g.attributes.display_name || g.attributes.name) || removed.has(String(g.id))) continue; // z.B. „Ehemalige Fachgruppen" samt Untergruppen
         parent.set(String(g.id), String(g.attributes.parent_id)); name.set(String(g.id), g.attributes.display_name || g.attributes.name);
         if (!all.has(String(g.id))) { all.add(String(g.id)); next.push(String(g.id)); }
       }
@@ -1520,13 +1553,82 @@ function typeCategory(g) {
   if (/Spender$/.test(t)) return { catId: 'fundraising', why: 'Gruppentyp Spender' };
   return null;
 }
-// „Immer ausschliessen": Gruppen mit diesen Wortteilen im Namen werden nie übernommen (z.B. „Ehemalige")
-function excludeTerms() { return String(S.db.groupExclude || '').split(/\n+/).map(x => WB.fold(x.trim())).filter(Boolean); }
-function isExcluded(name) { const n = WB.fold(name || ''); return excludeTerms().some(t => n.includes(t)); }
+// „Immer ausschliessen": Gruppen mit diesen Wortteilen im Namen werden nie übernommen (z.B. „Ehemalige").
+// Vergleich ohne Leerzeichen/Satzzeichen, Jahr 2025 = 25 → „Norwegen Lager 2025" trifft auch „Norwegenlager 25".
+function exclNorm(x) { return WB.fold(String(x || '')).replace(/\b(?:19|20)(\d\d)\b/g, '$1').replace(/[^a-z0-9]/g, ''); }
+function excludeTerms() { return String(S.db.groupExclude || '').split(/\n+/).map(x => exclNorm(x.trim())).filter(Boolean); }
+function isExcluded(name) { const n = exclNorm(name); return !!n && excludeTerms().some(t => n.includes(t)); }
+/** DB-IDs der Untergruppen, die im Tab Kategorien entfernt wurden */
+function removedDbIds() { const ids = new Set(); for (const c of S.cats) for (const g of Object.values(c.groups || {})) if (g.removed && g.fromDb) ids.add(String(g.fromDb)); return ids; }
+/** Ist eine Untergruppe (oder eine ihrer Obergruppen) entfernt oder ausgeschlossen? */
+function grpHidden(c, gk, name) {
+  if (name && isExcluded(name)) return true;
+  let cur = gk, n = 0;
+  while (cur && c.groups && c.groups[cur] && n++ < 20) { const g = c.groups[cur]; if (g.removed || isExcluded(g.name)) return true; cur = g.parentGk; }
+  return false;
+}
+/** Einträge aus entfernten/ausgeschlossenen Untergruppen (DB und Excel) */
+function entryFilter() {
+  const terms = excludeTerms(), anyRemoved = S.cats.some(c => Object.values(c.groups || {}).some(g => g.removed));
+  if (!terms.length && !anyRemoved) return () => false;
+  const cache = new Map();
+  return (catId, group) => {
+    if (!group) return false;
+    const k = catId + '|' + group; if (cache.has(k)) return cache.get(k);
+    const c = S.cats.find(x => x.id === catId);
+    const r = c ? grpHidden(c, WB.groupKey(c.name, group), group) : isExcluded(group);
+    cache.set(k, r); return r;
+  };
+}
+/** DB-Untergruppen, die nicht mehr geladen werden (z.B. ausserhalb von „Krisenmanagement › Cevi CH"), entfernen */
+function pruneDbSubgroups(liveIds) {
+  let n = 0;
+  for (const c of S.cats) for (const [gk, g] of Object.entries(c.groups || {}))
+    if (g.fromDb && !g.manual && !g.removed && !(g.persons || []).length && !liveIds.has(String(g.fromDb))) { delete c.groups[gk]; n++; }
+  return n;
+}
+/** „Gruppe › Untergruppe" in „Nur diese Gruppen übernehmen": übrige DB-Untergruppen dieser Kategorie entfernen */
+function pathFilterPrune() {
+  let n = 0;
+  for (const entry of filterEntries()) {
+    const parts = entry.split(PATH_SEP).map(x => x.trim()).filter(Boolean); if (parts.length < 2) continue;
+    const last = parts[parts.length - 1];
+    for (const c of S.cats.filter(c => nameMatches(parts[0], c.name) || catOfEntry(parts[0]) === c.id)) {
+      const G = c.groups || {};
+      const keep = (gk) => { let cur = gk, k = 0; while (cur && G[cur] && k++ < 20) { if (nameMatches(last, G[cur].name || cur)) return true; cur = G[cur].parentGk; } return false; };
+      if (!Object.keys(G).some(keep)) continue; // gewünschte Untergruppe (noch) nicht vorhanden → nichts anfassen
+      for (const [gk, g] of Object.entries(G)) if (g.fromDb && !g.manual && !g.removed && !(g.persons || []).length && !keep(gk)) { delete G[gk]; n++; }
+    }
+  }
+  return n;
+}
+/** Beim Aktualisieren: Untergruppen-Baum einer DB-Gruppe auf „Gruppe › Untergruppe" beschränken (alte, ganze Übernahme) */
+function restrictToPaths(s, tree) {
+  if (String(s.label).includes('›')) return null;
+  const paths = filterEntries().map(x => x.split(PATH_SEP).map(t => t.trim()).filter(Boolean))
+    .filter(p => p.length > 1 && (nameMatches(p[0], s.label) || (s.catId && catOfEntry(p[0]) === s.catId)));
+  if (!paths.length) return null;
+  const kids = new Map();
+  for (const id of tree.ids) { const par = tree.parent.get(id); if (par) { if (!kids.has(par)) kids.set(par, []); kids.get(par).push(id); } }
+  const nm = (id) => tree.name.get(id) || '';
+  const below = (id) => { const out = [], st = [...(kids.get(id) || [])]; while (st.length) { const x = st.shift(); out.push(x); st.push(...(kids.get(x) || [])); } return out; };
+  const keep = new Set();
+  for (const p of paths) {
+    let level = parseGroupIds(s.groupIds);
+    for (const part of p.slice(1)) {
+      let m = level.flatMap(x => kids.get(x) || []).filter(x => nameMatches(part, nm(x)));
+      if (!m.length) m = level.flatMap(below).filter(x => nameMatches(part, nm(x)));
+      level = m; if (!level.length) break;
+    }
+    for (const x of level) { keep.add(x); below(x).forEach(y => keep.add(y)); }
+  }
+  return keep;
+}
 /** Ausgeschlossene Gruppen samt allen Untergruppen entfernen */
 function dropExcluded(groups) {
   const byId = new Map(groups.map(g => [String(g.id), g]));
-  const out = (g) => { let cur = g, n = 0; while (cur && n++ < 30) { if (isExcluded(cur.name)) return true; cur = cur.parent_id ? byId.get(String(cur.parent_id)) : null; } return false; };
+  const gone = removedDbIds();
+  const out = (g) => { let cur = g, n = 0; while (cur && n++ < 30) { if (isExcluded(cur.name) || gone.has(String(cur.id))) return true; cur = cur.parent_id ? byId.get(String(cur.parent_id)) : null; } return false; };
   const removed = groups.filter(out);
   return { kept: groups.filter(g => !out(g)), removed: removed.map(g => g.name) };
 }
@@ -1681,7 +1783,7 @@ function applyMapping() {
   const covered = new Set(fresh.flatMap(x => parseGroupIds(x.groupIds)));
   const keep = S.db.sources.filter(x => !x.auto && parseGroupIds(x.groupIds).length && !parseGroupIds(x.groupIds).every(id => covered.has(id)));
   S.db.sources = [...fresh, ...keep];
-  cleanExcluded();
+  cleanExcluded(); pathFilterPrune();
   DBMAP = null; save();
   toast(`${fresh.length} Gruppen übernommen – Daten werden geladen …`);
   dbRefresh(false);
@@ -1733,17 +1835,24 @@ async function dbRefresh(demo = false) {
   const fresh = [];
   const before = S.sources.length ? snapshotPeople() : null;
   const prev = { sources: S.sources.slice(), cats: S.cats.map(c => ({ ...c })), order: S.order.slice(), lastChange: S.lastChange || null, lastRefresh: S.db.lastRefresh };
+  const live = new Set();
   try {
     for (const s of srcs) {
       let pages;
       if (demo) { pages = demoPages(s); logDb(`Demo: ${s.label} – erfundene Testdaten`); }
       else if (s.mode === 'orgs') {
-        const ids = parseGroupIds(s.groupIds); pages = [];
+        const ids = parseGroupIds(s.groupIds); pages = []; ids.forEach(id => live.add(String(id)));
         for (let i = 0; i < ids.length; i += 25) pages.push(...await apiAll('/api/groups', { 'filter[id]': ids.slice(i, i + 25).join(',') }));
       }
       else {
         let ids = parseGroupIds(s.groupIds), tree = null; const roots = new Set(ids);
-        if (s.subgroups) { logDb(`${s.label}: suche Untergruppen von ${ids.join(', ')} …`); tree = await expandSubgroups(ids); ids = tree.ids; logDb(`  → ${ids.length} Gruppen`); }
+        if (s.subgroups) {
+          logDb(`${s.label}: suche Untergruppen von ${ids.join(', ')} …`); tree = await expandSubgroups(ids);
+          const only = restrictToPaths(s, tree);
+          if (only) { tree.ids = tree.ids.filter(id => only.has(id)); logDb(only.size ? `  → nur ${[...only].map(id => tree.name.get(id)).join(', ')} (laut „Nur diese Gruppen übernehmen")` : '  → gewünschte Untergruppe nicht gefunden – nichts geladen'); }
+          ids = tree.ids; logDb(`  → ${ids.length} Gruppen`);
+        }
+        ids.forEach(id => live.add(String(id))); roots.forEach(id => live.add(String(id)));
         s._tree = tree; s._roots = roots;
         pages = [];
         for (let i = 0; i < ids.length; i += 20) pages.push(...await apiAll('/api/roles', { 'filter[group_id]': ids.slice(i, i + 20).join(','), include: 'person,group' }));
@@ -1771,6 +1880,7 @@ async function dbRefresh(demo = false) {
         ? (disabled.push(x.label), { ...x, enabled: false, disabledBy: 'Cevi DB: ' + s.label }) : x);
     }
     S.db.lastRefresh = now;
+    if (!demo) { const n = pruneDbSubgroups(live) + pathFilterPrune(); if (n) logDb(`${n} Untergruppen entfernt, die nicht mehr geladen werden`); }
     if (before && before.length) { finishChange('Cevi DB' + (demo ? ' (Demo)' : ''), before, { disabled }); UNDO = prev; }
     save(); render();
     toast(`Cevi DB${demo ? ' (Demo)' : ''} aktualisiert: ${fresh.reduce((a, s) => a + s.entries.length, 0)} Einträge aus ${fresh.length} Quellen` + (before && before.length ? ' · ' + changeSummary() : ''));
@@ -1840,7 +1950,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-del],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-del],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -1867,6 +1977,21 @@ document.addEventListener('click', (ev) => {
     setGrp(c, gk, name, []); c.groups[gk].manual = true; S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [c.id]: true }; save(); render(); return;
   }
   if (t.dataset.subDel) { const { c, gk } = subRef(t.dataset.subDel); if (c && c.groups) { delete c.groups[gk]; save(); render(); } return; }
+  if (t.dataset.subHide) {
+    const { c, gk } = subRef(t.dataset.subHide); if (!c) return;
+    const name = t.dataset.name || gk, g0 = (c.groups || {})[gk] || {};
+    if (g0.manual && !g0.fromDb && !R.entries.some(e => e.catId === c.id && WB.groupKey(c.name, e.group) === gk)) { delete c.groups[gk]; save(); render(); return; }
+    if (!confirm(`Untergruppe „${name}" entfernen?\n\nAdressen, die nur über diese Untergruppe kommen, erhalten keinen Brief mehr. Beim nächsten Import aus der Cevi DB oder aus Excel wird sie ignoriert. Wiederherstellen ist jederzeit möglich (↺ unter den Untergruppen).`)) return;
+    c.groups = c.groups || {};
+    const g = c.groups[gk] || (c.groups[gk] = { name, persons: [] });
+    g.removed = true; if (!g.name) g.name = name;
+    save(); render(); toast(`„${name}" entfernt`); return;
+  }
+  if (t.dataset.subUnhide) {
+    const [cid, ...rest] = t.dataset.subUnhide.split('|'); const c = S.cats.find(x => x.id === cid); const gk = rest.join('|');
+    if (c && c.groups && c.groups[gk]) { delete c.groups[gk].removed; if (!c.groups[gk].fromDb && !c.groups[gk].manual && !(c.groups[gk].persons || []).length) delete c.groups[gk]; save(); render(); toast('Untergruppe wiederhergestellt – beim nächsten Aktualisieren aus der Cevi DB werden ihre Adressen wieder geladen'); }
+    return;
+  }
   if (t.dataset.catDialog) { openCatDialog(t.dataset.catDialog, false); return; }
   if (t.dataset.suggHide) { S.ignoredSugg = [...new Set([...(S.ignoredSugg || []), t.dataset.suggHide])]; save(); render(); return; }
   if (t.dataset.staffDel) {
@@ -2064,7 +2189,7 @@ document.addEventListener('input', (ev) => {
   if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
 });
 // Auf-/Zuklappen der Untergruppen merken („toggle" bubbelt nicht → capture)
-document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } }, true);
+document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } }, true);
 function readCloudFields() {
   const v = (id) => { const el = $(id); return el && !el.disabled ? el.value.trim() : undefined; };
   const t = v('#m365Tenant'), c = v('#m365Client'), s2 = v('#m365Site');
@@ -2086,6 +2211,7 @@ window.addEventListener('dragleave', () => { dragN = Math.max(0, dragN - 1); if 
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => { e.preventDefault(); dragN = 0; $('#dropmask').classList.remove('show'); const f = [...(e.dataTransfer?.files || [])]; if (f.length) importFiles(f); });
 if (S.db.rememberToken) sessionToken = S.db.token;
+if (S._pruneV6) { delete S._pruneV6; try { pathFilterPrune(); } catch (e) { console.warn(e); } save(true); }
 render();
 detectProxy();
 Cloud.start();

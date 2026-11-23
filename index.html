@@ -307,6 +307,33 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const drop = new Set([cn, cn.replace(/n$/, ''), cn.replace(/en$/, ''), 'fg', 'pg', 'und', '&', '+', '-']);
     return textKey(group).split(' ').filter(w => w && !drop.has(w)).join('').replace(/[^a-z0-9]/g, '');
   }
+  /**
+   * Baum einer geladenen DB-Gruppe → Untergruppen der Kategorie.
+   * nodes: [{id, name, parentId}] (ohne die Wurzel); rootIds: Set der geladenen Gruppen.
+   * Jede Gruppe wird eine eigene Untergruppe (auch tiefere Ebenen). Name = eigener Name,
+   * bei gleichnamigen Gruppen innerhalb der Kategorie „Obergruppe › Gruppe".
+   * Gibt { subs: [{id, gk, name, parentGk, depth, order}], nameOf: Map(id → Name) } zurück.
+   */
+  function subgroupTree(catName, rootIds, nodes) {
+    const byId = new Map(nodes.map(n => [String(n.id), n]));
+    const kids = new Map();
+    for (const n of nodes) { const p = String(n.parentId || ''); if (!kids.has(p)) kids.set(p, []); kids.get(p).push(n); }
+    for (const a of kids.values()) a.sort((x, y) => String(x.name).localeCompare(String(y.name), 'de'));
+    const own = (n) => groupKey(catName, n.name);
+    const count = new Map(); for (const n of nodes) { const k = own(n); if (k) count.set(k, (count.get(k) || 0) + 1); }
+    const label = (n) => { const k = own(n); if (k && count.get(k) === 1) return str(n.name); const p = byId.get(String(n.parentId)); return p ? str(p.name) + ' › ' + str(n.name) : str(n.name); };
+    const subs = [], nameOf = new Map(); let order = 0;
+    const walk = (parentId, depth, parentGk) => {
+      for (const n of kids.get(String(parentId)) || []) {
+        const name = label(n), gk = groupKey(catName, name);
+        nameOf.set(String(n.id), name);
+        if (gk) subs.push({ id: String(n.id), gk, name, parentGk: parentGk || '', depth, order: order++ });
+        walk(n.id, depth + 1, gk || parentGk);
+      }
+    };
+    for (const r of rootIds) walk(r, 0, '');
+    return { subs, nameOf };
+  }
   /** Zuständige einer Untergruppe (Kürzel/Namen) */
   function groupPersonLabels(c, gk) { const g = c && c.groups && gk ? c.groups[gk] : null; return g && Array.isArray(g.persons) ? g.persons.map(str).filter(Boolean) : []; }
   /** Zuständige einer Kategorie (Liste von Kürzeln/Namen); kompatibel mit altem Feld „owner" */
@@ -679,7 +706,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const c = catById[e.catId]; if (!c || !c.groups) return [];
       const gk = groupKey(c.name, e.group); if (!gk) return [];
       const ck = e.catId + '|' + gk;
-      if (!groupPersonCache.has(ck)) groupPersonCache.set(ck, [...new Set(groupPersonLabels(c, gk).map(l => aliasOf(l)).filter(Boolean))]);
+      if (!groupPersonCache.has(ck)) {
+        // eigene Zuständige, sonst von der Obergruppe erben (z.B. SAJV → Partner & Politik)
+        let cur = gk, list = [], guard = 0;
+        while (cur && guard++ < 15) {
+          list = [...new Set(groupPersonLabels(c, cur).map(l => aliasOf(l)).filter(Boolean))];
+          if (list.length) break;
+          cur = c.groups[cur] && c.groups[cur].parentGk;
+        }
+        groupPersonCache.set(ck, list);
+      }
       return groupPersonCache.get(ck);
     };
     const aliasOf = (o) => { const s = normOwner(o); if (!s) return ''; return (opts.aliases && opts.aliases.get(fold(s))) || s; };
@@ -878,7 +914,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return { codeNames, labelToCode, observed: [...observed].sort() };
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -1046,9 +1082,26 @@ function subgroupsOf(c) {
     const o = e.owner ? resolveOwner(e.owner) : ''; if (o) g.codes.set(o, (g.codes.get(o) || 0) + 1);
   }
   for (const [gk, sg] of Object.entries(c.groups || {})) if (!m.has(gk) && (sg.manual || sg.fromDb || (sg.persons || []).length)) m.set(gk, { gk, name: sg.name || gk, count: 0, codes: new Map(), manual: !!sg.manual, fromDb: sg.fromDb });
-  return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  for (const g of m.values()) { const sg = (c.groups || {})[g.gk] || {}; g.depth = sg.depth || 0; g.order = sg.order; g.parentGk = sg.parentGk || ''; }
+  // Baum-Reihenfolge (Obergruppe vor ihren Untergruppen); Gruppen ohne Baum alphabetisch dahinter
+  return [...m.values()].sort((a, b) => ((a.order ?? 1e6) - (b.order ?? 1e6)) || a.name.localeCompare(b.name, 'de'));
 }
 const showSubs = (c) => SUB_DEFAULT_OPEN.includes(c.id) || subgroupsOf(c).length >= 2 || Object.keys(c.groups || {}).length > 0;
+function syncSubgroups(c, rootIds, nodes) {
+  const t = WB.subgroupTree(c.name, rootIds, nodes);
+  c.groups = c.groups || {};
+  for (const x of t.subs) {
+    const g = c.groups[x.gk] || (c.groups[x.gk] = { name: x.name, persons: [] });
+    Object.assign(g, { name: g.name || x.name, fromDb: x.id, parentGk: x.parentGk, depth: x.depth, order: x.order });
+  }
+  return t.nameOf;
+}
+/** Erbt eine Untergruppe ohne eigene Zuständige von einer Obergruppe? → { gk, name, keys } */
+function inheritedFrom(c, gk) {
+  let cur = c.groups && c.groups[gk] && c.groups[gk].parentGk, guard = 0;
+  while (cur && guard++ < 15) { const k = grpKeys(c, cur); if (k.length) return { gk: cur, name: (c.groups[cur] || {}).name || cur, keys: k }; cur = c.groups[cur] && c.groups[cur].parentGk; }
+  return null;
+}
 function grpKeys(c, gk) { return [...new Set(WB.groupPersonLabels(c, gk).map(l => resolveOwner(l)).filter(Boolean))]; }
 function setGrp(c, gk, name, persons) {
   c.groups = c.groups || {};
@@ -1463,7 +1516,7 @@ function openCatDialog(key, isNew) {
     const info = has ? (lead === key ? '★ versendet' : '☆ unterschreibt mit') : (lead ? `versendet: ${esc(ownerName(lead))}` : 'noch niemand – würde versenden');
     const subs = showSubs(c) ? subgroupsOf(c).map(g => {
       const gk = grpKeys(c, g.gk), gh = gk.includes(key), gl = gk[0];
-      return `<label class="chk-row sub"><input type="checkbox" data-msub="${c.id}|${g.gk}" data-name="${esc(g.name)}" ${gh ? 'checked' : ''}><span class="nm">↳ ${esc(g.name)}</span><span class="small muted">${gh ? (gl === key ? '★ versendet' : '☆ unterschreibt mit') : (gl ? 'versendet: ' + esc(ownerName(gl)) : '')}</span></label>`;
+      return `<label class="chk-row sub" style="padding-left:${34 + (g.depth || 0) * 18}px"><input type="checkbox" data-msub="${c.id}|${g.gk}" data-name="${esc(g.name)}" ${gh ? 'checked' : ''}><span class="nm">↳ ${esc(g.name)}</span><span class="small muted">${gh ? (gl === key ? '★ versendet' : '☆ unterschreibt mit') : (gl ? 'versendet: ' + esc(ownerName(gl)) : '')}</span></label>`;
     }).join('') : '';
     return `<label class="chk-row"><input type="checkbox" data-mcat="${c.id}" ${has ? 'checked' : ''}><span class="nm">${esc(c.name)}${showSubs(c) ? ' <span class="small muted">(ganze Kategorie)</span>' : ''}</span><span class="small muted">${info}</span></label>${subs}`;
   }).join('');
@@ -1509,13 +1562,14 @@ function subsBlock(c) {
     const now = keys.length ? '' : top.length
       ? `<span class="small muted" title="Zuständigkeit laut Excel – gilt, solange hier niemand eingetragen ist">Excel: ${top.map(([o, n]) => code(o) + (top.length > 1 ? ` ${n}×` : '')).join(', ')}</span>`
       : catKeys(c).length ? `<span class="small muted">jetzt: Kategorie (${code(catKeys(c)[0])})</span>` : '<span class="small" style="color:var(--warn)">noch niemand</span>';
+    const inh = keys.length ? null : inheritedFrom(c, g.gk);
     return `<tr>
-      <td class="sgname"><b>${esc(g.name)}</b> <span class="small muted" title="Adressen in dieser Untergruppe">${g.count || '–'}</span></td>
+      <td class="sgname" style="padding-left:${6 + (g.depth || 0) * 18}px">${g.depth ? '<span class="muted">↳ </span>' : ''}<b>${esc(g.name)}</b> <span class="small muted" title="Adressen in dieser Untergruppe">${g.count || '–'}</span></td>
       <td><div class="cands" style="gap:4px;align-items:center">
         ${keys.map((k, j) => `<span class="chip pers ${isStaff(k) ? '' : 'unknown'}">${j === 0 ? '<b title="Versendet">★</b>' : `<button class="lnk" data-sub-primary="${ref}" data-key="${esc(k)}" title="Zur Hauptperson machen">☆</button>`}
           ${ownerHtml(k)}<button class="lnk x" data-sub-remove="${ref}" data-key="${esc(k)}" title="Aus Untergruppe entfernen">✕</button></span>`).join('')}
         <select class="inline" data-sub-add="${ref}" data-name="${esc(g.name)}"><option value="">＋ Person …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc([st.code, st.name].filter(Boolean).join(' · '))}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
-        ${now}${!keys.length && top.length ? `<button class="lnk" data-sub-adopt="${ref}" data-name="${esc(g.name)}" data-val="${esc(top[0][0])}" title="${esc(ownerName(top[0][0]))} fest als Zuständige*n dieser Untergruppe eintragen">übernehmen</button>` : ''}
+        ${inh ? `<span class="small muted" title="Solange hier niemand eingetragen ist, gilt die Zuständigkeit der Obergruppe">erbt von ${esc(inh.name)}: ${inh.keys.map(k => `<span title="${esc(ownerName(k))}">${esc(k)}</span>`).join(', ')}</span>` : now}${!inh && !keys.length && top.length ? `<button class="lnk" data-sub-adopt="${ref}" data-name="${esc(g.name)}" data-val="${esc(top[0][0])}" title="${esc(ownerName(top[0][0]))} fest als Zuständige*n dieser Untergruppe eintragen">übernehmen</button>` : ''}
         ${g.manual && !g.count ? `<button class="lnk x" data-sub-del="${ref}" title="Untergruppe löschen">löschen</button>` : ''}
       </div></td></tr>`;
   };
@@ -1811,11 +1865,6 @@ async function expandSubgroups(ids) {
   return { ids: [...all], parent, name };
 }
 /** Rolle in einer tieferen Gruppe → Name der obersten Untergruppe unter der geladenen Gruppe */
-function topSubgroupName(gid, roots, tree) {
-  let cur = String(gid), guard = 0;
-  while (guard++ < 20) { const p = tree.parent.get(cur); if (!p || roots.has(cur)) return null; if (roots.has(p)) return tree.name.get(cur) || null; cur = p; }
-  return null;
-}
 let DBMAP = null; // Vorschlag (nur im Speicher, bis „Übernehmen")
 function typeCategory(g) {
   const t = String(g.type || '').replace(/^Group::/, '');
@@ -1904,7 +1953,8 @@ function proposeFiltered(groups, rootId, wanted) {
   for (const [id, h] of hitOf) {
     const g = byId.get(id); if (hasHitAncestor(g)) continue;
     const ch = (kids.get(id) || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'de'));
-    units.push({ id, name: h.path ? `${h.path.name} › ${g.name}` : g.name, subName: g.name, depth: 0, catId: h.path ? (h.catHint || catOfGroup(g)) : (catOfEntry(h.entry) || catOfGroup(g)), include: true, wi: h.wi,
+    const desc = []; const st = [...ch]; while (st.length) { const x = st.shift(); desc.push({ id: x.id, name: x.name, parentId: String(x.parent_id) }); st.push(...(kids.get(x.id) || [])); }
+    units.push({ descendants: desc, id, name: h.path ? `${h.path.name} › ${g.name}` : g.name, subName: g.name, depth: 0, catId: h.path ? (h.catHint || catOfGroup(g)) : (catOfEntry(h.entry) || catOfGroup(g)), include: true, wi: h.wi,
       why: `aus deiner Liste: „${h.entry}"` + (h.path ? ' – nur diese Untergruppe' : '') + (h.how === 'Kategorie' ? ' (über die Kategorie erkannt)' : ''), container: ch.length > 0, children: ch.map(x => ({ id: x.id, name: x.name })) });
   }
   if (orgUnit) units.push(orgUnit);
@@ -1977,7 +2027,9 @@ function applyMapping() {
       const g = c.groups[gk] || (c.groups[gk] = { name, persons: [] });
       g.fromDb = dbId; if (!g.name) g.name = name;
     };
-    if (u.container) for (const ch of u.children) addSub(ch.name, ch.id); else addSub(u.subName || u.name, u.id);
+    if (u.container && u.descendants) syncSubgroups(c, [u.id], u.descendants);
+    else if (u.container) for (const ch of u.children) addSub(ch.name, ch.id);
+    else addSub(u.subName || u.name, u.id);
   }
   const covered = new Set(fresh.flatMap(x => parseGroupIds(x.groupIds)));
   const keep = S.db.sources.filter(x => !x.auto && parseGroupIds(x.groupIds).length && !parseGroupIds(x.groupIds).every(id => covered.has(id)));
@@ -1998,7 +2050,7 @@ function dbMapView() {
       <thead><tr><th>Gruppe in der Cevi DB</th><th>Kategorie im Tool</th><th style="text-align:center">laden</th></tr></thead>
       <tbody>${DBMAP.units.map((u, i) => u.header
         ? `<tr class="hdr"><td colspan="3" style="padding-left:${10 + u.depth * 18}px"><b>${esc(u.name)}</b> <span class="small muted">enthält:</span></td></tr>`
-        : `<tr class="${u.include && u.catId ? '' : 'off'}"><td style="padding-left:${10 + u.depth * 18}px"><b>${esc(u.name)}</b><div class="small muted">${esc(u.why || '')}</div>${u.container ? `<div class="small">↳ ${u.children.length} Untergruppen: ${u.children.map(x => esc(x.name)).join(', ')}</div>` : ''}</td>
+        : `<tr class="${u.include && u.catId ? '' : 'off'}"><td style="padding-left:${10 + u.depth * 18}px"><b>${esc(u.name)}</b><div class="small muted">${esc(u.why || '')}</div>${u.container ? `<div class="small">↳ ${(u.descendants || u.children).length} Untergruppen: ${(u.descendants || u.children).map(x => esc((u.descendants || []).some(d => d.id === x.parentId) ? '› ' + x.name : x.name)).join(', ')}</div>` : ''}</td>
             <td><select class="inline" data-map-cat="${i}">${opts(u.catId)}</select></td>
             <td style="text-align:center"><input type="checkbox" data-map-inc="${i}" ${u.include && u.catId ? 'checked' : ''} ${u.catId ? '' : 'disabled'}></td></tr>`).join('')}</tbody>
     </table></div>
@@ -2050,7 +2102,12 @@ async function dbRefresh(demo = false) {
         for (let i = 0; i < ids.length; i += 20) pages.push(...await apiAll('/api/roles', { 'filter[group_id]': ids.slice(i, i + 20).join(','), include: 'person,group' }));
       }
       const entries = s.mode === 'orgs' ? WB.entriesFromGroups(pages, { label: s.label, catId: s.catId, owner: s.owner }) : WB.entriesFromJsonApi(pages, { label: s.label, catId: s.catId, owner: s.owner }, S.cats);
-      if (s._tree) for (const e of entries) { const top = topSubgroupName(e.groupId, s._roots, s._tree); if (top) e.group = top; }
+      if (s._tree) {
+        const c = S.cats.find(x => x.id === s.catId);
+        const nodes = s._tree.ids.filter(id => !s._roots.has(id)).map(id => ({ id, name: s._tree.name.get(id), parentId: s._tree.parent.get(id) }));
+        const nameOf = c ? syncSubgroups(c, [...s._roots], nodes) : new Map(nodes.map(n => [n.id, n.name]));
+        for (const e of entries) { const nm = nameOf.get(String(e.groupId)); if (nm) e.group = nm; }
+      }
       delete s._tree; delete s._roots;
       const det = s.catId ? null : (entries[0] ? { catId: entries[0].catId } : null);
       logDb(`${s.label}: ${entries.length} ${s.mode === 'orgs' ? 'Organisationen' : 'Personen/Rollen'} geladen`);

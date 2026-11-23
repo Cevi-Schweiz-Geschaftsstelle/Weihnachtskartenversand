@@ -29,6 +29,11 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
    - Adressen ohne Zuständigkeit lassen sich frei zuweisen.
 4. **Duplikate:** Unsichere Fälle bestätigen oder ablehnen, z.B. gleicher Name mit anderer PLZ oder ein Tippfehler im Vornamen.
 5. **Pro Zuständige\*r:** Jede Person sieht ihre Briefe und wo sie mitunterschreibt. Hier gibt es Erledigt-Häkchen, Drucken und den Export.
+   - **🏷 Etiketten:** Alle Adressen der gewählten Person auf A4-Etikettenbögen drucken.
+     - Bögen: Avery Zweckform 3475, 3474, 3422, L7160, L7163 oder eigene Masse.
+     - Sortiert nach Name oder PLZ, optional nur nicht erledigte.
+     - Startposition für angebrauchte Bögen, Probedruck mit Rahmen, Vorschau.
+     - Im Druckfenster Skalierung 100 % und Ränder „Keine" wählen.
 6. **Export Excel:** Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
 
 **Einstellungen speichern/laden** (Tab Zuständigkeit → Daten): Damit lassen sich Zuständige, Kategorien und Zuteilungen auf einen anderen Computer oder von der Offline- in die Online-Version übertragen. Die Datei enthält Namen und gehört **nicht** in dieses Repository.

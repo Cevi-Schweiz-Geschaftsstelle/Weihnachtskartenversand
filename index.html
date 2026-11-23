@@ -875,7 +875,7 @@ function defaultState() {
     aliasText: '', autoAliases: true, version: 3,
     decisions: {}, overrides: {}, done: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null,
-          sources: [ { id: uid(), label: 'Fachgruppen', groupIds: '', catId: 'fachgruppen', owner: '', subgroups: true } ] },
+          sources: [] },
     ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', owner: '', only: '' }, assignFilter: 'open' },
   };
 }
@@ -912,6 +912,8 @@ function load() {
       s.version = 3;
     }
     s.staff = s.staff || [];
+    // alter, nie ausgefüllter Beispiel-Eintrag
+    s.db.sources = (s.db.sources || []).filter(x => !(x.label === 'Fachgruppen' && !String(x.groupIds || '').trim() && !x.auto));
     for (const st of s.staff) if (st.first === undefined && st.last === undefined) Object.assign(st, splitName(st.name));
     return s;
   } catch (e) { console.warn(e); return defaultState(); }
@@ -1627,7 +1629,7 @@ function dbView() {
         <div class="hd"><h2>Welche Gruppen sollen geladen werden?</h2><button class="btn small right" data-action="db-add">＋ Gruppe</button></div>
         <div class="tablewrap"><table>
           <thead><tr><th>Bezeichnung</th><th>Gruppen-ID(s) oder Link</th><th>Kategorie</th><th>Zuständig</th><th title="Alle Untergruppen mitladen">inkl. Unter&shy;gruppen</th><th title="Excel-Listen derselben Kategorie ausschalten, sobald die DB-Daten geladen sind">ersetzt Excel</th><th></th></tr></thead>
-          <tbody>${d.sources.map(s => `<tr>
+          <tbody>${!d.sources.length ? '<tr><td colspan="7" class="muted small" style="padding:14px 10px">Noch keine Gruppen – am einfachsten oben über „Gruppen automatisch übernehmen". Von Hand: „＋ Gruppe".</td></tr>' : ''}${d.sources.map(s => `<tr>
             <td><input type="text" data-dbs="${s.id}" data-k="label" value="${esc(s.label)}" style="width:100%;min-width:150px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
             <td><input type="text" data-dbs="${s.id}" data-k="groupIds" value="${esc(s.groupIds)}" placeholder="z.B. 1234 oder https://db.cevi.ch/groups/1234" style="width:100%;min-width:170px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
             <td><select class="inline" data-dbs="${s.id}" data-k="catId"><option value="">automatisch</option>${S.order.map(id => `<option value="${id}" ${s.catId === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select></td>
@@ -1912,7 +1914,12 @@ async function dbTest() {
 async function dbRefresh(demo = false) {
   if (!demo && !token()) { S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
   const srcs = demo ? demoSources() : S.db.sources.filter(s => parseGroupIds(s.groupIds).length);
-  if (!srcs.length) { S.ui.tab = 'db'; render(); return toast('Bitte mindestens eine Gruppen-ID eintragen.'); }
+  if (!srcs.length) {
+    S.ui.tab = 'db'; render();
+    if (parseGroupIds(S.db.rootGroup || '').length) { toast('Noch keine Gruppen ausgewählt – ich lese zuerst die Gruppen aus der Cevi DB. Bitte den Vorschlag prüfen und übernehmen.'); return dbReadGroups(); }
+    const f = $('#dbRoot'); if (f) { f.focus(); f.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    return toast('Das Tool weiss noch nicht, welche Gruppen es laden soll: Unter „Gruppen automatisch übernehmen" den Link zur Gruppe Cevi Schweiz einfügen und auf „Gruppen lesen" klicken.');
+  }
   const btn = $('#btnRefresh'); btn.disabled = true; btn.textContent = '↻ lädt …';
   const now = new Date().toISOString();
   const fresh = [];
@@ -2012,7 +2019,7 @@ function exportExcel(onlyOwner) {
 
 // ---------------------------------------------------------------- Events
 function fmtDate(iso) { if (!iso) return '–'; const d = new Date(iso); return d.toLocaleDateString('de-CH') + ' ' + d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }); }
-let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.style.whiteSpace = 'pre-line'; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 4200); }
+let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.style.whiteSpace = 'pre-line'; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), Math.min(11000, 3500 + String(msg).length * 45)); }
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {

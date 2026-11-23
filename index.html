@@ -1547,7 +1547,7 @@ function settingsView() {
       <span class="rank">${i + 1}.</span>
       <div>
         <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><input class="cell catname" data-cat-name="${id}" value="${esc(c.name)}" title="Kategorie umbenennen">
-          <span class="small muted">${esc([c.source ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · '))}</span></div>
+          <span class="small muted">${esc([c.source && !/\bDB\b/i.test(c.source) ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · '))}</span></div>
         <div class="cands" style="margin-top:6px;align-items:center">
           ${keys.map((k, j) => `<span class="chip pers ${isStaff(k) ? '' : 'unknown'}" title="${j === 0 ? 'Versendet standardmässig' : 'Unterschreibt mit – Klick auf ☆ macht diese Person zur Hauptperson'}">
               ${j === 0 ? '<b title="Versendet">★</b>' : `<button class="lnk" data-cat-primary="${id}" data-key="${esc(k)}" title="Zur Hauptperson machen">☆</button>`}

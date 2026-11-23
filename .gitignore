@@ -1,0 +1,15 @@
+# Datenschutz: Adresslisten und Einstellungs-Dateien enthalten Personendaten –
+# sie gehören NICHT in dieses (öffentliche) Repository.
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+*.ods
+Weihnachtsbrief-Einstellungen*.json
+*Einstellungen*.json
+
+# Technisches
+node_modules/
+__pycache__/
+.DS_Store
+Thumbs.db

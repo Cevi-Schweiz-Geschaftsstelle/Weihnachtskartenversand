@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weihnachtsbrief-Versand – Adress-Tool</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#fff; --line:#e3e6ea; --line2:#eef0f3; --text:#1d232b; --muted:#66707c; --soft:#8a939e;
+  --accent:#0f6e64; --accent-soft:#e3f2ef; --accent-ink:#0b5149;
+  --warn:#b45309; --warn-soft:#fdf3e1; --bad:#b42318; --bad-soft:#fde8e6; --info:#2a5db0; --info-soft:#e7eefb;
+  --ok:#17803d; --ok-soft:#e5f5ea; --radius:10px; --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--text);background:var(--bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent)}
+.app{display:flex;flex-direction:column;min-height:100vh}
+header.top{background:var(--panel);border-bottom:1px solid var(--line);padding:14px 22px 0}
+.titlebar{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.titlebar h1{font-size:19px;margin:0;font-weight:650;letter-spacing:-.01em}
+.titlebar .sub{color:var(--muted);font-size:13px}
+.titlebar .spacer{flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:550;white-space:nowrap}
+.btn:hover{background:#f3f4f6}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-ink)}
+.btn.small{padding:4px 9px;font-size:12.5px;border-radius:7px}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:#eef0f2}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+.kpis{display:flex;gap:10px;margin:14px 0 12px;flex-wrap:wrap}
+.kpi{background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:8px 14px;min-width:132px}
+.kpi .v{font-size:21px;font-weight:650;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi.warn .v{color:var(--warn)}
+.kpi .bar{height:4px;background:#e6e8eb;border-radius:3px;margin-top:5px;overflow:hidden}
+.kpi .bar i{display:block;height:100%;background:var(--ok)}
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap}
+nav.tabs button{border:0;background:transparent;padding:9px 14px;border-bottom:2px solid transparent;cursor:pointer;color:var(--muted);font-weight:560}
+nav.tabs button.on{color:var(--text);border-bottom-color:var(--accent)}
+nav.tabs .count{display:inline-block;min-width:18px;padding:0 6px;margin-left:5px;border-radius:9px;background:#eceef1;font-size:11.5px;color:var(--muted)}
+nav.tabs .count.warn{background:var(--warn-soft);color:var(--warn)}
+main{flex:1;padding:18px 22px 40px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.panel>.hd{padding:14px 16px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.panel>.hd h2,.panel>.hd h3{margin:0;font-size:15.5px;font-weight:640}
+.panel>.bd{padding:14px 16px}
+.muted{color:var(--muted)} .small{font-size:12.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:1100px){.grid2{grid-template-columns:1fr}}
+/* Zuständigkeiten */
+.split{display:grid;grid-template-columns:290px 1fr;gap:16px;align-items:start}
+@media (max-width:900px){.split{grid-template-columns:1fr}}
+.owners{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+.owners .search{padding:10px}
+.owners input{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px}
+.owner{display:block;width:100%;text-align:left;border:0;background:transparent;padding:9px 12px;border-top:1px solid var(--line2);cursor:pointer}
+.owner:hover{background:#f7f8fa}
+.owner.on{background:var(--accent-soft)}
+.owner .n{font-weight:600;display:flex;gap:6px;align-items:baseline}
+.owner .n .code{font-variant:all-small-caps;letter-spacing:.04em;color:var(--accent-ink)}
+.owner .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;margin-top:2px}
+.owner .prog{height:3px;background:#e8eaed;border-radius:2px;margin-top:6px;overflow:hidden}
+.owner .prog i{display:block;height:100%;background:var(--ok)}
+.owner.warn .n{color:var(--warn)}
+.owners .sep{padding:10px 12px 4px;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft);border-top:1px solid var(--line2)}
+/* Tabellen */
+.tablewrap{overflow:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600;background:#fafbfc;position:sticky;top:0;z-index:1;white-space:nowrap}
+tr:hover td{background:#fbfcfd}
+tr.done td{color:var(--soft)}
+tr.done td .name{text-decoration:line-through}
+td .name{font-weight:600}
+td .org{color:var(--muted);font-size:12.5px}
+td.addr{font-size:13px;white-space:nowrap}
+td.chk{width:34px}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;background:#eef0f3;font-size:12px;margin:1px 3px 1px 0;white-space:nowrap}
+.chip.cat{background:var(--info-soft);color:#21477f}
+.chip.co{background:var(--warn-soft);color:#8a4108;font-weight:600}
+.chip.db{background:var(--ok-soft);color:#14612f}
+.chip.dup{background:#f1e8fb;color:#5b2d91}
+.chip.prim{outline:1.5px solid #9db6e0}
+.note{display:block;font-size:12px;color:var(--warn);margin-top:2px}
+.note.bad{color:var(--bad)}
+.badge{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11.5px;font-weight:600}
+.badge.ok{background:var(--ok-soft);color:var(--ok)} .badge.warn{background:var(--warn-soft);color:var(--warn)} .badge.bad{background:var(--bad-soft);color:var(--bad)} .badge.info{background:var(--info-soft);color:var(--info)}
+.section-title{display:flex;align-items:center;gap:10px;margin:22px 0 8px}
+.section-title h3{margin:0;font-size:14.5px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+select.inline{border:1px solid var(--line);border-radius:7px;padding:3px 6px;background:#fff;max-width:220px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters input[type=search]{padding:7px 10px;border:1px solid var(--line);border-radius:8px;min-width:240px}
+.filters select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.filters label{display:inline-flex;gap:6px;align-items:center;color:var(--muted)}
+/* Drop */
+.drop{border:2px dashed #c9ced6;border-radius:14px;padding:40px 20px;text-align:center;background:#fff;cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop h2{margin:0 0 6px;font-size:18px}
+.dropmask{position:fixed;inset:0;background:rgba(15,110,100,.12);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;z-index:50;font-size:22px;font-weight:650;color:var(--accent-ink)}
+.dropmask.show{display:flex}
+/* Duplikate */
+.pair{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--line2)}
+.pair .who{background:#fafbfc;border:1px solid var(--line2);border-radius:8px;padding:8px 10px}
+.pair .acts{display:flex;flex-direction:column;gap:6px}
+.why{font-size:12px;color:var(--muted);margin-bottom:4px}
+/* Einstellungen */
+.catlist{list-style:none;margin:0;padding:0}
+.catlist li{display:grid;grid-template-columns:24px 1fr auto;gap:8px;align-items:start;padding:10px 0;border-top:1px solid var(--line2)}
+.catlist li:first-child{border-top:0}
+input.cell{border:1px solid transparent;border-radius:6px;padding:4px 6px;background:transparent}
+input.cell:hover{border-color:var(--line)} input.cell:focus{border-color:var(--accent);background:#fff;outline:none}
+.catlist input.catname{font-weight:650;font-size:14px;padding:2px 6px;width:auto;min-width:220px;border-color:transparent;background:transparent}
+.catlist input.catname:hover{border-color:var(--line)} .catlist input.catname:focus{border-color:var(--accent);background:#fff}
+.chip.pers{background:#fff;border:1px solid var(--line);padding:3px 4px 3px 8px;font-size:12.5px}
+.chip.pers .code{font-variant:all-small-caps;letter-spacing:.04em;color:var(--accent-ink);font-weight:650}
+.chip.pers.unknown{border-style:dashed;border-color:#d9a54b;background:var(--warn-soft)}
+.lnk{border:0;background:transparent;cursor:pointer;color:var(--accent);padding:0 3px;font-size:12px}
+.lnk.x{color:var(--soft)} .lnk.x:hover{color:var(--bad)}
+.cand.sugg{min-width:0}
+.cand.sugg .who::before{content:none!important}
+.cand .code{font-variant:all-small-caps;letter-spacing:.04em;color:var(--accent-ink)}
+details.panel>summary{list-style:none} details.panel>summary::-webkit-details-marker{display:none}
+details.panel>summary h3::before{content:'▸ ';color:var(--soft)} details.panel[open]>summary h3::before{content:'▾ '}
+.catlist li .rank{color:var(--soft);font-variant-numeric:tabular-nums;text-align:right;padding-top:4px}
+.catlist input{width:100%;padding:5px 8px;border:1px solid var(--line);border-radius:7px}
+.form{display:grid;grid-template-columns:170px 1fr;gap:10px 14px;align-items:center}
+.form input[type=text],.form input[type=password],.form input[type=url],textarea{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px}
+textarea{min-height:90px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+.callout{border-radius:10px;padding:12px 14px;background:var(--info-soft);color:#1f3f73;font-size:13px}
+.callout.warn{background:var(--warn-soft);color:#7a3c07}
+.callout h4{margin:0 0 4px;font-size:13.5px}
+.log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#0f1720;color:#d8e1ea;border-radius:8px;padding:10px 12px;max-height:220px;overflow:auto;white-space:pre-wrap}
+.toast{position:fixed;right:18px;bottom:18px;background:#1d232b;color:#fff;padding:11px 15px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.2);z-index:60;max-width:440px;font-size:13.5px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
+.toast.show{opacity:1;transform:none}
+.kbd{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#eef0f3;border-radius:4px;padding:0 5px}
+.right{margin-left:auto}
+.cands{display:flex;flex-wrap:wrap;gap:6px}
+.cand{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:6px 10px;text-align:left;cursor:pointer;min-width:150px;max-width:300px}
+.cand:hover{border-color:#9fc9c1;background:#f6fbfa}
+.cand .who{font-weight:600;display:flex;gap:6px;align-items:center}
+.cand .via{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.3}
+.cand.on{border-color:var(--accent);background:var(--accent-soft)}
+.cand.on .who::before{content:'●';color:var(--accent)}
+.cand:not(.on) .who::before{content:'○';color:#b5bcc5}
+.cand.self{opacity:.55}
+.cand .sug{font-size:10.5px;font-weight:600;color:var(--info);background:var(--info-soft);border-radius:5px;padding:0 5px}
+.free{display:flex;gap:6px;align-items:center;margin-top:8px}
+.free input{padding:5px 9px;border:1px solid var(--line);border-radius:7px;min-width:290px}
+tr.decided td{background:#fbfdfc}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:#fff;padding:5px 11px;cursor:pointer;font-size:12.5px;color:var(--muted)}
+.seg button.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.chip.new{background:var(--ok-soft);color:var(--ok);font-weight:600}
+.chip.gone{background:var(--bad-soft);color:var(--bad);font-weight:600}
+.change{border-color:#b9d7d1}
+.change .hd{background:var(--accent-soft);border-radius:var(--radius) var(--radius) 0 0}
+.change details{border-top:1px solid var(--line2);padding:8px 0}
+.change details:first-of-type{border-top:0}
+.change summary{cursor:pointer}
+.change ul{margin:6px 0 2px 18px;padding:0;columns:2;column-gap:28px}
+.change li{break-inside:avoid;margin-bottom:3px;font-size:13px}
+@media (max-width:1000px){.change ul{columns:1}}
+.hide{display:none!important}
+@media print{
+  header.top,.owners,.noprint,.toast,nav.tabs{display:none!important}
+  main{padding:0}
+  .split{display:block}
+  .panel{box-shadow:none;border:0}
+  th{position:static}
+  body{background:#fff}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="titlebar">
+      <div>
+        <h1>Weihnachtsbrief-Versand</h1>
+        <div class="sub" id="subline">Adressen zusammenführen · Duplikate erkennen · Zuständigkeiten verteilen</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" id="btnImport" title="Excel- oder CSV-Dateien einlesen">⤓ Excel importieren</button>
+      <button class="btn" id="btnRefresh" title="Daten live aus der Cevi DB neu laden">↻ Aus Cevi DB aktualisieren</button>
+      <button class="btn primary" id="btnExport" title="Ergebnis als Excel herunterladen">⇩ Export Excel</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv" multiple hidden>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+  <main id="main"></main>
+</div>
+<div class="dropmask" id="dropmask">Excel-Datei hier loslassen</div>
+<div class="toast" id="toast"></div>
+
+<script>/*__XLSX__*/</script>
+<script>/*__CORE__*/</script>
+<script>
+'use strict';
+const STORE_KEY = 'weihnachtsbrief-tool-v1';
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+// ---------------------------------------------------------------- Zustand
+function defaultState() {
+  return {
+    sources: [],
+    cats: WB.DEFAULT_CATEGORIES.map(c => ({ ...c })),
+    order: WB.DEFAULT_CATEGORIES.map(c => c.id),
+    staff: [],
+    aliasText: '', autoAliases: true, version: 3,
+    decisions: {}, overrides: {}, done: {}, importDone: true,
+    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null,
+          sources: [ { id: uid(), label: 'Fachgruppen', groupIds: '', catId: 'fachgruppen', owner: '', subgroups: true } ] },
+    ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', owner: '', only: '' }, assignFilter: 'open' },
+  };
+}
+let S = load();
+let sessionToken = '';
+let R = { people: [], review: [], entries: [], aliases: { codeNames: {}, labelToCode: {} }, byOwner: new Map(), coByOwner: new Map() };
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return defaultState();
+    const s = Object.assign(defaultState(), JSON.parse(raw));
+    s.ui = Object.assign(defaultState().ui, s.ui || {});
+    s.db = Object.assign(defaultState().db, s.db || {});
+    // neue Standard-Kategorien ergänzen
+    for (const c of WB.DEFAULT_CATEGORIES) {
+      const ex = s.cats.find(x => x.id === c.id);
+      if (!ex) { s.cats.push({ ...c }); s.order.push(c.id); }
+      else { ex.exact = c.exact; ex.strong = c.strong; ex.weak = c.weak; }
+    }
+    if (!s.version || s.version < 3) {
+      // Version 3: Personenliste „Zuständige" + mehrere Personen pro Kategorie
+      s.staff = Array.isArray(s.staff) ? s.staff : [];
+      for (const line of (s.aliasText || '').split('\n')) {
+        const m = line.trim().match(/^([A-Za-zÄÖÜ]{2,4})\s*:\s*(.+)$/);
+        if (m && !s.staff.some(x => (x.code || '').toUpperCase() === m[1].toUpperCase())) s.staff.push({ id: uid(), code: m[1].toUpperCase(), name: m[2].trim(), aliases: [] });
+      }
+      for (const c of s.cats) {
+        if (!Array.isArray(c.persons)) c.persons = WB.catPersonLabels(c);
+        if (c.ownerManual) c.personsManual = true;
+        delete c.owner; delete c.ownerManual;
+      }
+      s.aliasText = '';
+      s.version = 3;
+    }
+    s.staff = s.staff || [];
+    return s;
+  } catch (e) { console.warn(e); return defaultState(); }
+}
+function save() {
+  const copy = { ...S, db: { ...S.db } };
+  if (!S.db.rememberToken) copy.db.token = '';
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(copy)); }
+  catch (e) { toast('Konnte nicht lokal speichern: ' + e.message); }
+}
+function token() { return S.db.rememberToken ? S.db.token : sessionToken; }
+
+// ---------------------------------------------------------------- Berechnung
+const staffKey = (st) => String((st && (st.code || st.name)) || '').trim();
+function parseAliasText() {
+  const map = new Map(), names = {};
+  for (const line of (S.aliasText || '').split('\n')) {
+    const l = line.trim(); if (!l || l.startsWith('#')) continue;
+    let m = l.match(/^(.+?)\s*=\s*(.+)$/);
+    if (m) { map.set(WB.fold(m[1]), WB.normOwner(m[2])); continue; }
+    m = l.match(/^([A-Za-zÄÖÜ]{2,4})\s*:\s*(.+)$/);
+    if (m) names[m[1].toUpperCase()] = m[2].trim();
+  }
+  return { map, names };
+}
+function recompute() {
+  const entries = [];
+  let n = 0;
+  for (const src of S.sources) {
+    if (src.enabled === false) continue;
+    for (const e of src.entries) {
+      entries.push({ ...e, catId: src.perRow ? (e.catId || src.catId) : src.catId, uid: ++n, sourceId: src.id,
+        sourceLabel: (src.kind === 'db' ? 'Cevi DB: ' : '') + src.label, origin: src.kind === 'db' ? 'db' : 'excel' });
+    }
+  }
+  const cats = S.cats;
+  const auto = S.autoAliases ? WB.deriveAliases(entries, cats) : { codeNames: {}, labelToCode: {} };
+  // 1) automatisch erkannte Kürzel (aus Cevi Schweiz), 2) erfasste Personen haben Vorrang
+  const aliases = new Map(Object.entries(auto.labelToCode));
+  const codeNames = {};
+  for (const [code, name] of Object.entries(auto.codeNames)) { aliases.set(WB.fold(code), code); codeNames[code] = name; }
+  const firstCount = new Map();
+  for (const st of S.staff) { const f = WB.fold((st.name || '').split(' ')[0]); if (f) firstCount.set(f, (firstCount.get(f) || 0) + 1); }
+  for (const st of S.staff) {
+    const k = staffKey(st); if (!k) continue;
+    if (st.code) aliases.set(WB.fold(st.code), k);
+    if (st.name) { aliases.set(WB.fold(st.name), k); const f = WB.fold(st.name.split(' ')[0]); if (firstCount.get(f) === 1 && !(st.name.split(' ').length === 1 && st.code)) aliases.set(f, k); }
+    for (const a of st.aliases || []) aliases.set(WB.fold(a), k);
+    codeNames[k] = st.name || '';
+  }
+  const { people, review } = WB.buildPeople(entries, { cats, order: S.order, aliases, codeNames, decisions: S.decisions, overrides: S.overrides });
+  const byOwner = new Map(), coByOwner = new Map();
+  for (const p of people) {
+    p.done = S.done[p.key] !== undefined ? S.done[p.key] : (S.importDone && p.doneFromFile);
+    const o = p.owner || '';
+    if (!byOwner.has(o)) byOwner.set(o, []);
+    byOwner.get(o).push(p);
+    for (const c of p.coSigners) { if (!coByOwner.has(c.owner)) coByOwner.set(c.owner, []); coByOwner.get(c.owner).push({ p, via: c.via }); }
+  }
+  R = { people, review, entries, aliases: { codeNames, labelToCode: Object.fromEntries(aliases), auto }, byOwner, coByOwner };
+}
+const catName = (id) => (S.cats.find(c => c.id === id) || {}).name || 'ohne Kategorie';
+function ownerName(o) { if (!o) return 'Ohne Zuständigkeit'; const n = R.aliases.codeNames[o]; return n ? n : o; }
+function ownerHtml(o, withCode = true) {
+  if (!o) return '<span class="muted">– offen –</span>';
+  const n = R.aliases.codeNames[o];
+  return n && n !== o ? `${withCode ? `<span class="code">${esc(o)}</span> ` : ''}${esc(n)}` : esc(o);
+}
+const isStaff = (k) => S.staff.some(st => staffKey(st) === k);
+function catKeys(c) { return [...new Set(WB.catPersonLabels(c).map(l => resolveOwner(l)).filter(Boolean))]; }
+function allOwners() {
+  const set = new Set([...S.staff.map(staffKey), ...R.byOwner.keys(), ...R.coByOwner.keys()].filter(Boolean));
+  for (const c of S.cats) for (const k of catKeys(c)) set.add(k);
+  for (const k of Object.keys(R.aliases.codeNames)) set.add(k);
+  return [...set].sort((a, b) => ownerName(a).localeCompare(ownerName(b), 'de'));
+}
+
+// ---------------------------------------------------------------- Rendering
+let rendering = false, renderAgain = false;
+function render() {
+  // Schutz: Beim Ersetzen des Inhalts kann ein Feld noch ein „change" auslösen → danach erneut zeichnen
+  if (rendering) { renderAgain = true; return; }
+  rendering = true;
+  try { renderNow(); } finally { rendering = false; }
+  if (renderAgain) { renderAgain = false; setTimeout(render, 0); }
+}
+function renderNow() {
+  recompute();
+  renderKpis();
+  renderTabs();
+  const t = S.ui.tab;
+  const main = $('#main');
+  if (!S.sources.length && t !== 'db' && t !== 'settings') { main.innerHTML = emptyView(); bindDrop($('#bigdrop')); return; }
+  NEW_KEYS = new Set(((S.lastChange && S.lastChange.added) || []).map(a => a.k + '#' + a.zip));
+  const top = (t === 'owners' || t === 'all' || t === 'settings' || t === 'db') ? changeReport() : '';
+  if (t === 'owners') main.innerHTML = top + ownersView();
+  else if (t === 'assign') main.innerHTML = assignView();
+  else if (t === 'all') main.innerHTML = top + allView();
+  else if (t === 'dups') main.innerHTML = dupsView();
+  else if (t === 'settings') main.innerHTML = top + settingsView();
+  else if (t === 'db') main.innerHTML = top + dbView();
+  const big = $('#bigdrop'); if (big) bindDrop(big);
+  $('#subline').textContent = S.sources.length
+    ? `${S.sources.filter(s => s.kind === 'excel').length} Excel-Listen` + (S.sources.some(s => s.kind === 'db') ? ` · ${S.sources.filter(s => s.kind === 'db').length} Cevi-DB-Quellen (Stand ${fmtDate(S.db.lastRefresh)})` : '')
+    : 'Adressen zusammenführen · Duplikate erkennen · Zuständigkeiten verteilen';
+}
+let NEW_KEYS = new Set();
+const isNew = (p) => NEW_KEYS.has(diffKey(p) + '#' + WB.key(p.zip));
+function renderKpis() {
+  const P = R.people;
+  const done = P.filter(p => p.done).length;
+  const dup = P.filter(p => p.isDuplicate).length;
+  const open = R.byOwner.get('') ? R.byOwner.get('').length : 0;
+  const pct = P.length ? Math.round(done / P.length * 100) : 0;
+  $('#kpis').innerHTML = !S.sources.length ? '' : `
+    <div class="kpi"><div class="v">${R.entries.length}</div><div class="l">Einträge in allen Listen</div></div>
+    <div class="kpi"><div class="v">${P.length}</div><div class="l">Briefe (eindeutige Empfänger)</div></div>
+    <div class="kpi"><div class="v">${dup}</div><div class="l">Personen in mehreren Listen</div></div>
+    <div class="kpi ${R.review.length ? 'warn' : ''}"><div class="v">${R.review.length}</div><div class="l">mögliche Duplikate prüfen</div></div>
+    <div class="kpi ${open ? 'warn' : ''}"><div class="v">${open}</div><div class="l">ohne Zuständigkeit</div></div>
+    <div class="kpi"><div class="v">${done} / ${P.length}</div><div class="l">erledigt (${pct}%)</div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+}
+function renderTabs() {
+  const tabs = [
+    ['settings', 'Zuständigkeit', S.staff.length], ['assign', 'Zuteilen', openDecisions().length, openDecisions().length ? 'warn' : ''], ['owners', 'Pro Zuständige*r'], ['all', 'Alle Adressen', R.people.length], ['dups', 'Duplikate prüfen', R.review.length, R.review.length ? 'warn' : ''],
+    ['db', 'Cevi DB'],
+  ];
+  $('#tabs').innerHTML = tabs.map(([id, l, c, cls]) => `<button data-tab="${id}" class="${S.ui.tab === id ? 'on' : ''}">${l}${c !== undefined ? `<span class="count ${cls || ''}">${c}</span>` : ''}</button>`).join('');
+}
+function emptyView() {
+  return `<div style="max-width:760px;margin:30px auto">
+    <div class="drop" id="bigdrop">
+      <h2>Excel-Adresslisten hierher ziehen</h2>
+      <div class="muted">oder klicken, um Dateien auszuwählen (.xlsx, .xls, .csv – auch mehrere auf einmal)</div>
+    </div>
+    <div class="grid2" style="margin-top:18px">
+      <div class="callout"><h4>Was passiert beim Import?</h4>Jedes Blatt (bzw. jeder Block wie „Vorstand", „Geschäftsstelle") wird einer Kategorie zugeordnet – anhand von Blattname, Dateiname, Blocktitel oder Rollen-Spalte. Das Blatt „Überblick" wird automatisch für die Hauptzuständigkeiten übernommen.</div>
+      <div class="callout"><h4>Datenschutz</h4>Die Datei wird nur hier im Browser verarbeitet und lokal auf diesem Computer zwischengespeichert. Es wird nichts hochgeladen.</div>
+    </div>
+    <p class="muted small" style="text-align:center;margin-top:18px">Statt Excel: Im Tab <a href="#" data-tab="db">Cevi DB</a> die Listen direkt aus der Datenbank laden.</p>
+  </div>`;
+}
+
+function personAddr(p) {
+  const l1 = [p.careOf].filter(Boolean).join('');
+  const l2 = [p.street, p.nr].filter(Boolean).join(' ');
+  const l3 = [p.zip, p.town].filter(Boolean).join(' ');
+  return [l1, l2, l3].filter(Boolean).map(esc).join('<br>') || '<span class="note bad">keine Adresse</span>';
+}
+function membershipChips(p, highlightPrimary = true) {
+  return p.memberships.map((m, i) => `<span class="chip cat ${highlightPrimary && i === 0 && m.catId === p.primaryCatId ? 'prim' : ''}" title="${esc(m.source + (m.roles ? ' · ' + m.roles : '') + ' · zuständig: ' + (m.owner || 'offen'))}">${m.origin === 'db' ? '● ' : ''}${esc(m.cat)}${m.group && m.group !== m.cat ? ' › ' + esc(m.group) : ''}</span>`).join('');
+}
+function coChips(p) {
+  return p.coSigners.length ? p.coSigners.map(c => `<span class="chip co" title="${esc(c.via.join('\n'))}">✍ ${esc(c.owner)}${R.aliases.codeNames[c.owner] && R.aliases.codeNames[c.owner] !== c.owner ? ' · ' + esc(R.aliases.codeNames[c.owner].split(' ')[0]) : ''}</span>`).join('') : '<span class="muted small">–</span>';
+}
+function notesHtml(p) { return p.notes.map(n => `<span class="note ${/fehlt|keine|unvollständig|selbst – bitte/i.test(n) ? 'bad' : ''}">⚠ ${esc(n)}</span>`).join(''); }
+function ownerSelect(p) {
+  const opts = allOwners();
+  const fromLists = p.ownerOptions;
+  return `<select class="inline" data-override="${esc(p.key)}" title="Hauptzuständigkeit ändern">
+    ${!p.owner ? '<option value="">– offen –</option>' : ''}
+    <optgroup label="Aus den Listen">${fromLists.map(o => `<option value="${esc(o)}" ${o === p.owner ? 'selected' : ''}>${esc(o)}${R.aliases.codeNames[o] && R.aliases.codeNames[o] !== o ? ' · ' + esc(R.aliases.codeNames[o]) : ''}</option>`).join('')}</optgroup>
+    <optgroup label="Alle">${opts.filter(o => !fromLists.includes(o)).map(o => `<option value="${esc(o)}" ${o === p.owner ? 'selected' : ''}>${esc(o)}${R.aliases.codeNames[o] && R.aliases.codeNames[o] !== o ? ' · ' + esc(R.aliases.codeNames[o]) : ''}</option>`).join('')}</optgroup>
+    <option value="__other">＋ andere Person …</option>
+    ${p.overridden ? '<option value="__reset">↺ automatisch</option>' : ''}
+  </select>`;
+}
+function personRow(p, opts = {}) {
+  return `<tr class="${p.done ? 'done' : ''}">
+    <td class="chk"><input type="checkbox" data-done="${esc(p.key)}" ${p.done ? 'checked' : ''} title="Brief erledigt"></td>
+    <td><div class="name">${esc(p.displayName)}${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.memberships.length + ' Listen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.memberships.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
+      ${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}${p.email ? `<div class="org">${esc(p.email)}</div>` : ''}${notesHtml(p)}</td>
+    <td class="addr">${personAddr(p)}</td>
+    <td>${membershipChips(p)}</td>
+    ${opts.showOwner ? `<td>${ownerSelect(p)}${p.overridden ? '<div class="small muted">manuell</div>' : ''}</td>` : ''}
+    <td>${coChips(p)}</td>
+  </tr>`;
+}
+
+function ownersView() {
+  const owners = [...R.byOwner.keys()];
+  const coOnly = [...R.coByOwner.keys()].filter(o => !R.byOwner.has(o));
+  let sel = S.ui.owner;
+  if (sel === null || (!R.byOwner.has(sel) && !R.coByOwner.has(sel))) sel = owners.filter(Boolean).sort((a, b) => R.byOwner.get(b).length - R.byOwner.get(a).length)[0] ?? '';
+  S.ui.owner = sel;
+  const item = (o) => {
+    const send = R.byOwner.get(o) || [], co = R.coByOwner.get(o) || [];
+    const d = send.filter(p => p.done).length;
+    return `<button class="owner ${o === sel ? 'on' : ''} ${!o ? 'warn' : ''}" data-owner="${esc(o)}">
+      <div class="n">${o ? ownerHtml(o) : '⚠ Ohne Zuständigkeit'}</div>
+      <div class="meta"><span>${send.length} Briefe</span>${co.length ? `<span>✍ ${co.length} mitunterschreiben</span>` : ''}${send.length ? `<span class="right">${d}/${send.length}</span>` : ''}</div>
+      ${send.length ? `<div class="prog"><i style="width:${Math.round(d / send.length * 100)}%"></i></div>` : ''}
+    </button>`;
+  };
+  const sorted = owners.filter(Boolean).sort((a, b) => R.byOwner.get(b).length - R.byOwner.get(a).length);
+  const send = (R.byOwner.get(sel) || []).slice();
+  const co = (R.coByOwner.get(sel) || []).slice();
+  const d = send.filter(p => p.done).length;
+  const byCat = new Map();
+  for (const p of send) { const k = p.primaryCat; byCat.set(k, (byCat.get(k) || 0) + 1); }
+  return `<div class="split">
+    <div class="panel owners noprint">
+      <div class="search"><input type="search" id="ownerSearch" placeholder="Person / Kürzel suchen…"></div>
+      ${R.byOwner.has('') ? item('') : ''}
+      ${sorted.map(item).join('')}
+      ${coOnly.length ? `<div class="sep">Nur Mitunterschrift</div>${coOnly.sort().map(item).join('')}` : ''}
+    </div>
+    <div>
+      <div class="panel">
+        <div class="hd">
+          <div>
+            <h2>${sel ? ownerHtml(sel) : '⚠ Ohne Zuständigkeit'}</h2>
+            <div class="muted small">${send.length} Briefe versenden · ${co.length} Mal mitunterschreiben · ${d}/${send.length} erledigt
+              ${byCat.size ? ' · ' + [...byCat].map(([k, v]) => `${esc(k)} ${v}`).join(', ') : ''}</div>
+          </div>
+          <div class="right noprint" style="display:flex;gap:6px">
+            <button class="btn small" data-action="print">⎙ Drucken</button>
+            <button class="btn small" data-action="export-owner">⇩ Nur diese Liste</button>
+          </div>
+        </div>
+        ${!sel ? `<div class="bd"><div class="callout warn">Diese Empfänger haben weder in der Liste noch in der Kategorie eine Zuständigkeit. Im Tab <a href="#" data-tab="assign">Zuteilen</a> frei eine Person eintragen – oder eine Standard-Zuständigkeit pro Kategorie unter „Quellen & Einstellungen" setzen.</div></div>` : ''}
+        ${send.length ? `<div class="tablewrap"><table>
+          <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th>${!sel ? '<th>Zuständig</th>' : ''}<th>Unterschreiben auch</th></tr></thead>
+          <tbody>${send.map(p => personRow(p, { showOwner: !sel })).join('')}</tbody></table></div>` : '<div class="empty">Keine eigenen Briefe.</div>'}
+      </div>
+      ${goneView(sel)}
+      ${co.length ? `<div class="section-title"><h3>✍ Hier unterschreibt ${sel ? esc(ownerName(sel).split(' ')[0]) : ''} zusätzlich mit</h3><span class="muted small">Brief wird von jemand anderem versendet</span></div>
+      <div class="panel"><div class="tablewrap"><table>
+        <thead><tr><th></th><th>Empfänger*in</th><th>Versendet von</th><th>Grund</th></tr></thead>
+        <tbody>${co.map(({ p, via }) => `<tr class="${p.done ? 'done' : ''}"><td class="chk">${p.done ? '✓' : ''}</td>
+          <td><div class="name">${esc(p.displayName)}</div>${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}</td>
+          <td><a href="#" data-owner="${esc(p.owner)}">${ownerHtml(p.owner)}</a></td>
+          <td class="small">${via.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    </div>
+  </div>`;
+}
+
+function goneView(sel) {
+  const c = S.lastChange;
+  if (!c) return '';
+  const gone = (c.removed || []).filter(r => (r.owner || '') === sel);
+  const moved = (c.ownerChanged || []).filter(r => (r.from || '') === sel);
+  if (!gone.length && !moved.length) return '';
+  return `<div class="section-title"><h3>Seit der letzten Aktualisierung (${fmtDate(c.at)}) nicht mehr bei ${sel ? esc(ownerName(sel).split(' ')[0]) : 'dieser Liste'}</h3></div>
+  <div class="panel"><div class="tablewrap"><table><thead><tr><th>Empfänger*in</th><th>Was ist passiert?</th></tr></thead><tbody>
+    ${gone.map(r => `<tr><td><div class="name">${esc(r.name)}</div>${r.org ? `<div class="org">${esc(r.org)}</div>` : ''}</td><td><span class="chip gone">nicht mehr auf der Liste</span> kein Brief mehr nötig${r.done ? ' <span class="badge warn">war schon erledigt</span>' : ''}<div class="small muted">bisher: ${esc(r.lists.join(', '))}</div></td></tr>`).join('')}
+    ${moved.map(r => `<tr><td><div class="name">${esc(r.name)}</div></td><td>wird jetzt von <b>${ownerHtml(r.to)}</b> versendet${r.wasDone ? ' <span class="badge warn">war bei dir schon erledigt</span>' : ''}</td></tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+function filteredPeople() {
+  const f = S.ui.filter, q = WB.fold(f.q || '');
+  return R.people.filter(p => {
+    if (f.cat && !p.memberships.some(m => m.catId === f.cat)) return false;
+    if (f.owner === '__none' && p.owner) return false;
+    if (f.owner && f.owner !== '__none' && p.owner !== f.owner && !p.coSigners.some(c => c.owner === f.owner)) return false;
+    if (f.only === 'dup' && !p.isDuplicate) return false;
+    if (f.only === 'open' && p.done) return false;
+    if (f.only === 'notes' && !p.notes.length) return false;
+    if (q) {
+      const hay = WB.fold([p.displayName, p.org, p.email, p.street, p.zip, p.town, ...p.memberships.map(m => m.cat + ' ' + m.group)].join(' '));
+      if (!q.split(/\s+/).every(w => hay.includes(w))) return false;
+    }
+    return true;
+  });
+}
+function allView() {
+  const f = S.ui.filter;
+  const list = filteredPeople();
+  const usedCats = S.order.filter(id => R.people.some(p => p.memberships.some(m => m.catId === id)));
+  return `<div class="panel">
+    <div class="hd filters noprint">
+      <input type="search" id="q" placeholder="Suchen (Name, Ort, Gruppe…)" value="${esc(f.q)}">
+      <select id="fcat"><option value="">Alle Kategorien</option>${usedCats.map(id => `<option value="${id}" ${f.cat === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select>
+      <select id="fowner"><option value="">Alle Zuständigen</option><option value="__none" ${f.owner === '__none' ? 'selected' : ''}>⚠ ohne Zuständigkeit</option>${allOwners().map(o => `<option value="${esc(o)}" ${f.owner === o ? 'selected' : ''}>${esc(o)}${R.aliases.codeNames[o] && R.aliases.codeNames[o] !== o ? ' · ' + esc(R.aliases.codeNames[o]) : ''}</option>`).join('')}</select>
+      <select id="fonly"><option value="">Alle</option><option value="dup" ${f.only === 'dup' ? 'selected' : ''}>Nur mehrfach gelistete</option><option value="open" ${f.only === 'open' ? 'selected' : ''}>Nur nicht erledigte</option><option value="notes" ${f.only === 'notes' ? 'selected' : ''}>Nur mit Hinweisen ⚠</option></select>
+      <span class="muted small right">${list.length} von ${R.people.length}</span>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th><th>Hauptzuständig (versendet)</th><th>Unterschreiben auch</th></tr></thead>
+      <tbody>${list.slice(0, 600).map(p => personRow(p, { showOwner: true })).join('')}</tbody>
+    </table>${list.length > 600 ? `<div class="empty">… ${list.length - 600} weitere – bitte Filter verwenden.</div>` : ''}${!list.length ? '<div class="empty">Keine Treffer.</div>' : ''}</div>
+  </div>`;
+}
+
+// ---------------------------------------------------------------- Zuteilen
+const needsChoice = (p) => p.isDuplicate && p.candidates.filter(c => !c.self).length > 1;
+const noOwnerAuto = (p) => !p.suggested;
+function openDecisions() { return R.people.filter(p => !p.overridden && (needsChoice(p) || noOwnerAuto(p))); }
+function resolveOwner(input) {
+  const v = String(input || '').trim();
+  if (!v) return '';
+  const f = WB.fold(v);
+  for (const [code, name] of Object.entries(R.aliases.codeNames)) if (WB.fold(name) === f || code.toLowerCase() === f) return code;
+  if (R.aliases.labelToCode[f]) return R.aliases.labelToCode[f];
+  const byFirst = Object.entries(R.aliases.codeNames).filter(([, name]) => WB.fold(name.split(' ')[0]) === f);
+  if (byFirst.length === 1) return byFirst[0][0];
+  return WB.normOwner(v);
+}
+function ownerDatalist() {
+  return `<datalist id="ownerList">${allOwners().map(o => `<option value="${esc(o)}">${esc(R.aliases.codeNames[o] || '')}</option>`).join('')}</datalist>`;
+}
+function candButtons(p) {
+  const list = p.candidates.slice();
+  if (p.owner && !list.some(c => c.owner === p.owner)) list.push({ owner: p.owner, via: ['frei zugewiesen'], self: false });
+  return `<div class="cands">${list.map(c => `<button class="cand ${c.owner === p.owner ? 'on' : ''} ${c.self ? 'self' : ''}" data-assign-key="${esc(p.key)}" data-assign-val="${esc(c.owner)}" title="${c.self ? 'Das ist die Person selbst' : 'Als Hauptverantwortung wählen'}">
+      <div class="who">${ownerHtml(c.owner)}${c.owner === p.suggested && !p.overridden ? ' <span class="sug">Vorschlag</span>' : ''}</div>
+      <div class="via">${c.self ? 'ist die Person selbst' : c.via.map(esc).join('<br>')}</div></button>`).join('')}</div>`;
+}
+function freeAssign(p, kind) {
+  return `<div class="free"><input list="ownerList" data-free="${esc(p.key)}" placeholder="${kind === 'none' ? 'Zuständige Person: Kürzel oder Name' : 'oder andere Person: Kürzel oder Name'}"><button class="btn small" data-free-btn="${esc(p.key)}">Zuweisen</button>${p.overridden ? `<button class="btn small ghost" data-unassign="${esc(p.key)}" title="Zurück zum automatischen Vorschlag">↺ zurücksetzen</button>` : ''}</div>`;
+}
+function statusCell(p) {
+  if (p.overridden) return '<span class="badge ok">✓ festgelegt</span>';
+  if (!p.owner) return '<span class="badge bad">offen</span>';
+  return '<span class="badge info">Vorschlag</span>';
+}
+function assignView() {
+  const f = S.ui.assignFilter || 'open';
+  const without = R.people.filter(noOwnerAuto);
+  const dups = R.people.filter(p => p.isDuplicate && !noOwnerAuto(p));
+  const decided = dups.filter(p => p.overridden || !needsChoice(p)).length;
+  const showDup = dups.filter(p => f === 'all' ? true : f === 'done' ? (p.overridden || !needsChoice(p)) : (!p.overridden && needsChoice(p)));
+  const showWithout = without.filter(p => f === 'all' ? true : f === 'done' ? p.overridden : !p.overridden);
+  const row = (p, kind) => `<tr class="${p.overridden ? 'decided' : ''}">
+      <td style="min-width:190px"><div class="name">${esc(p.displayName)}</div>${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}<div class="org">${esc([p.zip, p.town].filter(Boolean).join(' '))}</div>
+        <div style="margin-top:4px">${statusCell(p)}</div></td>
+      <td>${kind === 'dup' ? candButtons(p) : `<div class="small">${p.memberships.map(m => esc(listLabel(m))).join('<br>')}</div>${p.owner ? `<div style="margin-top:6px">zuständig: <b>${ownerHtml(p.owner)}</b></div>` : ''}`}
+        ${freeAssign(p, kind)}</td>
+      <td style="min-width:150px">${p.owner ? coChips(p) : '<span class="muted small">–</span>'}</td></tr>`;
+  return `${ownerDatalist()}
+  <div class="panel noprint" style="margin-bottom:16px"><div class="bd" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div class="seg">${[['open', 'Noch zu entscheiden'], ['done', 'Erledigt'], ['all', 'Alle']].map(([k, l]) => `<button data-afilter="${k}" class="${f === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <span class="muted small">Klick auf eine Person = Hauptverantwortung (versendet den Brief). Alle anderen unterschreiben automatisch mit.</span>
+    <span class="right" style="display:flex;gap:6px"><button class="btn small" data-action="accept-all" title="Alle noch offenen Doppelten mit dem Vorschlag festlegen">✓ Restliche Vorschläge übernehmen</button><button class="btn small" data-action="export-assign">⇩ Liste als Excel</button><button class="btn small" data-action="print">⎙ Drucken</button></span>
+  </div></div>
+  <div class="panel">
+    <div class="hd"><h2>Ohne Zuständigkeit</h2><span class="muted small">${without.filter(p => p.overridden).length} von ${without.length} zugewiesen – Person frei eintragen (auch jemand, der in keiner Liste steht)</span></div>
+    ${showWithout.length ? `<div class="tablewrap"><table><thead><tr><th>Empfänger*in</th><th>Gefunden in · zuständig</th><th>Unterschreiben auch</th></tr></thead><tbody>${showWithout.map(p => row(p, 'none')).join('')}</tbody></table></div>` : `<div class="empty">${without.length ? 'Alle zugewiesen ✓' : 'Keine.'}</div>`}
+  </div>
+  <div class="section-title"><h3>Mehrfach gelistet – Hauptverantwortung wählen</h3><span class="muted small">${decided} von ${dups.length} geklärt${dups.length - decided ? ` · <b>${dups.length - decided} offen</b>` : ' ✓'}</span></div>
+  <div class="panel">
+    ${showDup.length ? `<div class="tablewrap"><table><thead><tr><th>Empfänger*in</th><th>Zur Auswahl (Zuständige aus den Listen)</th><th>Unterschreiben auch</th></tr></thead><tbody>${showDup.map(p => row(p, 'dup')).join('')}</tbody></table></div>` : `<div class="empty">${f === 'open' ? 'Alles entschieden 🎉' : 'Keine.'}</div>`}
+  </div>`;
+}
+function assign(key, owner) {
+  if (!key) return;
+  if (!owner) { delete S.overrides[key]; } else S.overrides[key] = owner;
+  save(); render();
+}
+const SETTINGS_TYPE = 'weihnachtsbrief-einstellungen';
+function exportSettings() {
+  const data = { type: SETTINGS_TYPE, version: 3, exportedAt: new Date().toISOString(), staff: S.staff, cats: S.cats, order: S.order,
+    overrides: S.overrides, decisions: S.decisions, done: S.done, db: { baseUrl: S.db.baseUrl, sources: S.db.sources } };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `Weihnachtsbrief-Einstellungen_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+async function importSettings(file) {
+  try {
+    const d = JSON.parse(await file.text());
+    if (!d || d.type !== SETTINGS_TYPE) throw new Error('Das ist keine Einstellungs-Datei dieses Tools.');
+    if (!confirm('Einstellungen laden? Zuständige, Kategorien und Zuteilungen werden durch die Datei ersetzt. Importierte Listen bleiben.')) return;
+    if (Array.isArray(d.staff)) S.staff = d.staff;
+    if (Array.isArray(d.cats)) {
+      S.cats = d.cats;
+      for (const c of WB.DEFAULT_CATEGORIES) { const ex = S.cats.find(x => x.id === c.id); if (ex) { ex.exact = c.exact; ex.strong = c.strong; ex.weak = c.weak; } }
+    }
+    if (Array.isArray(d.order)) S.order = d.order.filter(id => S.cats.some(c => c.id === id));
+    for (const c of S.cats) if (!S.order.includes(c.id)) S.order.push(c.id);
+    S.overrides = d.overrides || {}; S.decisions = d.decisions || {}; if (d.done) S.done = d.done;
+    if (d.db) { S.db.baseUrl = d.db.baseUrl || S.db.baseUrl; if (Array.isArray(d.db.sources)) S.db.sources = d.db.sources; }
+    save(); render(); toast(`Einstellungen geladen: ${S.staff.length} Zuständige, ${S.cats.length} Kategorien`);
+  } catch (e) { toast('Konnte Einstellungen nicht laden: ' + e.message); }
+}
+function exportAssign() {
+  const rows = R.people.filter(p => p.isDuplicate || noOwnerAuto(p)).map(p => ({
+    'Empfänger*in': p.displayName, 'Organisation': p.org !== p.displayName ? p.org : '', 'PLZ': p.zip, 'Ort': p.town,
+    'Gefunden in (Liste → zuständig)': p.memberships.map(m => listLabel(m) + ' → ' + (m.owner || 'offen')).join('\n'),
+    'Zur Auswahl': p.candidates.map(c => c.owner + (R.aliases.codeNames[c.owner] ? ' (' + R.aliases.codeNames[c.owner] + ')' : '')).join(', '),
+    'Vorschlag': p.suggested || '', 'Hauptverantwortung': p.owner || '', 'Name': R.aliases.codeNames[p.owner] || '',
+    'Status': p.overridden ? 'festgelegt' : (!p.owner ? 'offen' : needsChoice(p) ? 'Vorschlag' : 'eindeutig'),
+    'Unterschreiben auch': p.coSigners.map(c => c.owner).join(', '),
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheetFrom(rows, { 'Empfänger*in': 24, 'Organisation': 22, 'Gefunden in (Liste → zuständig)': 60, 'Zur Auswahl': 34, 'Name': 18, 'Unterschreiben auch': 20 }), 'Zuteilen');
+  XLSX.writeFile(wb, `Weihnachtsbriefe_Zuteilen_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+function whoBox(p) {
+  return `<div class="who"><div class="name">${esc(p.displayName)}</div>${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}
+    <div class="small">${[p.street, p.nr].filter(Boolean).map(esc).join(' ')}${p.zip ? ', ' + esc(p.zip + ' ' + p.town) : ''}${p.email ? '<br>' + esc(p.email) : ''}</div>
+    <div style="margin-top:4px">${membershipChips(p, false)}</div><div class="small muted">zuständig: ${ownerHtml(p.owner)}</div></div>`;
+}
+function dupsView() {
+  const merged = R.people.filter(p => p.isDuplicate);
+  return `<div class="panel">
+    <div class="hd"><h2>Bitte prüfen</h2><span class="muted small">Ähnliche Einträge, die nicht automatisch zusammengeführt wurden</span></div>
+    ${R.review.length ? R.review.map(r => `<div class="pair"><div><div class="why">${esc(r.why)}</div>${whoBox(r.a)}</div><div><div class="why">&nbsp;</div>${whoBox(r.b)}</div>
+      <div class="acts"><button class="btn small primary" data-decide="same" data-pair="${esc(r.pairKey)}">Dieselbe Person</button><button class="btn small" data-decide="different" data-pair="${esc(r.pairKey)}">Verschiedene Personen</button></div></div>`).join('')
+    : '<div class="empty">Nichts zu prüfen 🎉</div>'}
+  </div>
+  <div class="section-title"><h3>Automatisch zusammengeführt (${merged.length})</h3><span class="muted small">Jede Person erhält nur einen Brief – die anderen Zuständigen unterschreiben mit.</span></div>
+  <div class="panel"><div class="tablewrap"><table>
+    <thead><tr><th>Person</th><th>Gefunden in (zuständig)</th><th>Erkannt über</th><th>Versendet von <a href="#" data-tab="assign" class="small">(ändern)</a></th><th>Unterschreiben auch</th><th></th></tr></thead>
+    <tbody>${merged.map(p => `<tr><td><div class="name">${esc(p.displayName)}</div><div class="org">${esc([p.zip, p.town].filter(Boolean).join(' '))}</div>${notesHtml(p)}</td>
+      <td>${p.memberships.map(m => `<div class="small">${m.origin === 'db' ? '● ' : ''}${esc(m.cat)}${m.group && m.group !== m.cat ? ' › ' + esc(m.group) : ''} <span class="muted">(${esc(m.owner || 'offen')})</span></div>`).join('')}</td>
+      <td class="small">${p.mergeReasons.map(esc).join(', ')}</td>
+      <td>${ownerHtml(p.owner)}<div>${statusCell(p)}</div></td><td>${coChips(p)}</td>
+      <td><button class="btn small ghost" data-split="${esc(p.key)}" title="Falls das verschiedene Personen sind">Trennen</button></td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+
+function staffFromData(label) {
+  // Vorname aus „Cevi Schweiz" (Vorstand/Geschäftsstelle) → Kürzel + voller Name vorschlagen
+  const f = WB.fold(label);
+  const hits = new Map();
+  for (const e of R.entries) if (e.catId === 'cevi-schweiz' && e.first && e.last && WB.fold(e.first.split(' ')[0]) === f) hits.set(WB.key(e.first + e.last), e);
+  if (hits.size !== 1) return null;
+  const e = [...hits.values()][0];
+  const ln = e.last.replace(/[^A-Za-zÄÖÜäöüÉÈéèàç]/g, '');
+  return { code: (e.first.charAt(0) + ln.slice(0, 2)).toUpperCase(), name: e.first.split(' ')[0] + ' ' + e.last };
+}
+function staffUsage() {
+  const m = new Map();
+  for (const [o, list] of R.byOwner) m.set(o, { send: list.length, co: 0 });
+  for (const [o, list] of R.coByOwner) { const x = m.get(o) || { send: 0, co: 0 }; x.co = list.length; m.set(o, x); }
+  return m;
+}
+function staffSuggestions() {
+  const known = new Set(S.staff.map(staffKey));
+  const usage = staffUsage();
+  const out = new Map();
+  const add = (label, code, name) => {
+    if (!label || known.has(label) || out.has(label)) return;
+    if (code && S.staff.some(st => st.code === code)) return;
+    const u = usage.get(label) || { send: 0, co: 0 };
+    out.set(label, { label, code, name, send: u.send, co: u.co });
+  };
+  const labels = new Set([...R.byOwner.keys(), ...R.coByOwner.keys()].filter(Boolean));
+  for (const c of S.cats) for (const k of catKeys(c)) labels.add(k);
+  for (const code of Object.keys((R.aliases.auto || {}).codeNames || {})) labels.add(code);
+  for (const l of labels) {
+    if (/^[A-ZÄÖÜ]{2,4}$/.test(l)) add(l, l, (R.aliases.auto.codeNames || {})[l] || '');
+    else { const m = staffFromData(l); add(l, m ? m.code : '', m ? m.name : l); }
+  }
+  return [...out.values()].sort((x, y) => (y.send + y.co) - (x.send + x.co) || x.label.localeCompare(y.label));
+}
+function addStaff(code, name, alias) {
+  code = String(code || '').trim().toUpperCase(); name = String(name || '').trim();
+  if (!code && !name) return null;
+  if (code && S.staff.some(st => st.code === code)) { toast(`Kürzel ${code} ist schon erfasst.`); return null; }
+  const st = { id: uid(), code, name, aliases: alias && alias !== code && alias !== name ? [alias] : [] };
+  S.staff.push(st);
+  return st;
+}
+function renameKey(oldKey, newKey) {
+  if (!oldKey || !newKey || oldKey === newKey) return;
+  for (const c of S.cats) if (Array.isArray(c.persons)) c.persons = c.persons.map(l => (l === oldKey ? newKey : l));
+  for (const [k, v] of Object.entries(S.overrides)) if (v === oldKey) S.overrides[k] = newKey;
+  for (const d of S.db.sources) if (d.owner === oldKey) d.owner = newKey;
+}
+function parsePersonInput(txt) {
+  const t = String(txt || '').trim();
+  const m = t.match(/^([A-Za-zÄÖÜ]{2,4})(?:\s*[:\-–]\s*|\s+)(.+)$/);
+  if (m && m[1] === m[1].toUpperCase()) return { code: m[1], name: m[2].trim() };
+  if (/^[A-ZÄÖÜ]{2,4}$/.test(t)) return { code: t, name: '' };
+  return { code: '', name: t };
+}
+
+function settingsView() {
+  const usage = staffUsage();
+  const sugg = staffSuggestions();
+  const catsOf = (k) => S.order.map(id => S.cats.find(c => c.id === id)).filter(c => c && catKeys(c).includes(k));
+  const staffRows = S.staff.map(st => { const k = staffKey(st); const u = usage.get(k) || { send: 0, co: 0 }; return `<tr>
+      <td><input class="cell" data-staff="${st.id}" data-k="code" value="${esc(st.code)}" placeholder="Kürzel" style="width:70px;text-transform:uppercase"></td>
+      <td><input class="cell" data-staff="${st.id}" data-k="name" value="${esc(st.name)}" placeholder="Vorname Nachname" style="width:100%;min-width:150px"></td>
+      <td>${catsOf(k).map(c => `<span class="chip cat">${catKeys(c)[0] === k ? '★ ' : ''}${esc(c.name)}</span>`).join('') || '<span class="muted small">–</span>'}</td>
+      <td class="small" style="white-space:nowrap">${u.send ? `<a href="#" data-owner="${esc(k)}">${u.send} Briefe</a>` : '<span class="muted">0 Briefe</span>'}${u.co ? `<br><span class="muted">✍ ${u.co}× mit</span>` : ''}</td>
+      <td><button class="btn small ghost danger" data-staff-del="${st.id}" title="Person entfernen">✕</button></td></tr>`; }).join('');
+  const catRows = S.order.map((id, i) => {
+    const c = S.cats.find(x => x.id === id); if (!c) return '';
+    const keys = catKeys(c);
+    const avail = S.staff.filter(st => !keys.includes(staffKey(st)));
+    return `<li>
+      <span class="rank">${i + 1}.</span>
+      <div>
+        <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><input class="cell catname" data-cat-name="${id}" value="${esc(c.name)}" title="Kategorie umbenennen">
+          <span class="small muted">${esc([c.source ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · '))}</span></div>
+        <div class="cands" style="margin-top:6px;align-items:center">
+          ${keys.map((k, j) => `<span class="chip pers ${isStaff(k) ? '' : 'unknown'}" title="${j === 0 ? 'Versendet standardmässig' : 'Unterschreibt mit – Klick auf ☆ macht diese Person zur Hauptperson'}">
+              ${j === 0 ? '<b title="Versendet">★</b>' : `<button class="lnk" data-cat-primary="${id}" data-key="${esc(k)}" title="Zur Hauptperson machen">☆</button>`}
+              ${ownerHtml(k)}${isStaff(k) ? '' : ` <button class="lnk" data-staff-quick="${esc(k)}" title="Als Person erfassen">noch nicht erfasst – erfassen</button>`}
+              <button class="lnk x" data-cat-remove="${id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')}
+          <select class="inline" data-cat-add="${id}"><option value="">＋ Person zuordnen …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc(st.code ? st.code + ' · ' : '')}${esc(st.name)}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
+          ${!keys.length ? '<span class="small" style="color:var(--warn)">niemand zugeordnet – Zuständigkeit kommt aus der Liste</span>' : ''}
+        </div>
+      </div>
+      <span style="white-space:nowrap"><button class="btn small ghost" data-move="${id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Höhere Priorität">▲</button><button class="btn small ghost" data-move="${id}" data-dir="1" ${i === S.order.length - 1 ? 'disabled' : ''} title="Tiefere Priorität">▼</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕</button>` : ''}</span>
+    </li>`;
+  }).join('');
+  const srcRows = S.sources.map(s => `<tr>
+    <td><input type="checkbox" data-src-enable="${esc(s.id)}" ${s.enabled !== false ? 'checked' : ''} title="Liste verwenden"></td>
+    <td><div class="name">${esc(s.label)}</div><div class="org">${s.kind === 'db' ? 'Cevi DB · Stand ' + fmtDate(s.importedAt) : esc(s.file)}</div></td>
+    <td style="text-align:right">${s.entries.length}</td>
+    <td>${s.perRow ? '<span class="muted small">pro Zeile (Spalte Kategorie/Rollen)</span>' : `<select class="inline" data-src-cat="${esc(s.id)}"><option value="">– keine –</option>${S.order.map(id => `<option value="${id}" ${s.catId === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select>`}</td>
+    <td><span class="badge ${s.confidence === 'sicher' || s.confidence === 'manuell' ? 'ok' : s.confidence === 'wahrscheinlich' ? 'info' : 'warn'}">${esc(s.confidence)}</span><div class="small muted">${esc(s.detectedBy || '')}</div>${s.enabled === false && s.disabledBy ? `<div class="small" style="color:var(--warn)">ausgeschaltet – ersetzt durch ${esc(s.disabledBy)}</div>` : ''}</td>
+    <td><button class="btn small ghost danger" data-src-del="${esc(s.id)}" title="Liste entfernen">✕</button></td></tr>`).join('');
+  return `<div class="grid2">
+    <div>
+      <div class="panel">
+        <div class="hd"><h2>1 · Zuständige Personen</h2><span class="muted small">${S.staff.length} erfasst</span></div>
+        <div class="bd" style="padding-bottom:6px">
+          <div class="free" style="margin-top:0"><input id="newCode" placeholder="Kürzel" style="min-width:0;width:100px;text-transform:uppercase"><input id="newName" placeholder="Vorname Nachname" style="min-width:0;flex:1"><button class="btn small primary" data-action="staff-add">＋ Erfassen</button></div>
+        </div>
+        ${S.staff.length ? `<div class="tablewrap"><table><thead><tr><th>Kürzel</th><th>Name</th><th>Kategorien</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
+        ${sugg.length ? `<div class="bd" style="border-top:1px solid var(--line2)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b class="small">In den Listen gefunden – noch nicht erfasst (${sugg.length})</b>${sugg.some(x => x.code && x.name && x.name !== x.code) ? `<button class="btn small right" data-action="staff-accept-all" title="Übernimmt alle Vorschläge mit Kürzel und Namen">Alle erkannten Personen übernehmen (${sugg.filter(x => x.code && x.name && x.name !== x.code).length})</button>` : ''}</div>
+          <div class="cands">${sugg.map(x => `<button class="cand sugg" data-staff-sugg="${esc(x.label)}" data-code="${esc(x.code)}" data-name="${esc(x.name)}" title="Übernehmen (danach bearbeitbar)">
+            <div class="who">＋ ${x.code ? `<span class="code">${esc(x.code)}</span>` : ''} ${esc(x.name || '')}</div>
+            <div class="via">${x.send || x.co ? `${x.send} Briefe${x.co ? ` · ✍ ${x.co}× mit` : ''}` : 'aus Kategorie/Überblick'}${x.label !== x.code && x.label !== x.name ? ` · in Liste als „${esc(x.label)}"` : ''}</div></button>`).join('')}</div>
+          <div class="small muted" style="margin-top:8px">Kürzel und Namen stammen aus den Listen (Kürzel aus der Spalte „Zuständigkeit", Namen aus dem Blatt CCH). Gruppen wie „GL" oder „Team" kannst du auch erfassen oder ignorieren.</div>
+        </div>` : ''}
+      </div>
+      <details class="panel" style="margin-top:16px" ${S.sources.length ? '' : 'open'}>
+        <summary class="hd" style="cursor:pointer"><h3>Importierte Listen</h3><span class="muted small">${S.sources.length} Listen aus ${new Set(S.sources.map(s => s.file)).size} Quellen</span></summary>
+        <div class="bd" style="display:flex;gap:8px"><button class="btn small" data-action="import">＋ Excel hinzufügen</button></div>
+        ${S.sources.length ? `<div class="tablewrap"><table><thead><tr><th></th><th>Liste</th><th>Einträge</th><th>Kategorie</th><th>Erkennung</th><th></th></tr></thead><tbody>${srcRows}</tbody></table></div>`
+          : '<div class="bd"><div class="drop" id="bigdrop"><h2>Excel hierher ziehen</h2><div class="muted">oder klicken</div></div></div>'}
+        ${(S.notes || []).length ? `<div class="bd small muted">${S.notes.map(esc).join('<br>')}</div>` : ''}
+      </details>
+      <div class="panel" style="margin-top:16px">
+        <div class="hd"><h3>Daten</h3></div>
+        <div class="bd" style="display:flex;gap:8px;flex-wrap:wrap">
+          <label class="small" style="width:100%"><input type="checkbox" id="importDone" ${S.importDone ? 'checked' : ''}> „Erledigt"-Häkchen aus den Excel-Listen übernehmen</label>
+          <button class="btn small" data-action="reset-done">Alle Erledigt-Häkchen zurücksetzen</button>
+          <button class="btn small" data-action="reset-manual">Zuteilungen & Duplikat-Entscheide zurücksetzen</button>
+          <button class="btn small danger" data-action="wipe">Alle Daten auf diesem Computer löschen</button>
+          <div style="width:100%;border-top:1px solid var(--line2);margin-top:4px;padding-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="btn small" data-action="settings-export" title="Zuständige, Kategorien, Zuteilungen und Duplikat-Entscheide als Datei sichern">⇩ Einstellungen speichern</button>
+            <button class="btn small" data-action="settings-import">⤒ Einstellungen laden</button>
+            <span class="small muted">z.B. für einen anderen Computer oder die Online-Version. Die Datei enthält Namen – nicht öffentlich teilen.</span>
+            <input type="file" id="settingsInput" accept=".json,application/json" hidden>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <div class="hd"><h2>2 · Kategorien</h2><span class="muted small">Personen zuordnen – auch mehrere pro Kategorie</span></div>
+        <div class="bd">
+          <div class="callout" style="margin-bottom:6px"><b>★ versendet</b> den Brief, alle weiteren Personen der Kategorie unterschreiben mit (☆ anklicken macht jemand zur Hauptperson).
+            Steht in der Excel bei einer Adresse ein eigenes Kürzel (Spalte „Zuständigkeit"), gilt dieses. Kommt jemand in mehreren Kategorien vor, ist die <b>obere</b> Kategorie der Vorschlag – festlegen im Tab <a href="#" data-tab="assign">Zuteilen</a>.</div>
+          <ul class="catlist">${catRows}</ul>
+          <div class="free"><input id="newCat" placeholder="Neue Kategorie …" style="min-width:0;flex:1"><button class="btn small" data-action="cat-add">＋ Kategorie</button></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function dbView() {
+  const d = S.db;
+  const tok = token();
+  return `${ownerDatalist()}<div class="grid2">
+    <div>
+      <div class="panel">
+        <div class="hd"><h2>Verbindung zur Cevi DB</h2>${d.lastRefresh ? `<span class="badge ok right">Stand ${fmtDate(d.lastRefresh)}</span>` : ''}</div>
+        <div class="bd">
+          <div class="form">
+            <label>Adresse</label>${PROXY ? `<div><b>${esc(PROXY.target)}</b> <span class="badge ok">über start-tool.py</span><div class="small muted">Anfragen werden lokal weitergeleitet – kein CORS-Eintrag nötig.</div></div>` : `<input type="url" id="dbBase" value="${esc(d.baseUrl)}" placeholder="https://db.cevi.ch">`}
+            <label>API-Key (Service-Token)</label><input type="password" id="dbToken" value="${esc(tok)}" placeholder="wird in der Cevi DB unter „API-Keys" erstellt" autocomplete="off">
+            <span></span><label class="small"><input type="checkbox" id="dbRemember" ${d.rememberToken ? 'checked' : ''}> Token auf diesem Computer speichern (sonst nur bis zum Schliessen)</label>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <button class="btn" data-action="db-test">Verbindung testen</button>
+            <button class="btn primary" data-action="db-refresh">↻ Jetzt aktualisieren</button>
+            <button class="btn ghost" data-action="db-demo" title="Zeigt mit erfundenen Testpersonen, wie DB-Daten erscheinen">Demo ohne Verbindung</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <div class="hd"><h2>Welche Gruppen sollen geladen werden?</h2><button class="btn small right" data-action="db-add">＋ Gruppe</button></div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Bezeichnung</th><th>Gruppen-ID(s) oder Link</th><th>Kategorie</th><th>Zuständig</th><th title="Alle Untergruppen mitladen">inkl. Unter&shy;gruppen</th><th title="Excel-Listen derselben Kategorie ausschalten, sobald die DB-Daten geladen sind">ersetzt Excel</th><th></th></tr></thead>
+          <tbody>${d.sources.map(s => `<tr>
+            <td><input type="text" data-dbs="${s.id}" data-k="label" value="${esc(s.label)}" style="width:100%;min-width:150px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
+            <td><input type="text" data-dbs="${s.id}" data-k="groupIds" value="${esc(s.groupIds)}" placeholder="z.B. 1234 oder https://db.cevi.ch/groups/1234" style="width:100%;min-width:170px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
+            <td><select class="inline" data-dbs="${s.id}" data-k="catId"><option value="">automatisch</option>${S.order.map(id => `<option value="${id}" ${s.catId === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select></td>
+            <td><input type="text" list="ownerList" data-dbs="${s.id}" data-k="owner" value="${esc(s.owner)}" placeholder="Kürzel" style="width:80px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
+            <td style="text-align:center"><input type="checkbox" data-dbs="${s.id}" data-k="subgroups" ${s.subgroups ? 'checked' : ''}></td>
+            <td style="text-align:center"><input type="checkbox" data-dbs="${s.id}" data-k="replaceExcel" ${s.replaceExcel ? 'checked' : ''} ${s.catId ? '' : 'disabled title="Zuerst eine Kategorie wählen"'} ></td>
+            <td><button class="btn small ghost danger" data-dbs-del="${s.id}">✕</button></td></tr>`).join('')}</tbody>
+        </table></div>
+        <div class="bd small muted">Die Gruppen-ID steht in der Adresszeile, z.B. <span class="kbd">db.cevi.ch/groups/<b>1234</b>/people</span>. Excel-Listen und DB-Daten werden zusammen ausgewertet. Beim Aktualisieren werden die DB-Daten komplett neu geladen – wer nicht mehr in der Gruppe ist, fällt raus. Mit „ersetzt Excel" wird die alte Excel-Liste derselben Kategorie ausgeschaltet.</div>
+      </div>
+      <div class="panel" style="margin-top:16px"><div class="hd"><h3>Protokoll</h3></div><div class="bd"><div class="log" id="dblog">${esc(dbLog.join('\n')) || 'Noch keine Abfrage.'}</div></div></div>
+    </div>
+    <div>
+      <div class="callout"><h4>So wird die Cevi DB angebunden</h4>
+        <ol style="margin:6px 0 0 18px;padding:0">
+          <li>Eine Person mit Leitungsrechten auf der Ebene „Cevi Schweiz" erstellt in der Cevi DB unter <b>Gruppe → Tab „API-Keys"</b> einen neuen Key: Berechtigung „<i>Leserechte auf dieser Ebene</i>" (bzw. „…und darunterliegenden Ebenen", falls Gruppen tiefer liegen), Zugriffsbereich <b>Personen</b> und <b>Gruppen</b>.</li>
+          <li>Im selben Formular unter <b>„Hosts mit API-Zugriff"</b> ${/^https?:$/.test(location.protocol) && !PROXY ? `diese Adresse eintragen: <span class="kbd">${esc(location.origin)}</span>` : 'die Web-Adresse eintragen, unter der das Tool läuft (z.B. die GitHub-Pages-Adresse). Als Datei per Doppelklick geöffnet geht das nicht – dann <span class="kbd">start-tool.py</span> verwenden'}. Ohne Eintrag blockiert der Browser die Anfrage.</li>
+          <li>Token oben einfügen, Gruppen eintragen, „Jetzt aktualisieren".</li>
+        </ol>
+      </div>
+      <div class="callout warn" style="margin-top:12px"><h4>Wichtig</h4>
+        Das Tool liest nur (keine Änderungen in der DB). Der Token gibt Zugriff auf Personendaten – nicht weitergeben, nur auf eigenen Geräten speichern und nach dem Versand in der Cevi DB löschen oder einschränken.
+        Kann der Browser die DB nicht direkt erreichen (Meldung „Failed to fetch"), das Tool über das beiliegende Skript <span class="kbd">start-tool.py</span> starten – es leitet die Anfragen lokal weiter.</div>
+      <div class="callout" style="margin-top:12px"><h4>Technisch</h4>
+        Abfrage über die offizielle hitobito JSON:API: <span class="kbd">GET /api/roles?filter[group_id]=…&amp;include=person,group</span> mit Header <span class="kbd">X-TOKEN</span>. Untergruppen über <span class="kbd">/api/groups?filter[parent_id]=…</span>. Dokumentation: <span class="kbd">${esc((d.baseUrl || 'https://db.cevi.ch').replace(/\/+$/, ''))}/api-docs</span></div>
+    </div>
+  </div>`;
+}
+
+// ---------------------------------------------------------------- Änderungen seit dem letzten Stand
+let UNDO = null; // Stand vor der letzten Aktualisierung (nur bis zum Neuladen der Seite)
+function diffKey(p) { return (p.first && p.last) ? WB.key(p.first) + '|' + WB.key(p.last) : 'org|' + WB.key(p.org) + '|' + WB.key(p.first) + '|' + WB.key(p.last); }
+function addrStr(p) { return [[p.street, p.nr].filter(Boolean).join(' '), [p.zip, p.town].filter(Boolean).join(' ')].filter(Boolean).join(', '); }
+function listLabel(m) { return m.cat + (m.group && m.group !== m.cat ? ' › ' + m.group : ''); }
+function snapshotPeople() {
+  return R.people.map(p => ({ k: diffKey(p), zip: WB.key(p.zip), name: p.displayName, org: p.org && p.org !== p.displayName ? p.org : '',
+    addr: addrStr(p), lists: p.memberships.map(listLabel), owner: p.owner, done: !!p.done }));
+}
+function computeDiff(before, after) {
+  const used = new Set(), pairs = [], rest = [], removed = [];
+  const idx = new Map(); after.forEach((a, i) => { if (!idx.has(a.k)) idx.set(a.k, []); idx.get(a.k).push(i); });
+  for (const b of before) { const c = (idx.get(b.k) || []).find(i => !used.has(i) && after[i].zip === b.zip); if (c !== undefined) { used.add(c); pairs.push([b, after[c]]); } else rest.push(b); }
+  for (const b of rest) { const c = (idx.get(b.k) || []).find(i => !used.has(i)); if (c !== undefined) { used.add(c); pairs.push([b, after[c]]); } else removed.push(b); }
+  const added = after.filter((_, i) => !used.has(i));
+  const addrChanged = [], listsChanged = [], ownerChanged = [];
+  for (const [b, a] of pairs) {
+    if (b.addr && a.addr && b.addr !== a.addr) addrChanged.push({ name: a.name, from: b.addr, to: a.addr, owner: a.owner });
+    const gone = b.lists.filter(x => !a.lists.includes(x)), neu = a.lists.filter(x => !b.lists.includes(x));
+    if (gone.length || neu.length) listsChanged.push({ name: a.name, gone, neu, owner: a.owner });
+    if (b.owner !== a.owner) ownerChanged.push({ name: a.name, from: b.owner, to: a.owner, wasDone: b.done });
+  }
+  return { added, removed, addrChanged, listsChanged, ownerChanged };
+}
+function finishChange(label, before, lists) {
+  recompute();
+  const d = computeDiff(before, snapshotPeople());
+  S.lastChange = { at: new Date().toISOString(), label, ...d, lists, dismissed: false };
+}
+function changeReport() {
+  const c = S.lastChange;
+  if (!c || c.dismissed) return '';
+  const ot = (o) => o ? esc(o) + (R.aliases.codeNames[o] ? ' · ' + esc(R.aliases.codeNames[o]) : '') : 'offen';
+  const det = (title, arr, fn, open) => arr.length ? `<details ${open ? 'open' : ''}><summary><b>${title}</b> <span class="muted">(${arr.length})</span></summary><ul>${arr.slice(0, 300).map(x => `<li>${fn(x)}</li>`).join('')}</ul>${arr.length > 300 ? `<div class="small muted">… und ${arr.length - 300} weitere</div>` : ''}</details>` : '';
+  const L = c.lists || {};
+  return `<div class="panel change noprint" style="margin-bottom:16px">
+    <div class="hd"><h3>Aktualisiert: ${esc(c.label)}</h3><span class="muted small">${fmtDate(c.at)}</span>
+      <div class="right" style="display:flex;gap:6px">${UNDO ? '<button class="btn small" data-action="undo" title="Zurück zum Stand vor dieser Aktualisierung">↶ Rückgängig</button>' : ''}<button class="btn small ghost" data-action="dismiss-change">Ausblenden</button></div></div>
+    <div class="bd">
+      <div style="margin-bottom:8px"><span class="chip gone">− ${c.removed.length} nicht mehr auf der Liste</span><span class="chip new">+ ${c.added.length} neu</span><span class="chip">${c.addrChanged.length} Adressen geändert</span><span class="chip">${c.ownerChanged.length} Versand wechselt</span><span class="chip">${c.listsChanged.length} Listen-Zugehörigkeit geändert</span></div>
+      ${(L.replaced || 0) || (L.removed || []).length || (L.disabled || []).length ? `<div class="small muted" style="margin-bottom:8px">${L.replaced ? `${L.replaced} alte Listen durch die neue Version ersetzt. ` : ''}${(L.removed || []).length ? `Ganz entfernt (in der neuen Version nicht mehr vorhanden): ${L.removed.map(esc).join(', ')}. ` : ''}${(L.disabled || []).length ? `Ausgeschaltet, weil jetzt aus der Cevi DB: ${L.disabled.map(esc).join(', ')}.` : ''}</div>` : ''}
+      ${det('Nicht mehr auf der Liste – bekommen keinen Brief mehr', c.removed, r => `<b>${esc(r.name)}</b>${r.org ? ' (' + esc(r.org) + ')' : ''} <span class="muted">– bisher ${esc(r.lists.join(', '))}, versendet von ${ot(r.owner)}</span>${r.done ? ' <span class="badge warn">war schon als erledigt markiert</span>' : ''}`, true)}
+      ${det('Neu dazugekommen', c.added, r => `<b>${esc(r.name)}</b>${r.org ? ' (' + esc(r.org) + ')' : ''} <span class="muted">– ${esc(r.lists.join(', '))}, versendet von ${ot(r.owner)}</span>`)}
+      ${det('Adresse geändert', c.addrChanged, r => `<b>${esc(r.name)}</b>: <span class="muted">${esc(r.from)}</span> → ${esc(r.to)}`)}
+      ${det('Versand wechselt zu jemand anderem', c.ownerChanged, r => `<b>${esc(r.name)}</b>: ${ot(r.from)} → ${ot(r.to)}${r.wasDone ? ' <span class="badge warn">war schon erledigt</span>' : ''}`)}
+      ${det('Listen-Zugehörigkeit geändert', c.listsChanged, r => `<b>${esc(r.name)}</b>: ${r.gone.length ? '<span class="muted">nicht mehr in</span> ' + esc(r.gone.join(', ')) : ''}${r.gone.length && r.neu.length ? '; ' : ''}${r.neu.length ? '<span class="muted">neu in</span> ' + esc(r.neu.join(', ')) : ''}`)}
+      ${!c.removed.length && !c.added.length && !c.addrChanged.length && !c.ownerChanged.length && !c.listsChanged.length ? '<div class="muted">Keine Änderungen bei den Empfänger*innen.</div>' : ''}
+    </div></div>`;
+}
+
+// ---------------------------------------------------------------- Import
+// Eine neue Version ersetzt die alte: gleicher Dateiname ODER gleiche Blattnamen (z.B. 2025 → 2026).
+const GENERIC_SHEET = /^\s*((tabelle|sheet|blatt|feuil|foglio)\s*\d*|export|personen|people|daten|data|liste)\s*$/i;
+async function importFiles(files) {
+  const before = S.sources.length ? snapshotPeople() : null;
+  const prev = { sources: S.sources.slice(), cats: S.cats.map(c => ({ ...c })), order: S.order.slice(), lastChange: S.lastChange || null };
+  const lists = { replaced: 0, removed: [] };
+  const msgs = [];
+  for (const f of files) {
+    try {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+      const sheets = wb.SheetNames.map(n => ({ name: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null, blankrows: true }) }));
+      const res = WB.parseWorkbookRows(sheets, f.name, S.cats);
+      if (res.overview) {
+        const updated = WB.applyOverview(S.cats, res.overview);
+        S.cats = updated;
+        // Reihenfolge wie im Überblick
+        const ovOrder = res.overview.map(o => o.catId).filter(Boolean);
+        S.order = [...new Set([...ovOrder, ...S.order])];
+      }
+      // Alte Versionen derselben Listen entfernen
+      const newSheets = new Set(res.sources.map(x => WB.fold(x.sheet)));
+      const oldExcel = S.sources.filter(o => o.kind === 'excel');
+      const hit = (o) => o.file === f.name || (!GENERIC_SHEET.test(o.sheet) && newSheets.has(WB.fold(o.sheet)));
+      const remove = new Set(oldExcel.filter(hit).map(o => o.id));
+      let replacedHere = remove.size;
+      // Liefert die neue Datei mindestens die Hälfte der Blätter einer alten Datei, gilt sie als deren neue Version:
+      // dann verschwinden auch Blätter/Blöcke, die es in der neuen Version nicht mehr gibt.
+      for (const F of new Set(oldExcel.filter(hit).map(o => o.file))) {
+        const all = oldExcel.filter(o => o.file === F);
+        const sheetsAll = new Set(all.map(o => WB.fold(o.sheet))), sheetsHit = new Set(all.filter(hit).map(o => WB.fold(o.sheet)));
+        if (F === f.name || sheetsHit.size * 2 >= sheetsAll.size) for (const o of all) if (!remove.has(o.id)) { remove.add(o.id); lists.removed.push(o.label); }
+      }
+      lists.replaced += replacedHere;
+      S.sources = S.sources.filter(o => !remove.has(o.id));
+      const now = new Date().toISOString();
+      for (const src of res.sources) S.sources.push({ ...src, importedAt: now, enabled: true });
+      S.notes = res.notes;
+      const n = res.sources.reduce((a, x) => a + x.entries.length, 0);
+      msgs.push(`${f.name}: ${res.sources.length} Listen, ${n} Einträge${res.overview ? ', Überblick übernommen' : ''}${replacedHere ? `, ${replacedHere} alte Listen ersetzt` : ''}${remove.size > replacedHere ? `, ${remove.size - replacedHere} entfernt` : ''}`);
+    } catch (e) {
+      console.error(e);
+      msgs.push(`${f.name}: konnte nicht gelesen werden (${e.message})`);
+    }
+  }
+  if (before && before.length) { finishChange(files.map(f => f.name).join(', '), before, lists); UNDO = prev; }
+  else { S.lastChange = null; UNDO = null; if (S.staff.length < 3) S.ui.tab = 'settings'; }
+  save(); render(); toast(msgs.join('\n'));
+}
+
+// ---------------------------------------------------------------- Cevi DB
+let dbLog = [];
+function logDb(msg) { dbLog.push(new Date().toLocaleTimeString('de-CH') + '  ' + msg); const el = $('#dblog'); if (el) { el.textContent = dbLog.join('\n'); el.scrollTop = el.scrollHeight; } }
+function parseGroupIds(v) { return String(v || '').split(/[\s,;]+/).map(x => { const m = x.match(/groups\/(\d+)/); return m ? m[1] : (/^\d+$/.test(x) ? x : ''); }).filter(Boolean); }
+let PROXY = null; // gesetzt, wenn das Tool über start-tool.py läuft
+async function detectProxy() {
+  if (!/^https?:$/.test(location.protocol)) return;
+  try { const r = await fetch('proxy-info.json', { cache: 'no-store' }); if (r.ok) { PROXY = await r.json(); render(); } } catch (e) { /* kein Proxy */ }
+}
+async function apiGet(path, params) {
+  const base = PROXY ? location.origin : (S.db.baseUrl || '').replace(/\/+$/, '');
+  const url = new URL(base + path);
+  for (const [k, v] of Object.entries(params || {})) url.searchParams.set(k, v);
+  let res;
+  try { res = await fetch(url.toString(), { headers: { 'X-TOKEN': token(), 'Accept': 'application/vnd.api+json' } }); }
+  catch (e) { throw new Error('Keine Verbindung (' + e.message + '). Meist fehlt der Eintrag unter „Hosts mit API-Zugriff" beim API-Key – oder das Tool mit start-tool.py starten.'); }
+  let json = null; try { json = await res.json(); } catch (e) { /* leer */ }
+  if (!res.ok) {
+    const det = json && json.errors && json.errors[0] ? (json.errors[0].detail || json.errors[0].title) : res.statusText;
+    throw new Error(`HTTP ${res.status}: ${det}` + (res.status === 401 ? ' – Token ungültig?' : res.status === 403 ? ' – Token hat keine Berechtigung für diese Gruppe/Daten.' : ''));
+  }
+  return json;
+}
+async function apiAll(path, params, size = 100) {
+  const pages = [];
+  for (let page = 1; page < 500; page++) {
+    const json = await apiGet(path, { ...params, 'page[size]': size, 'page[number]': page });
+    pages.push(json);
+    if (!json.data || json.data.length < size) break;
+  }
+  return pages;
+}
+async function expandSubgroups(ids) {
+  const all = new Set(ids); let frontier = ids.slice();
+  for (let depth = 0; depth < 5 && frontier.length; depth++) {
+    const next = [];
+    for (let i = 0; i < frontier.length; i += 25) {
+      const pages = await apiAll('/api/groups', { 'filter[parent_id]': frontier.slice(i, i + 25).join(',') });
+      for (const p of pages) for (const g of p.data || []) if (!all.has(g.id)) { all.add(g.id); next.push(g.id); }
+    }
+    frontier = next;
+  }
+  return [...all];
+}
+async function dbTest() {
+  if (!token()) return toast('Bitte zuerst den API-Key eintragen.');
+  try {
+    logDb('Teste Verbindung …');
+    const first = S.db.sources.map(s => parseGroupIds(s.groupIds)[0]).find(Boolean);
+    const json = first ? await apiGet('/api/groups/' + first, {}) : await apiGet('/api/groups', { 'page[size]': 1 });
+    const g = Array.isArray(json.data) ? json.data[0] : json.data;
+    logDb('OK ✓ ' + (g ? `Gruppe ${g.id}: ${g.attributes.name}` : 'Verbindung steht'));
+    toast('Verbindung zur Cevi DB funktioniert ✓');
+  } catch (e) { logDb('Fehler: ' + e.message); toast(e.message); }
+}
+async function dbRefresh(demo = false) {
+  if (!demo && !token()) { S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
+  const srcs = demo ? demoSources() : S.db.sources.filter(s => parseGroupIds(s.groupIds).length);
+  if (!srcs.length) { S.ui.tab = 'db'; render(); return toast('Bitte mindestens eine Gruppen-ID eintragen.'); }
+  const btn = $('#btnRefresh'); btn.disabled = true; btn.textContent = '↻ lädt …';
+  const now = new Date().toISOString();
+  const fresh = [];
+  const before = S.sources.length ? snapshotPeople() : null;
+  const prev = { sources: S.sources.slice(), cats: S.cats.map(c => ({ ...c })), order: S.order.slice(), lastChange: S.lastChange || null, lastRefresh: S.db.lastRefresh };
+  try {
+    for (const s of srcs) {
+      let pages;
+      if (demo) { pages = demoPages(s); logDb(`Demo: ${s.label} – erfundene Testdaten`); }
+      else {
+        let ids = parseGroupIds(s.groupIds);
+        if (s.subgroups) { logDb(`${s.label}: suche Untergruppen von ${ids.join(', ')} …`); ids = await expandSubgroups(ids); logDb(`  → ${ids.length} Gruppen`); }
+        pages = [];
+        for (let i = 0; i < ids.length; i += 20) pages.push(...await apiAll('/api/roles', { 'filter[group_id]': ids.slice(i, i + 20).join(','), include: 'person,group' }));
+      }
+      const entries = WB.entriesFromJsonApi(pages, { label: s.label, catId: s.catId, owner: s.owner }, S.cats);
+      const det = s.catId ? null : (entries[0] ? { catId: entries[0].catId } : null);
+      logDb(`${s.label}: ${entries.length} Personen/Rollen geladen`);
+      fresh.push({ id: 'db:' + s.id, kind: 'db', file: 'Cevi DB', sheet: '', block: '', label: s.label + (demo ? ' (Demo)' : ''), group: s.label,
+        catId: s.catId || (det && det.catId) || '', perRow: !s.catId, detectedBy: s.catId ? 'in den DB-Einstellungen gewählt' : 'aus Gruppennamen', confidence: s.catId ? 'manuell' : 'wahrscheinlich',
+        entries, importedAt: now, enabled: true, demo });
+    }
+    // Alle bisherigen DB-Daten werden komplett ersetzt – wer nicht mehr in der Gruppe ist, fällt raus.
+    S.sources = S.sources.filter(x => !(x.kind === 'db' && (demo ? x.demo : !x.demo)));
+    S.sources.push(...fresh);
+    const disabled = [];
+    if (!demo) for (const s of srcs) if (s.replaceExcel && s.catId) {
+      S.sources = S.sources.map(x => (x.kind === 'excel' && !x.perRow && x.catId === s.catId && x.enabled !== false)
+        ? (disabled.push(x.label), { ...x, enabled: false, disabledBy: 'Cevi DB: ' + s.label }) : x);
+    }
+    S.db.lastRefresh = now;
+    if (before && before.length) { finishChange('Cevi DB' + (demo ? ' (Demo)' : ''), before, { disabled }); UNDO = prev; }
+    save(); render();
+    toast(`Cevi DB${demo ? ' (Demo)' : ''} aktualisiert: ${fresh.reduce((a, s) => a + s.entries.length, 0)} Einträge aus ${fresh.length} Quellen`);
+  } catch (e) { logDb('Fehler: ' + e.message); toast(e.message); if (S.ui.tab !== 'db') { S.ui.tab = 'db'; render(); } }
+  finally { btn.disabled = false; btn.textContent = '↻ Aus Cevi DB aktualisieren'; }
+}
+function demoSources() { return [{ id: 'demo1', label: 'Fachgruppe Testgruppe', catId: '', owner: 'TSC' }, { id: 'demo2', label: 'Projektgruppe Testlager 26', catId: '', owner: 'NBA' }]; }
+function demoPages(s) {
+  // Erfundene Testpersonen im Format der hitobito JSON:API – zeigt den Ablauf ohne echte Verbindung
+  const ppl = s.id === 'demo1'
+    ? [['901', 'Mia', 'Muster', 'Musterweg', '1', '3000', 'Bern'], ['902', 'Leo', 'Beispiel', 'Testgasse', '12a', '8000', 'Zürich'], ['903', 'Ana', 'Probe', 'Probeplatz', '3', '4000', 'Basel']]
+    : [['902', 'Leo', 'Beispiel', 'Testgasse', '12a', '8000', 'Zürich'], ['904', 'Tim', 'Demo', 'Demostrasse', '7', '6000', 'Luzern']];
+  const gid = s.id === 'demo1' ? '9001' : '9002';
+  return [{
+    data: ppl.map((p, i) => ({ id: 'r' + gid + i, type: 'roles', attributes: { person_id: +p[0], group_id: +gid, name: 'Mitglied' }, relationships: { person: { data: { type: 'people', id: p[0] } }, group: { data: { type: 'groups', id: gid } } } })),
+    included: [...ppl.map(p => ({ id: p[0], type: 'people', attributes: { first_name: p[1], last_name: p[2], street: p[3], housenumber: p[4], zip_code: p[5], town: p[6], email: (p[1] + '.' + p[2] + '@example.org').toLowerCase() } })),
+      { id: gid, type: 'groups', attributes: { name: s.label } }],
+  }];
+}
+
+// ---------------------------------------------------------------- Export
+function rowFor(p) {
+  return {
+    'Versendet von': p.owner, 'Name Zuständige*r': R.aliases.codeNames[p.owner] || '', 'Organisation': p.org, 'Vorname': p.first, 'Nachname': p.last,
+    'Adresszusatz': p.careOf, 'Strasse': p.street, 'Nr.': p.nr, 'PLZ': p.zip, 'Ort': p.town, 'E-Mail': p.email,
+    'Kategorie': p.primaryCat, 'Gruppe': p.primaryGroup, 'Alle Listen': p.memberships.map(m => m.cat + (m.group && m.group !== m.cat ? ' › ' + m.group : '') + ' (' + (m.owner || 'offen') + ')').join('; '),
+    'Zus. Unterschriften': p.coSigners.map(c => c.owner).join(', '), 'Mehrfach gelistet': p.isDuplicate ? 'ja' : '', 'Hinweise': p.notes.join('; '), 'Erledigt': p.done ? 'ja' : '',
+  };
+}
+function sheetFrom(rows, widths) {
+  const ws = XLSX.utils.json_to_sheet(rows);
+  if (rows.length) ws['!cols'] = Object.keys(rows[0]).map(k => ({ wch: widths[k] || Math.min(40, Math.max(8, k.length + 2)) }));
+  ws['!autofilter'] = { ref: ws['!ref'] };
+  return ws;
+}
+const W = { 'Versendet von': 10, 'Name Zuständige*r': 18, 'Organisation': 24, 'Vorname': 14, 'Nachname': 16, 'Strasse': 22, 'Nr.': 6, 'PLZ': 6, 'Ort': 16, 'E-Mail': 26, 'Kategorie': 18, 'Gruppe': 22, 'Alle Listen': 50, 'Zus. Unterschriften': 16, 'Hinweise': 40 };
+function safeSheetName(n, used) {
+  let s = String(n || 'ohne Zuständigkeit').replace(/[\[\]\*\?\/\\:]/g, ' ').slice(0, 28).trim() || 'Liste';
+  let x = s, i = 2; while (used.has(x.toLowerCase())) x = s.slice(0, 25) + ' ' + i++;
+  used.add(x.toLowerCase()); return x;
+}
+function exportExcel(onlyOwner) {
+  if (!R.people.length) return toast('Noch keine Daten zum Exportieren.');
+  const wb = XLSX.utils.book_new(); const used = new Set();
+  const owners = onlyOwner !== undefined ? [onlyOwner] : [...R.byOwner.keys()].sort((a, b) => (!a) - (!b) || a.localeCompare(b));
+  if (onlyOwner === undefined) {
+    XLSX.utils.book_append_sheet(wb, sheetFrom(R.people.map(rowFor), W), safeSheetName('Masterliste', used));
+  }
+  for (const o of owners) {
+    const rows = (R.byOwner.get(o) || []).map(rowFor);
+    const co = (R.coByOwner.get(o) || []).map(({ p, via }) => ({ 'Mitunterschreiben bei': p.displayName, 'Organisation': p.org, 'Versendet von': p.owner, 'Name Zuständige*r': R.aliases.codeNames[p.owner] || '', 'Grund': via.join('; ') }));
+    const ws = sheetFrom(rows, W);
+    if (co.length) XLSX.utils.sheet_add_json(ws, co, { origin: rows.length + 3 });
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName(o ? (o + (R.aliases.codeNames[o] ? ' ' + R.aliases.codeNames[o].split(' ')[0] : '')) : 'ohne Zuständigkeit', used));
+  }
+  if (onlyOwner === undefined) {
+    const dups = R.people.filter(p => p.isDuplicate).map(p => ({ 'Person': p.displayName, 'PLZ': p.zip, 'Ort': p.town, 'Versendet von': p.owner, 'Zus. Unterschriften': p.coSigners.map(c => c.owner).join(', '), 'Gefunden in': p.memberships.map(m => m.cat + (m.group && m.group !== m.cat ? ' › ' + m.group : '') + ' (' + (m.owner || 'offen') + ')').join('; '), 'Erkannt über': p.mergeReasons.join(', '), 'Status': p.overridden ? 'festgelegt' : needsChoice(p) ? 'Vorschlag' : 'eindeutig' }));
+    if (dups.length) XLSX.utils.book_append_sheet(wb, sheetFrom(dups, { 'Person': 22, 'Gefunden in': 70, 'Erkannt über': 24 }), safeSheetName('Duplikate', used));
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, onlyOwner !== undefined ? `Weihnachtsbriefe_${(onlyOwner || 'offen').replace(/[^\wäöüÄÖÜ-]+/g, '_')}_${stamp}.xlsx` : `Weihnachtsbriefe_Verteilung_${stamp}.xlsx`);
+}
+
+// ---------------------------------------------------------------- Events
+function fmtDate(iso) { if (!iso) return '–'; const d = new Date(iso); return d.toLocaleDateString('de-CH') + ' ' + d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }); }
+let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.style.whiteSpace = 'pre-line'; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 4200); }
+function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
+
+document.addEventListener('click', (ev) => {
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
+  if (!t) return;
+  if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
+  if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
+  if (t.dataset.unassign) { const y = window.scrollY; assign(t.dataset.unassign, ''); window.scrollTo(0, y); return; }
+  if (t.dataset.staffSugg !== undefined) {
+    const st = addStaff(t.dataset.code, t.dataset.name, t.dataset.staffSugg);
+    if (st) { renameKey(t.dataset.staffSugg, staffKey(st)); save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); }
+    return;
+  }
+  if (t.dataset.staffDel) {
+    const st = S.staff.find(x => x.id === t.dataset.staffDel); if (!st) return;
+    const k = staffKey(st);
+    if (!confirm(`${[st.code, st.name].filter(Boolean).join(' · ')} aus der Liste der Zuständigen entfernen?`)) return;
+    S.staff = S.staff.filter(x => x !== st);
+    for (const c of S.cats) if (Array.isArray(c.persons)) c.persons = c.persons.filter(l => l !== k && resolveOwner(l) !== k);
+    for (const [pk, v] of Object.entries(S.overrides)) if (v === k) delete S.overrides[pk];
+    save(); render(); return;
+  }
+  if (t.dataset.staffQuick) {
+    const label = t.dataset.staffQuick, m = staffFromData(label);
+    const inp = prompt(`Kürzel und Name für „${label}" eingeben (z.B. ABC Anna Beispiel):`, m ? `${m.code} ${m.name}` : label);
+    if (!inp || !inp.trim()) return;
+    const x = parsePersonInput(inp); const st = addStaff(x.code, x.name, label);
+    if (st) { renameKey(label, staffKey(st)); save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); }
+    return;
+  }
+  if (t.dataset.catPrimary) { const c = S.cats.find(x => x.id === t.dataset.catPrimary); const k = t.dataset.key; c.persons = [k, ...catKeys(c).filter(x => x !== k)]; c.personsManual = true; save(); render(); return; }
+  if (t.dataset.catRemove) { const c = S.cats.find(x => x.id === t.dataset.catRemove); const k = t.dataset.key; c.persons = catKeys(c).filter(x => x !== k); c.personsManual = true; save(); render(); return; }
+  if (t.dataset.catDel) {
+    const c = S.cats.find(x => x.id === t.dataset.catDel); if (!c || !confirm(`Kategorie „${c.name}" löschen?`)) return;
+    S.cats = S.cats.filter(x => x !== c); S.order = S.order.filter(x => x !== c.id);
+    for (const src of S.sources) if (src.catId === c.id) src.catId = '';
+    save(); render(); return;
+  }
+  if (t.dataset.afilter) { S.ui.assignFilter = t.dataset.afilter; save(); render(); return; }
+  if (t.dataset.tab) { ev.preventDefault(); S.ui.tab = t.dataset.tab; save(); render(); window.scrollTo(0, 0); return; }
+  if (t.dataset.owner !== undefined) { ev.preventDefault(); S.ui.owner = t.dataset.owner; S.ui.tab = 'owners'; save(); render(); return; }
+  if (t.dataset.decide) { S.decisions[t.dataset.pair] = t.dataset.decide; save(); render(); toast(t.dataset.decide === 'same' ? 'Zusammengeführt ✓' : 'Als verschiedene Personen markiert'); return; }
+  if (t.dataset.split) {
+    const p = R.people.find(x => x.key === t.dataset.split); if (!p) return;
+    const es = R.entries.filter(e => p.entryUids.includes(e.uid)).map(WB.identity);
+    for (let i = 0; i < es.length; i++) for (let j = i + 1; j < es.length; j++) if (es[i] !== es[j]) S.decisions[WB.pairKey(es[i], es[j])] = 'different';
+    save(); render(); toast('Getrennt. Rückgängig unter Einstellungen → „Manuelle Zuteilungen zurücksetzen".'); return;
+  }
+  if (t.dataset.move) { const i = S.order.indexOf(t.dataset.move), j = i + Number(t.dataset.dir); if (j < 0 || j >= S.order.length) return; [S.order[i], S.order[j]] = [S.order[j], S.order[i]]; save(); render(); return; }
+  if (t.dataset.srcDel) { S.sources = S.sources.filter(s => s.id !== t.dataset.srcDel); save(); render(); return; }
+  if (t.dataset.dbsDel) { S.db.sources = S.db.sources.filter(s => s.id !== t.dataset.dbsDel); save(); render(); return; }
+  const a = t.dataset.action;
+  if (a === 'print') window.print();
+  else if (a === 'export-owner') exportExcel(S.ui.owner || '');
+  else if (a === 'import') $('#fileInput').click();
+  else if (a === 'reset-done') { if (confirm('Alle Erledigt-Häkchen entfernen?')) { S.done = {}; S.importDone = false; save(); render(); } }
+  else if (a === 'reset-manual') { if (confirm('Manuelle Zuteilungen und Duplikat-Entscheide zurücksetzen?')) { S.overrides = {}; S.decisions = {}; save(); render(); } }
+  else if (a === 'wipe') { if (confirm('Wirklich alle importierten Daten und Einstellungen auf diesem Computer löschen?')) { localStorage.removeItem(STORE_KEY); S = defaultState(); sessionToken = ''; render(); } }
+  else if (a === 'undo' && UNDO) { S.sources = UNDO.sources; S.cats = UNDO.cats; S.order = UNDO.order; S.lastChange = UNDO.lastChange; if (UNDO.lastRefresh !== undefined) S.db.lastRefresh = UNDO.lastRefresh; UNDO = null; save(); render(); toast('Letzte Aktualisierung rückgängig gemacht'); }
+  else if (a === 'accept-all') {
+    const todo = R.people.filter(p => !p.overridden && p.isDuplicate && p.owner && needsChoice(p));
+    if (!todo.length) return toast('Nichts mehr offen.');
+    if (!confirm(`${todo.length} Doppelte mit dem Vorschlag festlegen?`)) return;
+    for (const p of todo) S.overrides[p.key] = p.owner;
+    save(); render(); toast(`${todo.length} Vorschläge übernommen`);
+  }
+  else if (a === 'export-assign') exportAssign();
+  else if (a === 'settings-export') exportSettings();
+  else if (a === 'settings-import') $('#settingsInput').click();
+  else if (a === 'staff-add') {
+    const code = $('#newCode').value, name = $('#newName').value;
+    if (!code.trim() && !name.trim()) { toast('Bitte Kürzel und/oder Name eintragen.'); return; }
+    const st = addStaff(code, name);
+    if (st) { save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); $('#newCode') && $('#newCode').focus(); }
+  }
+  else if (a === 'staff-accept-all') {
+    const list = staffSuggestions().filter(x => x.code && x.name && x.name !== x.code); let n = 0;
+    for (const x of list) { const st = addStaff(x.code, x.name, x.label); if (st) { renameKey(x.label, staffKey(st)); n++; } }
+    save(); render(); toast(`${n} Personen übernommen – bitte kurz kontrollieren und bei Bedarf Namen ergänzen.`);
+  }
+  else if (a === 'cat-add') {
+    const name = ($('#newCat').value || '').trim(); if (!name) { toast('Bitte einen Namen für die Kategorie eintragen.'); return; }
+    const id = 'cat-' + uid();
+    S.cats.push({ id, name, source: '', persons: [], personsManual: true, info: '', exact: [], strong: [WB.fold(name)], weak: [], custom: true });
+    S.order.push(id); save(); render(); toast('Kategorie angelegt: ' + name);
+  }
+  else if (a === 'dismiss-change') { if (S.lastChange) S.lastChange.dismissed = true; save(); render(); }
+  else if (a === 'db-test') dbTest();
+  else if (a === 'db-refresh') dbRefresh(false);
+  else if (a === 'db-demo') dbRefresh(true);
+  else if (a === 'db-add') { S.db.sources.push({ id: uid(), label: 'Neue Gruppe', groupIds: '', catId: '', owner: '', subgroups: false }); save(); render(); }
+});
+document.addEventListener('change', (ev) => {
+  const t = ev.target;
+  if (t.dataset.done) { S.done[t.dataset.done] = t.checked; save(); render(); return; }
+  if (t.dataset.override) {
+    let v = t.value;
+    if (v === '__other') { const inp = prompt('Wer ist zuständig? Kürzel oder Name eingeben:'); if (!inp || !inp.trim()) { render(); return; } v = resolveOwner(inp); }
+    if (v === '__reset') delete S.overrides[t.dataset.override]; else S.overrides[t.dataset.override] = v;
+    save(); render(); toast('Zuständigkeit geändert'); return;
+  }
+  if (t.dataset.free) { const v = resolveOwner(t.value); if (v) { assign(t.dataset.free, v); toast('Zugewiesen: ' + ownerName(v)); } return; }
+  if (t.dataset.srcCat) { const s = S.sources.find(x => x.id === t.dataset.srcCat); s.catId = t.value; s.confidence = 'manuell'; s.detectedBy = 'von Hand gesetzt'; save(); render(); return; }
+  if (t.dataset.srcEnable) { const s = S.sources.find(x => x.id === t.dataset.srcEnable); s.enabled = t.checked; save(); render(); return; }
+  if (t.dataset.staff) {
+    const st = S.staff.find(x => x.id === t.dataset.staff); if (!st) return;
+    const k = t.dataset.k, oldKey = staffKey(st);
+    let v = t.value.trim(); if (k === 'code') v = v.toUpperCase();
+    if (k === 'code' && v && S.staff.some(x => x !== st && x.code === v)) { toast(`Kürzel ${v} ist schon vergeben.`); render(); return; }
+    const prev = st[k]; st[k] = v;
+    if (!staffKey(st)) { st[k] = prev; toast('Kürzel oder Name braucht es mindestens.'); render(); return; }
+    const newKey = staffKey(st);
+    if (newKey !== oldKey) { st.aliases = [...new Set([...(st.aliases || []), oldKey])]; renameKey(oldKey, newKey); }
+    save(); render(); return;
+  }
+  if (t.dataset.catAdd) {
+    const c = S.cats.find(x => x.id === t.dataset.catAdd); let v = t.value;
+    if (v === '__new') {
+      const inp = prompt('Kürzel und Name der neuen Person (z.B. ABC Anna Beispiel):');
+      if (!inp || !inp.trim()) { render(); return; }
+      const x = parsePersonInput(inp); const st = addStaff(x.code, x.name); if (!st) { render(); return; }
+      v = staffKey(st);
+    }
+    if (v) { c.persons = [...catKeys(c), v]; c.personsManual = true; save(); }
+    render(); return;
+  }
+  if (t.dataset.catName) { const c = S.cats.find(x => x.id === t.dataset.catName); const v = t.value.trim(); if (v) { c.name = v; save(); } render(); return; }
+  if (t.dataset.catOwner) { const c = S.cats.find(x => x.id === t.dataset.catOwner); c.owner = resolveOwner(t.value); c.ownerManual = true; save(); render(); return; }
+  if (t.dataset.catInfo) { const c = S.cats.find(x => x.id === t.dataset.catInfo); c.info = t.value; save(); return; }
+  if (t.dataset.dbs) { const s = S.db.sources.find(x => x.id === t.dataset.dbs); const k = t.dataset.k; s[k] = t.type === 'checkbox' ? t.checked : t.value.trim(); if (k === 'catId' && !s.catId) s.replaceExcel = false; save(); if (k === 'catId') render(); return; }
+  if (t.id === 'aliasText') { S.aliasText = t.value; save(); render(); return; }
+  if (t.id === 'autoAliases') { S.autoAliases = t.checked; save(); render(); return; }
+  if (t.id === 'importDone') { S.importDone = t.checked; save(); render(); return; }
+  if (t.id === 'dbBase') { S.db.baseUrl = t.value.trim(); save(); return; }
+  if (t.id === 'dbToken') { if (S.db.rememberToken) S.db.token = t.value.trim(); sessionToken = t.value.trim(); save(); return; }
+  if (t.id === 'dbRemember') { S.db.rememberToken = t.checked; S.db.token = t.checked ? sessionToken : ''; save(); return; }
+  if (t.id === 'fcat' || t.id === 'fowner' || t.id === 'fonly') { S.ui.filter[{ fcat: 'cat', fowner: 'owner', fonly: 'only' }[t.id]] = t.value; save(); render(); return; }
+});
+document.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Enter') return;
+  const id = ev.target && ev.target.id;
+  if (id === 'newCode' || id === 'newName') { ev.preventDefault(); document.querySelector('[data-action="staff-add"]').click(); }
+  if (id === 'newCat') { ev.preventDefault(); document.querySelector('[data-action="cat-add"]').click(); }
+});
+let qT;
+document.addEventListener('input', (ev) => {
+  const t = ev.target;
+  if (t.id === 'q') { clearTimeout(qT); qT = setTimeout(() => { S.ui.filter.q = t.value; const pos = t.selectionStart; render(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }, 180); }
+  if (t.id === 'ownerSearch') { const q = WB.fold(t.value); document.querySelectorAll('.owner').forEach(b => { b.classList.toggle('hide', !!q && !WB.fold(b.textContent).includes(q)); }); }
+  if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
+});
+$('#btnImport').addEventListener('click', () => $('#fileInput').click());
+$('#btnExport').addEventListener('click', () => exportExcel());
+$('#btnRefresh').addEventListener('click', () => dbRefresh(false));
+document.addEventListener('change', (e) => { if (e.target && e.target.id === 'settingsInput') { const f = e.target.files[0]; e.target.value = ''; if (f) importSettings(f); } });
+$('#fileInput').addEventListener('change', (e) => { const f = [...e.target.files]; e.target.value = ''; if (f.length) importFiles(f); });
+let dragN = 0;
+window.addEventListener('dragenter', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { dragN++; $('#dropmask').classList.add('show'); } });
+window.addEventListener('dragleave', () => { dragN = Math.max(0, dragN - 1); if (!dragN) $('#dropmask').classList.remove('show'); });
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => { e.preventDefault(); dragN = 0; $('#dropmask').classList.remove('show'); const f = [...(e.dataTransfer?.files || [])]; if (f.length) importFiles(f); });
+if (S.db.rememberToken) sessionToken = S.db.token;
+render();
+detectProxy();
+</script>
+</body>
+</html>

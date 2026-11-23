@@ -69,6 +69,17 @@ assert.deepStrictEqual(by('Mia Muster').coSigners.map(c => c.owner), ['QRS'], 'w
 assert.strictEqual(by('Ben Beta').owner, 'GL', 'Kategorie-Priorität bleibt bei Doppelten');
 assert.deepStrictEqual(by('Ben Beta').coSigners.map(c => c.owner).sort(), ['QRS', 'XYZ']);
 
+// Kategorie-Erkennung: klares Stichwort schlägt enthaltenen Kategorienamen
+assert.strictEqual(WB.detectCategory('PSA Cevi Schweiz', WB.DEFAULT_CATEGORIES).catId, 'kindeswohl');
+assert.strictEqual(WB.detectCategory('Krisenmanagement Cevi Schweiz, nur Krisenteam Cevi CH', WB.DEFAULT_CATEGORIES).catId, 'krisen');
+assert.strictEqual(WB.detectCategory('CCH', WB.DEFAULT_CATEGORIES).catId, 'cevi-schweiz');
+
+// Organisationen aus der DB (Adresse der Gruppe) + Zusammenführen mit Excel-Zeile gleicher Organisation/PLZ
+const orgs = WB.entriesFromGroups([{ data: [{ id: '80', type: 'groups', attributes: { name: 'Cevi Region Test', address: 'Testweg 9', zip_code: '3000', town: 'Bern' } }] }], { label: 'Mitgliederorganisationen', catId: 'mio' });
+assert.deepStrictEqual([orgs[0].org, orgs[0].street, orgs[0].nr, orgs[0].zip], ['Cevi Region Test', 'Testweg', '9', '3000']);
+const mixed = [{ ...orgs[0], uid: 900, origin: 'db' }, { org: 'Cevi Region Test', first: 'z.Hd. Team', last: '', street: 'Testweg', nr: '9', zip: '3000', town: 'Bern', catId: 'mio', group: 'Regionalverbände', uid: 901, origin: 'excel' }];
+assert.strictEqual(WB.buildPeople(mixed, { cats, aliases: new Map(), codeNames: {} }).people.length, 1, 'gleiche Organisation + PLZ = ein Brief');
+
 // Kürzel-Regel: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname
 assert.strictEqual(WB.makeCode('Anna', 'Beispiel'), 'ABE');
 assert.strictEqual(WB.makeCode('Lea Sophie', 'Müller'), 'LMÜ');

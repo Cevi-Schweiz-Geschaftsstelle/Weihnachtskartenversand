@@ -63,7 +63,12 @@ Einrichten:
    - Das Tool liest alle Gruppen dieser Ebene und schlägt pro Gruppe die Kategorie vor. Grundlage sind Gruppentyp (Vorstand, Geschäftsstelle, Spender …) und Name.
    - Gruppen mit Untergruppen (z.B. Fachgruppen) werden als Untergruppen der Kategorie eingerichtet.
    - Vorschlag prüfen, dann **„Übernehmen und Daten laden"**.
-   - Gruppen, deren Kategorie laut Überblick nicht aus der DB kommt (z.B. Fundraising/Abacus), sind abgewählt. Mitgliederorganisationen (eigene Ebenen) werden nicht geladen.
+   - **„Nur diese Gruppen übernehmen":** eine Liste, eine Gruppe pro Zeile. Vorgabe: Geschäftsstelle, Ausschüsse, Fachgruppen, Projektgruppen, Kommissionen, Krisenmanagement, Ehrenmitglieder, PSA, Mitgliederorganisationen (MIO).
+     - Alle anderen Gruppen werden ignoriert und im Vorschlag nur aufgelistet.
+     - Leichte Namensabweichungen werden erkannt (z.B. „Krisenteam" für Krisenmanagement, „PSA Cevi Schweiz" für PSA).
+     - Nicht gefundene Einträge werden gemeldet.
+     - Bleibt die Liste leer, schlägt das Tool alle Gruppen vor.
+   - **Mitgliederorganisationen (MIO)** sind eigene Ebenen mit vielen Mitgliedern. Übernommen wird darum nur die **Adresse der Organisation** (ein Brief pro Organisation), nicht deren Mitglieder. Stimmen Organisation und PLZ mit genau einem Excel-Eintrag überein, ist das ein Brief.
 5. Später genügt **„↻ Aus Cevi DB aktualisieren"**.
 
 Ohne Eintrag bei „Hosts mit API-Zugriff" (z.B. Datei per Doppelklick geöffnet) gibt es eine Alternative: `python3 start-tool.py` startet das Tool unter `http://localhost:8765` und leitet die Abfragen lokal weiter.

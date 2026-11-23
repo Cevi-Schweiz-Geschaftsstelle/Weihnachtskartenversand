@@ -139,7 +139,7 @@
       if (names.includes(t)) { score = 10; hit = c.name; }
       else {
         for (const k of c.strong || []) if (t.includes(textKey(k))) { if (score < 5) { score = 5; hit = k; } }
-        if (!score && t.includes(textKey(c.name))) { score = 5; hit = c.name; }
+        if (!score && t.includes(textKey(c.name))) { score = 4; hit = c.name; } // enthaltener Kategoriename wiegt weniger als ein klares Stichwort
         for (const k of c.weak || []) if (t.includes(textKey(k))) { if (score < 2) { score = 2; hit = k; } }
       }
       if (score && (!best || score > best.score)) best = { catId: c.id, score, hit };
@@ -336,6 +336,20 @@
   // ---------------------------------------------------------------------------
   // Cevi-DB (hitobito JSON:API) → Einträge
   // ---------------------------------------------------------------------------
+  function entriesFromGroups(pages, source) {
+    const out = [], seen = new Set();
+    for (const p of pages) for (const g of p.data || []) {
+      if (g.type !== 'groups' || seen.has(g.id)) continue; seen.add(g.id);
+      const a = g.attributes || {};
+      const lines = str(a.address).split(/\n|\r/).map(str).filter(Boolean);
+      let street = str(a.street) || lines[0] || '', nr = str(a.housenumber);
+      if (!nr && street) { const m = street.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/); if (m) { street = m[1].trim(); nr = m[2]; } }
+      out.push({ org: str(a.display_name || a.name), first: '', last: '', nick: '', email: str(a.email).toLowerCase(), street, nr, careOf: '',
+        zip: str(a.zip_code), town: str(a.town), country: str(a.country), owner: normOwner(source.owner), extra: '', done: false,
+        group: source.label, catId: source.catId || '', roles: 'Organisation', dbGroupId: String(g.id), groupId: String(g.id), rowNo: null });
+    }
+    return out;
+  }
   function entriesFromJsonApi(pages, source, cats) {
     const people = new Map(), groups = new Map(), entries = [];
     const roles = [];
@@ -450,6 +464,15 @@
       const zips = new Set(idx.map(i => key(entries[i].zip)).filter(Boolean));
       if (zips.size <= 1) { for (let k = 1; k < idx.length; k++) union(idx[0], idx[k], 'Name (Adresse fehlt teilweise)'); }
       else possible.push({ idx, why: 'Gleicher Name, aber verschiedene PLZ' });
+    }
+    // 3b) Organisation aus der Cevi DB (Adresse der Gruppe) ↔ Excel-Eintrag derselben Organisation + PLZ.
+    //     Nur bei genau einem passenden Eintrag automatisch; mehrere (z.B. verschiedene Teams) → zur Prüfung.
+    for (const [, idx] of by(e => !isPersonal(e) && e.org && e.zip ? 'orgzip#' + key(e.org) + '#' + key(e.zip) : '')) {
+      const dbOrgs = idx.filter(i => entries[i].dbGroupId), others = idx.filter(i => !entries[i].dbGroupId);
+      for (let k = 1; k < dbOrgs.length; k++) union(dbOrgs[0], dbOrgs[k], 'Organisation + PLZ');
+      if (!dbOrgs.length) continue;
+      if (others.length === 1) union(dbOrgs[0], others[0], 'Organisation + PLZ');
+      else if (others.length > 1) possible.push({ idx: [dbOrgs[0], ...others], why: 'Gleiche Organisation und PLZ – mehrere Einträge' });
     }
     // 4) Benutzer-Entscheide "gleiche Person"
     const idPos = new Map(); ids.forEach((id, i) => { if (!idPos.has(id)) idPos.set(id, i); });
@@ -599,6 +622,6 @@
     return { codeNames, labelToCode, observed: [...observed].sort() };
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);

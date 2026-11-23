@@ -394,7 +394,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (names.includes(t)) { score = 10; hit = c.name; }
       else {
         for (const k of c.strong || []) if (t.includes(textKey(k))) { if (score < 5) { score = 5; hit = k; } }
-        if (!score && t.includes(textKey(c.name))) { score = 5; hit = c.name; }
+        if (!score && t.includes(textKey(c.name))) { score = 4; hit = c.name; } // enthaltener Kategoriename wiegt weniger als ein klares Stichwort
         for (const k of c.weak || []) if (t.includes(textKey(k))) { if (score < 2) { score = 2; hit = k; } }
       }
       if (score && (!best || score > best.score)) best = { catId: c.id, score, hit };
@@ -591,6 +591,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // ---------------------------------------------------------------------------
   // Cevi-DB (hitobito JSON:API) → Einträge
   // ---------------------------------------------------------------------------
+  function entriesFromGroups(pages, source) {
+    const out = [], seen = new Set();
+    for (const p of pages) for (const g of p.data || []) {
+      if (g.type !== 'groups' || seen.has(g.id)) continue; seen.add(g.id);
+      const a = g.attributes || {};
+      const lines = str(a.address).split(/\n|\r/).map(str).filter(Boolean);
+      let street = str(a.street) || lines[0] || '', nr = str(a.housenumber);
+      if (!nr && street) { const m = street.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/); if (m) { street = m[1].trim(); nr = m[2]; } }
+      out.push({ org: str(a.display_name || a.name), first: '', last: '', nick: '', email: str(a.email).toLowerCase(), street, nr, careOf: '',
+        zip: str(a.zip_code), town: str(a.town), country: str(a.country), owner: normOwner(source.owner), extra: '', done: false,
+        group: source.label, catId: source.catId || '', roles: 'Organisation', dbGroupId: String(g.id), groupId: String(g.id), rowNo: null });
+    }
+    return out;
+  }
   function entriesFromJsonApi(pages, source, cats) {
     const people = new Map(), groups = new Map(), entries = [];
     const roles = [];
@@ -705,6 +719,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const zips = new Set(idx.map(i => key(entries[i].zip)).filter(Boolean));
       if (zips.size <= 1) { for (let k = 1; k < idx.length; k++) union(idx[0], idx[k], 'Name (Adresse fehlt teilweise)'); }
       else possible.push({ idx, why: 'Gleicher Name, aber verschiedene PLZ' });
+    }
+    // 3b) Organisation aus der Cevi DB (Adresse der Gruppe) ↔ Excel-Eintrag derselben Organisation + PLZ.
+    //     Nur bei genau einem passenden Eintrag automatisch; mehrere (z.B. verschiedene Teams) → zur Prüfung.
+    for (const [, idx] of by(e => !isPersonal(e) && e.org && e.zip ? 'orgzip#' + key(e.org) + '#' + key(e.zip) : '')) {
+      const dbOrgs = idx.filter(i => entries[i].dbGroupId), others = idx.filter(i => !entries[i].dbGroupId);
+      for (let k = 1; k < dbOrgs.length; k++) union(dbOrgs[0], dbOrgs[k], 'Organisation + PLZ');
+      if (!dbOrgs.length) continue;
+      if (others.length === 1) union(dbOrgs[0], others[0], 'Organisation + PLZ');
+      else if (others.length > 1) possible.push({ idx: [dbOrgs[0], ...others], why: 'Gleiche Organisation und PLZ – mehrere Einträge' });
     }
     // 4) Benutzer-Entscheide "gleiche Person"
     const idPos = new Map(); ids.forEach((id, i) => { if (!idPos.has(id)) idPos.set(id, i); });
@@ -854,7 +877,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return { codeNames, labelToCode, observed: [...observed].sort() };
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -874,7 +897,7 @@ function defaultState() {
     staff: [],
     aliasText: '', autoAliases: true, version: 3,
     decisions: {}, overrides: {}, done: {}, importDone: true,
-    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null,
+    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
           sources: [] },
     ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', owner: '', only: '' }, assignFilter: 'open' },
   };
@@ -912,6 +935,7 @@ function load() {
       s.version = 3;
     }
     s.staff = s.staff || [];
+    if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';
     // alter, nie ausgefüllter Beispiel-Eintrag
     s.db.sources = (s.db.sources || []).filter(x => !(x.label === 'Fachgruppen' && !String(x.groupIds || '').trim() && !x.auto));
     for (const st of s.staff) if (st.first === undefined && st.last === undefined) Object.assign(st, splitName(st.name));
@@ -1621,6 +1645,8 @@ function dbView() {
         <div class="hd"><h2>Gruppen automatisch übernehmen</h2></div>
         <div class="bd">
           <div class="small muted" style="margin-bottom:8px">Das Tool liest alle Gruppen von Cevi Schweiz aus der DB, schlägt die passende Kategorie vor und richtet die Untergruppen (z.B. alle Fachgruppen) ein.</div>
+          <label class="small" for="dbFilter"><b>Nur diese Gruppen übernehmen</b> <span class="muted">(eine pro Zeile · leer = alle)</span></label>
+          <textarea id="dbFilter" rows="9" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupFilter || '')}</textarea>
           <div class="free" style="margin-top:0"><input type="text" id="dbRoot" value="${esc(d.rootGroup || '')}" placeholder="Gruppe „Cevi Schweiz": Nummer oder Link" style="flex:1;min-width:0"><button class="btn primary" data-action="db-read-groups">🔎 Gruppen lesen</button></div>
         </div>
       </div>
@@ -1821,6 +1847,57 @@ function typeCategory(g) {
   if (/Spender$/.test(t)) return { catId: 'fundraising', why: 'Gruppentyp Spender' };
   return null;
 }
+// „Nur diese Gruppen übernehmen": Abgleich der Wunschliste mit den Gruppen der DB
+const isOrgType = (g) => /Mitgliederorganisation$/.test(String(g.type || ''));
+function nameNorm(x) { return WB.fold(String(x || '').replace(/\([^)]*\)/g, ' ')).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+const stem = (w) => w.length > 4 ? w.replace(/(en|n|e|s)$/, '') : w;
+function nameMatches(entry, groupName) {
+  const a = nameNorm(entry), b = nameNorm(groupName); if (!a || !b) return false;
+  if (a.replace(/ /g, '') === b.replace(/ /g, '') || stem(a.replace(/ /g, '')) === stem(b.replace(/ /g, ''))) return true;
+  const aw = a.split(' ').map(stem), bw = b.split(' ').map(stem);
+  if (aw.every(w => bw.includes(w))) return true;                                // „PSA" ⊂ „PSA Cevi Schweiz", „Ausschüsse" ⊂ „Ausschuss SAJV"
+  const ac = stem(a.replace(/ /g, '')), bc = b.replace(/ /g, '');
+  return ac.length >= 6 && bc.startsWith(ac);                                     // „Fachgruppen" → „Fachgruppe Informatik"
+}
+function catOfGroup(g) { const t = typeCategory(g); if (t) return t.catId; const d = WB.detectCategory(g.name, S.cats); return d && d.score >= 2 ? d.catId : ''; }
+function catOfEntry(entry) { const d = WB.detectCategory(String(entry).replace(/\([^)]*\)/g, ' '), S.cats) || WB.detectCategory(entry, S.cats); return d && d.score >= 5 ? d.catId : ''; }
+function filterEntries() { return String(S.db.groupFilter || '').split(/\n+/).map(x => x.trim()).filter(Boolean); }
+function proposeFiltered(groups, rootId, wanted) {
+  const byId = new Map(groups.map(g => [g.id, g])), kids = new Map();
+  for (const g of groups) { const p = g.parent_id ? String(g.parent_id) : ''; if (!kids.has(p)) kids.set(p, []); kids.get(p).push(g); }
+  const candidates = groups.filter(g => g.id !== String(rootId) && !isOrgType(g));
+  const hitOf = new Map(), notFound = [], units = [];
+  let orgUnit = null;
+  wanted.forEach((entry, wi) => {
+    const nn = nameNorm(entry);
+    if (/mitgliederorganisation|\bmio\b/.test(nn) || /\(mio\)/i.test(entry)) {
+      const orgs = groups.filter(isOrgType).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      if (!orgs.length) { notFound.push(entry); return; }
+      orgUnit = { id: 'orgs', name: 'Mitgliederorganisationen', depth: 0, catId: 'mio', include: true, mode: 'orgs', orgIds: orgs.map(o => o.id), wi,
+        why: `aus deiner Liste: „${entry}" · ${orgs.length} Organisationen – Brief an die Adresse der Organisation (nicht an alle Mitglieder)`, container: false, children: orgs.map(o => ({ id: o.id, name: o.name })) };
+      return;
+    }
+    let hits = candidates.filter(g => nameMatches(entry, g.name));
+    let how = 'Name';
+    if (!hits.length) { const c = catOfEntry(entry); if (c) { hits = candidates.filter(g => catOfGroup(g) === c); how = 'Kategorie'; } }
+    if (!hits.length) { notFound.push(entry); return; }
+    for (const h of hits) if (!hitOf.has(h.id)) hitOf.set(h.id, { entry, wi, how });
+  });
+  // Gruppen, deren Obergruppe schon gewählt ist, sind Untergruppen – nicht separat
+  const hasHitAncestor = (g) => { let p = g.parent_id ? byId.get(String(g.parent_id)) : null, n = 0; while (p && n++ < 20) { if (hitOf.has(p.id)) return true; p = p.parent_id ? byId.get(String(p.parent_id)) : null; } return false; };
+  for (const [id, h] of hitOf) {
+    const g = byId.get(id); if (hasHitAncestor(g)) continue;
+    const ch = (kids.get(id) || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    units.push({ id, name: g.name, depth: 0, catId: catOfEntry(h.entry) || catOfGroup(g), include: true, wi: h.wi,
+      why: `aus deiner Liste: „${h.entry}"` + (h.how === 'Kategorie' ? ' (über die Kategorie erkannt)' : ''), container: ch.length > 0, children: ch.map(x => ({ id: x.id, name: x.name })) });
+  }
+  if (orgUnit) units.push(orgUnit);
+  units.sort((a, b) => a.wi - b.wi || a.name.localeCompare(b.name, 'de'));
+  const covered = new Set(); const mark = (id) => { covered.add(id); for (const k of kids.get(id) || []) mark(k.id); };
+  for (const u of units) if (u.mode === 'orgs') u.orgIds.forEach(id => covered.add(id)); else mark(u.id);
+  const ignored = groups.filter(g => g.id !== String(rootId) && !covered.has(g.id) && !(g.parent_id && covered.has(String(g.parent_id)))).map(g => g.name);
+  return { units, notFound, ignored };
+}
 function proposeMapping(groups, rootId) {
   const kids = new Map();
   for (const g of groups) { const p = g.parent_id ? String(g.parent_id) : ''; if (!kids.has(p)) kids.set(p, []); kids.get(p).push(g); }
@@ -1852,9 +1929,15 @@ async function dbReadGroups() {
     const one = await apiGet('/api/groups/' + start, {});
     const layer = String((one.data.attributes || {}).layer_group_id || start);
     const pages = await apiAll('/api/groups', { 'filter[layer_group_id]': layer });
-    const groups = pages.flatMap(p => p.data || []).map(g => ({ id: String(g.id), name: g.attributes.display_name || g.attributes.name, parent_id: g.attributes.parent_id, type: g.attributes.type, layer: g.attributes.layer }));
+    // Mitgliederorganisationen sind eigene Ebenen → zusätzlich die direkten Untergruppen der Ebene lesen
+    try { pages.push(...await apiAll('/api/groups', { 'filter[parent_id]': layer })); } catch (e) { logDb('Hinweis: direkte Untergruppen nicht lesbar (' + e.message + ')'); }
+    const seen = new Set();
+    const groups = pages.flatMap(p => p.data || []).filter(g => !seen.has(String(g.id)) && seen.add(String(g.id)))
+      .map(g => ({ id: String(g.id), name: g.attributes.display_name || g.attributes.name, parent_id: g.attributes.parent_id, type: g.attributes.type, layer: g.attributes.layer }));
     const root = groups.find(g => g.id === layer);
-    DBMAP = { layer, rootName: root ? root.name : layer, units: proposeMapping(groups, layer), count: groups.length };
+    const wanted = filterEntries();
+    const prop = wanted.length ? proposeFiltered(groups, layer, wanted) : { units: proposeMapping(groups, layer), notFound: [], ignored: [] };
+    DBMAP = { layer, rootName: root ? root.name : layer, units: prop.units, notFound: prop.notFound, ignored: prop.ignored, filtered: wanted.length > 0, count: groups.length };
     logDb(`OK ✓ ${groups.length} Gruppen in „${DBMAP.rootName}" gefunden`);
     render();
     const el = $('#dbmap'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1865,6 +1948,7 @@ function applyMapping() {
   const fresh = [];
   for (const u of DBMAP.units) {
     if (u.header || !u.include || !u.catId) continue;
+    if (u.mode === 'orgs') { fresh.push({ id: 'auto-orgs', label: u.name, groupIds: u.orgIds.join(','), catId: u.catId, owner: '', subgroups: false, mode: 'orgs', replaceExcel: false, auto: true }); continue; }
     fresh.push({ id: 'auto-' + u.id, label: u.name, groupIds: u.id, catId: u.catId, owner: '', subgroups: u.container, replaceExcel: false, auto: true });
     const c = S.cats.find(x => x.id === u.catId); if (!c) continue;
     const addSub = (name, dbId) => {
@@ -1875,7 +1959,7 @@ function applyMapping() {
     };
     if (u.container) for (const ch of u.children) addSub(ch.name, ch.id); else addSub(u.name, u.id);
   }
-  const covered = new Set(fresh.map(x => x.groupIds));
+  const covered = new Set(fresh.flatMap(x => parseGroupIds(x.groupIds)));
   const keep = S.db.sources.filter(x => !x.auto && parseGroupIds(x.groupIds).length && !parseGroupIds(x.groupIds).every(id => covered.has(id)));
   S.db.sources = [...fresh, ...keep];
   DBMAP = null; save();
@@ -1888,7 +1972,7 @@ function dbMapView() {
   const n = DBMAP.units.filter(u => !u.header && u.include && u.catId).length;
   return `<div class="panel" id="dbmap" style="margin-top:16px">
     <div class="hd"><h2>Vorschlag: Gruppen aus „${esc(DBMAP.rootName)}"</h2><span class="muted small">${DBMAP.count} Gruppen gelesen · ${n} zum Laden ausgewählt</span></div>
-    <div class="bd small muted" style="padding-bottom:0">Gruppen mit Untergruppen (z.B. Fachgruppen) werden als <b>Untergruppen</b> der Kategorie übernommen – dort kannst du danach pro Untergruppe die Zuständigen festlegen. Bitte kurz prüfen und bei Bedarf anpassen.</div>
+    <div class="bd small muted" style="padding-bottom:0">${DBMAP.filtered ? 'Nur Gruppen aus deiner Liste. ' : ''}Gruppen mit Untergruppen (z.B. Fachgruppen) werden als <b>Untergruppen</b> der Kategorie übernommen – dort kannst du danach pro Untergruppe die Zuständigen festlegen. Bitte kurz prüfen und bei Bedarf anpassen.</div>
     <div class="tablewrap"><table class="dbmap">
       <thead><tr><th>Gruppe in der Cevi DB</th><th>Kategorie im Tool</th><th style="text-align:center">laden</th></tr></thead>
       <tbody>${DBMAP.units.map((u, i) => u.header
@@ -1897,6 +1981,8 @@ function dbMapView() {
             <td><select class="inline" data-map-cat="${i}">${opts(u.catId)}</select></td>
             <td style="text-align:center"><input type="checkbox" data-map-inc="${i}" ${u.include && u.catId ? 'checked' : ''} ${u.catId ? '' : 'disabled'}></td></tr>`).join('')}</tbody>
     </table></div>
+    ${(DBMAP.notFound || []).length ? `<div class="bd"><div class="callout warn"><b>Nicht gefunden:</b> ${DBMAP.notFound.map(esc).join(', ')} – heisst die Gruppe in der Cevi DB anders? Dann den Namen in der Liste oben anpassen und nochmals „Gruppen lesen".</div></div>` : ''}
+    ${(DBMAP.ignored || []).length ? `<div class="bd" style="padding-top:0"><details><summary class="small muted" style="cursor:pointer">${DBMAP.ignored.length} weitere Gruppen ignoriert (nicht in deiner Liste) – anzeigen</summary><div class="small muted" style="margin-top:6px">${DBMAP.ignored.map(esc).join(' · ')}</div></details></div>` : ''}
     <div class="bd" style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" data-action="map-cancel">Abbrechen</button><button class="btn primary" data-action="map-apply">✓ Übernehmen und Daten laden</button></div>
   </div>`;
 }
@@ -1929,6 +2015,10 @@ async function dbRefresh(demo = false) {
     for (const s of srcs) {
       let pages;
       if (demo) { pages = demoPages(s); logDb(`Demo: ${s.label} – erfundene Testdaten`); }
+      else if (s.mode === 'orgs') {
+        const ids = parseGroupIds(s.groupIds); pages = [];
+        for (let i = 0; i < ids.length; i += 25) pages.push(...await apiAll('/api/groups', { 'filter[id]': ids.slice(i, i + 25).join(',') }));
+      }
       else {
         let ids = parseGroupIds(s.groupIds), tree = null; const roots = new Set(ids);
         if (s.subgroups) { logDb(`${s.label}: suche Untergruppen von ${ids.join(', ')} …`); tree = await expandSubgroups(ids); ids = tree.ids; logDb(`  → ${ids.length} Gruppen`); }
@@ -1936,11 +2026,11 @@ async function dbRefresh(demo = false) {
         pages = [];
         for (let i = 0; i < ids.length; i += 20) pages.push(...await apiAll('/api/roles', { 'filter[group_id]': ids.slice(i, i + 20).join(','), include: 'person,group' }));
       }
-      const entries = WB.entriesFromJsonApi(pages, { label: s.label, catId: s.catId, owner: s.owner }, S.cats);
+      const entries = s.mode === 'orgs' ? WB.entriesFromGroups(pages, { label: s.label, catId: s.catId, owner: s.owner }) : WB.entriesFromJsonApi(pages, { label: s.label, catId: s.catId, owner: s.owner }, S.cats);
       if (s._tree) for (const e of entries) { const top = topSubgroupName(e.groupId, s._roots, s._tree); if (top) e.group = top; }
       delete s._tree; delete s._roots;
       const det = s.catId ? null : (entries[0] ? { catId: entries[0].catId } : null);
-      logDb(`${s.label}: ${entries.length} Personen/Rollen geladen`);
+      logDb(`${s.label}: ${entries.length} ${s.mode === 'orgs' ? 'Organisationen' : 'Personen/Rollen'} geladen`);
       fresh.push({ id: 'db:' + s.id, kind: 'db', file: 'Cevi DB', sheet: '', block: '', label: s.label + (demo ? ' (Demo)' : ''), group: s.label,
         catId: s.catId || (det && det.catId) || '', perRow: !s.catId, detectedBy: s.catId ? 'in den DB-Einstellungen gewählt' : 'aus Gruppennamen', confidence: s.catId ? 'manuell' : 'wahrscheinlich',
         entries, importedAt: now, enabled: true, demo });
@@ -2206,6 +2296,7 @@ document.addEventListener('change', (ev) => {
   if (t.id === 'autoAliases') { S.autoAliases = t.checked; save(); render(); return; }
   if (t.id === 'importDone') { S.importDone = t.checked; save(); render(); return; }
   if (t.id === 'dbRoot') { S.db.rootGroup = t.value.trim(); save(); return; }
+  if (t.id === 'dbFilter') { S.db.groupFilter = t.value; save(); return; }
   if (t.dataset.mapCat !== undefined && DBMAP) { const u = DBMAP.units[+t.dataset.mapCat]; u.catId = t.value; u.include = !!t.value; render(); return; }
   if (t.dataset.mapInc !== undefined && DBMAP) { const u = DBMAP.units[+t.dataset.mapInc]; u.include = t.checked; render(); return; }
   if (t.id === 'dbBase') { S.db.baseUrl = t.value.trim(); save(); return; }

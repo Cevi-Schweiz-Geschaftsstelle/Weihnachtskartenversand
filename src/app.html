@@ -246,9 +246,9 @@ function defaultState() {
     cats: WB.DEFAULT_CATEGORIES.map(c => ({ ...c })),
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
-    aliasText: '', autoAliases: true, version: 4,
+    aliasText: '', autoAliases: true, version: 5,
     decisions: {}, overrides: {}, done: {}, importDone: true,
-    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
+    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
           sources: [] },
     ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', owner: '', only: '' }, assignFilter: 'open' },
   };
@@ -294,8 +294,13 @@ function load() {
       }
       s.version = 4;
     }
+    if (s.version < 5) {
+      // Version 5: Krisenmanagement nur Untergruppe „Cevi CH"
+      if (s.db && typeof s.db.groupFilter === 'string') s.db.groupFilter = s.db.groupFilter.replace(/^\s*Krisenmanagement\s*$/m, 'Krisenmanagement › Cevi CH');
+      s.version = 5;
+    }
     s.staff = s.staff || [];
-    if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';
+    if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';
     if (s.db.groupExclude === undefined) s.db.groupExclude = 'Ehemalige';
     // alter, nie ausgefüllter Beispiel-Eintrag
     s.db.sources = (s.db.sources || []).filter(x => !(x.label === 'Fachgruppen' && !String(x.groupIds || '').trim() && !x.auto));
@@ -1006,7 +1011,7 @@ function dbView() {
         <div class="hd"><h2>Gruppen automatisch übernehmen</h2></div>
         <div class="bd">
           <div class="small muted" style="margin-bottom:8px">Das Tool liest alle Gruppen von Cevi Schweiz aus der DB, schlägt die passende Kategorie vor und richtet die Untergruppen (z.B. alle Fachgruppen) ein.</div>
-          <label class="small" for="dbFilter"><b>Nur diese Gruppen übernehmen</b> <span class="muted">(eine pro Zeile · leer = alle)</span></label>
+          <label class="small" for="dbFilter"><b>Nur diese Gruppen übernehmen</b> <span class="muted">(eine pro Zeile · leer = alle · nur eine Untergruppe: „Gruppe › Untergruppe“)</span></label>
           <textarea id="dbFilter" rows="9" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupFilter || '')}</textarea>
           <label class="small" for="dbExclude"><b>Immer ausschliessen</b> <span class="muted">(Wortteil im Gruppennamen, eine pro Zeile – z.B. „Ehemalige" entfernt „Ehemalige Fachgruppen", „Ehemalige Ausschüsse" usw.)</span></label>
           <textarea id="dbExclude" rows="2" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupExclude || '')}</textarea>
@@ -1217,7 +1222,8 @@ function cleanExcluded() {
 }
 // „Nur diese Gruppen übernehmen": Abgleich der Wunschliste mit den Gruppen der DB
 const isOrgType = (g) => /Mitgliederorganisation$/.test(String(g.type || ''));
-function nameNorm(x) { return WB.fold(String(x || '').replace(/\([^)]*\)/g, ' ')).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function nameNorm(x) { return WB.fold(String(x || '').replace(/\([^)]*\)/g, ' ')).replace(/[^a-z0-9 ]/g, ' ').replace(/\b(schweiz|suisse|svizzera)\b/g, 'ch').replace(/\s+/g, ' ').trim(); }
+const PATH_SEP = /\s*(?:›|>|\/)\s*/;
 const stem = (w) => w.length > 4 ? w.replace(/(en|n|e|s)$/, '') : w;
 function nameMatches(entry, groupName) {
   const a = nameNorm(entry), b = nameNorm(groupName); if (!a || !b) return false;
@@ -1234,7 +1240,7 @@ function proposeFiltered(groups, rootId, wanted) {
   const byId = new Map(groups.map(g => [g.id, g])), kids = new Map();
   for (const g of groups) { const p = g.parent_id ? String(g.parent_id) : ''; if (!kids.has(p)) kids.set(p, []); kids.get(p).push(g); }
   const candidates = groups.filter(g => g.id !== String(rootId) && !isOrgType(g));
-  const hitOf = new Map(), notFound = [], units = [];
+  const hitOf = new Map(), notFound = [], units = [], pathParents = new Set();
   let orgUnit = null;
   wanted.forEach((entry, wi) => {
     const nn = nameNorm(entry);
@@ -1245,10 +1251,30 @@ function proposeFiltered(groups, rootId, wanted) {
         why: `aus deiner Liste: „${entry}" · ${orgs.length} Organisationen – Brief an die Adresse der Organisation (nicht an alle Mitglieder)`, container: false, children: orgs.map(o => ({ id: o.id, name: o.name })) };
       return;
     }
-    let hits = candidates.filter(g => nameMatches(entry, g.name));
+    const parts = entry.split(PATH_SEP).map(x => x.trim()).filter(Boolean), head = parts[0];
+    let hits = candidates.filter(g => nameMatches(head, g.name));
     let how = 'Name';
-    if (!hits.length) { const c = catOfEntry(entry); if (c) { hits = candidates.filter(g => catOfGroup(g) === c); how = 'Kategorie'; } }
+    if (!hits.length) { const c = catOfEntry(head); if (c) { hits = candidates.filter(g => catOfGroup(g) === c); how = 'Kategorie'; } }
     if (!hits.length) { notFound.push(entry); return; }
+    if (parts.length > 1) {
+      // nur bestimmte Untergruppe(n): „Krisenmanagement › Cevi CH"
+      const below = (g) => { const out = [], st = [...(kids.get(g.id) || [])]; while (st.length) { const x = st.shift(); out.push(x); st.push(...(kids.get(x.id) || [])); } return out; };
+      let found = 0, offered = new Set();
+      for (const h of hits) {
+        let level = [h];
+        for (const part of parts.slice(1)) {
+          const direct = level.flatMap(x => kids.get(x.id) || []);
+          direct.forEach(x => offered.add(x.name));
+          let m = direct.filter(x => nameMatches(part, x.name));
+          if (!m.length) m = level.flatMap(below).filter(x => nameMatches(part, x.name));
+          level = m; if (!level.length) break;
+        }
+        for (const x of level) if (!hitOf.has(x.id)) { hitOf.set(x.id, { entry, wi, how, path: h, catHint: catOfEntry(head) || catOfGroup(h) }); found++; }
+        if (level.length) pathParents.add(h.id);
+      }
+      if (!found) notFound.push(`${entry} – Untergruppe nicht gefunden${offered.size ? ` (vorhanden: ${[...offered].slice(0, 12).join(', ')})` : ''}`);
+      return;
+    }
     for (const h of hits) if (!hitOf.has(h.id)) hitOf.set(h.id, { entry, wi, how });
   });
   // Gruppen, deren Obergruppe schon gewählt ist, sind Untergruppen – nicht separat
@@ -1256,13 +1282,14 @@ function proposeFiltered(groups, rootId, wanted) {
   for (const [id, h] of hitOf) {
     const g = byId.get(id); if (hasHitAncestor(g)) continue;
     const ch = (kids.get(id) || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'de'));
-    units.push({ id, name: g.name, depth: 0, catId: catOfEntry(h.entry) || catOfGroup(g), include: true, wi: h.wi,
-      why: `aus deiner Liste: „${h.entry}"` + (h.how === 'Kategorie' ? ' (über die Kategorie erkannt)' : ''), container: ch.length > 0, children: ch.map(x => ({ id: x.id, name: x.name })) });
+    units.push({ id, name: h.path ? `${h.path.name} › ${g.name}` : g.name, subName: g.name, depth: 0, catId: h.path ? (h.catHint || catOfGroup(g)) : (catOfEntry(h.entry) || catOfGroup(g)), include: true, wi: h.wi,
+      why: `aus deiner Liste: „${h.entry}"` + (h.path ? ' – nur diese Untergruppe' : '') + (h.how === 'Kategorie' ? ' (über die Kategorie erkannt)' : ''), container: ch.length > 0, children: ch.map(x => ({ id: x.id, name: x.name })) });
   }
   if (orgUnit) units.push(orgUnit);
   units.sort((a, b) => a.wi - b.wi || a.name.localeCompare(b.name, 'de'));
   const covered = new Set(); const mark = (id) => { covered.add(id); for (const k of kids.get(id) || []) mark(k.id); };
   for (const u of units) if (u.mode === 'orgs') u.orgIds.forEach(id => covered.add(id)); else mark(u.id);
+  for (const id of pathParents) covered.add(id); // Obergruppe nur teilweise übernommen – nicht als „ignoriert" listen
   const ignored = groups.filter(g => g.id !== String(rootId) && !covered.has(g.id) && !(g.parent_id && covered.has(String(g.parent_id)))).map(g => g.name);
   return { units, notFound, ignored };
 }
@@ -1320,7 +1347,7 @@ function applyMapping() {
   for (const u of DBMAP.units) {
     if (u.header || !u.include || !u.catId) continue;
     if (u.mode === 'orgs') { fresh.push({ id: 'auto-orgs', label: u.name, groupIds: u.orgIds.join(','), catId: u.catId, owner: '', subgroups: false, mode: 'orgs', replaceExcel: false, auto: true }); continue; }
-    fresh.push({ id: 'auto-' + u.id, label: u.name, groupIds: u.id, catId: u.catId, owner: '', subgroups: u.container, replaceExcel: false, auto: true });
+    fresh.push({ id: 'auto-' + u.id, label: u.subName && u.subName !== u.name ? u.name : u.name, groupIds: u.id, catId: u.catId, owner: '', subgroups: u.container, replaceExcel: false, auto: true });
     const c = S.cats.find(x => x.id === u.catId); if (!c) continue;
     const addSub = (name, dbId) => {
       const gk = WB.groupKey(c.name, name); if (!gk) return;
@@ -1328,7 +1355,7 @@ function applyMapping() {
       const g = c.groups[gk] || (c.groups[gk] = { name, persons: [] });
       g.fromDb = dbId; if (!g.name) g.name = name;
     };
-    if (u.container) for (const ch of u.children) addSub(ch.name, ch.id); else addSub(u.name, u.id);
+    if (u.container) for (const ch of u.children) addSub(ch.name, ch.id); else addSub(u.subName || u.name, u.id);
   }
   const covered = new Set(fresh.flatMap(x => parseGroupIds(x.groupIds)));
   const keep = S.db.sources.filter(x => !x.auto && parseGroupIds(x.groupIds).length && !parseGroupIds(x.groupIds).every(id => covered.has(id)));

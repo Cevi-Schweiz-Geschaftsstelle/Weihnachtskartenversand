@@ -58,6 +58,17 @@ assert.ok(by('Lea Lager').doneFromFile);
 assert.strictEqual(by('Ben Beta').owner, 'ABE', 'manuelle Zuteilung gewinnt');
 assert.deepStrictEqual(by('Ben Beta').coSigners.map(c => c.owner), ['GL']);
 
+// Untergruppen: im Tool festgelegt → gilt vor Spalte „Zuständigkeit" und vor der Kategorie
+assert.strictEqual(WB.groupKey('Fachgruppen', 'Fachgruppe Informatik'), WB.groupKey('Fachgruppen', 'Informatik'));
+assert.strictEqual(WB.groupKey('Fachgruppen', 'Jugend und Sport'), WB.groupKey('Fachgruppen', 'Jugend+Sport'));
+assert.strictEqual(WB.groupKey('Alpenblick', 'Alpenblick'), '');
+const catsSub = cats.map(c => c.id === 'fachgruppen' ? { ...c, groups: { informatik: { name: 'Informatik', persons: ['XYZ', 'QRS'] } } } : c);
+({ people } = WB.buildPeople(entries, { cats: catsSub, aliases: new Map(), codeNames: {} }));
+assert.strictEqual(by('Mia Muster').owner, 'XYZ', 'Untergruppe gilt vor der Excel-Spalte');
+assert.deepStrictEqual(by('Mia Muster').coSigners.map(c => c.owner), ['QRS'], 'weitere Personen der Untergruppe unterschreiben mit');
+assert.strictEqual(by('Ben Beta').owner, 'GL', 'Kategorie-Priorität bleibt bei Doppelten');
+assert.deepStrictEqual(by('Ben Beta').coSigners.map(c => c.owner).sort(), ['QRS', 'XYZ']);
+
 // Kürzel-Regel: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname
 assert.strictEqual(WB.makeCode('Anna', 'Beispiel'), 'ABE');
 assert.strictEqual(WB.makeCode('Lea Sophie', 'Müller'), 'LMÜ');

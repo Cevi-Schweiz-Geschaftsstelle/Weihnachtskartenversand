@@ -126,6 +126,15 @@ input.cell:hover{border-color:var(--line)} input.cell:focus{border-color:var(--a
 .lnk{border:0;background:transparent;cursor:pointer;color:var(--accent);padding:0 3px;font-size:12px}
 .lnk.x{color:var(--soft)} .lnk.x:hover{color:var(--bad)}
 .cand.sugg{min-width:0}
+details.grp>summary{cursor:pointer;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;list-style:none;padding:3px 0}
+details.grp>summary::-webkit-details-marker{display:none}
+details.grp>summary::before{content:'▸';color:var(--soft);width:10px}
+details.grp[open]>summary::before{content:'▾'}
+details.grp>summary .ttl{font-weight:650;font-size:14px}
+details.grp>summary:hover .ttl{color:var(--accent)}
+details.grp .grpbody{margin-top:8px;border:1px solid var(--line2);border-radius:10px;padding:6px 12px 8px;background:#fbfcfd}
+.catlist li.flash{animation:flash 2.2s ease-out}
+@keyframes flash{0%,40%{background:#fff6d6}100%{background:transparent}}
 details.subs{margin-top:10px;border:1px solid var(--line2);border-radius:10px;padding:8px 12px;background:#fbfcfd}
 details.subs>summary{cursor:pointer;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none}
 details.subs>summary::-webkit-details-marker{display:none}
@@ -1953,7 +1962,7 @@ function subsBlock(c) {
   const subs = subgroupsOf(c);
   const assigned = subs.filter(g => grpKeys(c, g.gk).length).length;
   const adoptable = subs.filter(g => !grpKeys(c, g.gk).length && g.codes.size).length;
-  const open = S.ui.subsOpen && c.id in S.ui.subsOpen ? S.ui.subsOpen[c.id] : SUB_DEFAULT_OPEN.includes(c.id);
+  const open = !!(S.ui.subsOpen && S.ui.subsOpen[c.id]); // standardmässig zugeklappt
   const row = (g) => {
     const keys = grpKeys(c, g.gk), ref = `${c.id}|${g.gk}`;
     const avail = S.staff.filter(st => !keys.includes(staffKey(st)));
@@ -1973,12 +1982,17 @@ function subsBlock(c) {
         <button class="lnk x sub-x" data-sub-hide="${ref}" data-name="${esc(g.name)}" title="Untergruppe entfernen – wird auch bei künftigen Importen ignoriert">✕ entfernen</button>
       </div></td></tr>`;
   };
-  return `<details class="subs" data-subs="${c.id}" ${open ? 'open' : ''}>
-    <summary><b>Untergruppen</b> <span class="small muted">${assigned} von ${subs.length} mit eigener Zuständigkeit</span>
-      ${adoptable ? `<button class="btn small ghost" data-sub-adopt-all="${c.id}" title="Bei allen Untergruppen ohne Zuständigkeit die häufigste aus der Excel übernehmen">Alle aus Excel übernehmen (${adoptable})</button>` : ''}</summary>
-    ${subs.length ? `<table class="subtab"><tbody>${subs.map(row).join('')}</tbody></table>` : '<div class="small muted" style="padding:6px 0">Noch keine Untergruppen – erscheinen nach dem Excel-Import oder hier von Hand anlegen.</div>'}
-    ${removedOf(c).length ? `<div class="small muted" style="padding:6px 0">Entfernt (wird beim Import ignoriert): ${removedOf(c).map(([gk, g]) => `${esc(g.name || gk)} <button class="lnk" data-sub-unhide="${c.id}|${esc(gk)}" title="Wiederherstellen">↺</button>`).join(' · ')}</div>` : ''}
-    <div class="free"><input data-sub-newname="${c.id}" placeholder="Neue Untergruppe, z.B. Informatik" style="min-width:0;flex:1"><button class="btn small" data-sub-new="${c.id}">＋ Untergruppe</button></div>
+  const missing = subs.filter(g => !grpKeys(c, g.gk).length && !inheritedFrom(c, g.gk) && !g.codes.size && !catKeys(c).length).length;
+  const info = [c.source && !/\bDB\b/i.test(c.source) ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · ');
+  return `<details class="grp" data-subs="${c.id}" ${open ? 'open' : ''}>
+    <summary><span class="ttl">${esc(c.name)}</span>${info ? ` <span class="small muted">${esc(info)}</span>` : ''}
+      <span class="small muted stat">${subs.length} Untergruppen · ${assigned} mit Zuständigkeit${catKeys(c).length ? ` · <span title="Gilt für Untergruppen ohne eigenen Eintrag – ändern im Reiter Zuständigkeit (✎ Kategorien)">sonst ${catKeys(c).map(k => `<span title="${esc(ownerName(k))}">${esc(k)}</span>`).join(', ')}</span>` : ''}${missing ? ` · <span style="color:var(--warn)">${missing} noch niemand</span>` : ''}</span></summary>
+    <div class="grpbody">
+      ${adoptable ? `<div style="margin-bottom:4px"><button class="btn small ghost" data-sub-adopt-all="${c.id}" title="Bei allen Untergruppen ohne Zuständigkeit die häufigste aus der Excel übernehmen">Alle aus Excel übernehmen (${adoptable})</button></div>` : ''}
+      ${subs.length ? `<table class="subtab"><tbody>${subs.map(row).join('')}</tbody></table>` : '<div class="small muted" style="padding:6px 0">Noch keine Untergruppen – erscheinen nach dem Excel-Import oder hier von Hand anlegen.</div>'}
+      ${removedOf(c).length ? `<div class="small muted" style="padding:6px 0">Entfernt (wird beim Import ignoriert): ${removedOf(c).map(([gk, g]) => `${esc(g.name || gk)} <button class="lnk" data-sub-unhide="${c.id}|${esc(gk)}" title="Wiederherstellen">↺</button>`).join(' · ')}</div>` : ''}
+      <div class="free"><input data-sub-newname="${c.id}" placeholder="Neue Untergruppe, z.B. Informatik" style="min-width:0;flex:1"><button class="btn small" data-sub-new="${c.id}">＋ Untergruppe</button></div>
+    </div>
   </details>`;
 }
 
@@ -2053,7 +2067,13 @@ function catsView() {
     const c = S.cats.find(x => x.id === id); if (!c) return '';
     const keys = catKeys(c);
     const avail = S.staff.filter(st => !keys.includes(staffKey(st)));
-    return `<li>
+    const moveBtns = `<span style="white-space:nowrap">${showSubs(c) ? `<button class="btn small ghost" data-cat-rename="${id}" title="Kategorie umbenennen">✎</button>` : ''}<button class="btn small ghost" data-move="${id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Höhere Priorität">▲</button><button class="btn small ghost" data-move="${id}" data-dir="1" ${i === S.order.length - 1 ? 'disabled' : ''} title="Tiefere Priorität">▼</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕</button>` : ''}</span>`;
+    if (showSubs(c)) return `<li class="grpcat" data-catli="${id}">
+      <span class="rank">${i + 1}.</span>
+      ${subsBlock(c)}
+      ${moveBtns}
+    </li>`;
+    return `<li data-catli="${id}">
       <span class="rank">${i + 1}.</span>
       <div>
         <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><input class="cell catname" data-cat-name="${id}" value="${esc(c.name)}" title="Kategorie umbenennen">
@@ -2064,21 +2084,20 @@ function catsView() {
               ${ownerHtml(k)}${isStaff(k) ? '' : ` <button class="lnk" data-staff-quick="${esc(k)}" title="Als Person erfassen">noch nicht erfasst – erfassen</button>`}
               <button class="lnk x" data-cat-remove="${id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')}
           <select class="inline" data-cat-add="${id}"><option value="">＋ Person zuordnen …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc([st.code, st.name].filter(Boolean).join(' · '))}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
-          ${!keys.length ? `<span class="small" style="color:var(--warn)">${showSubs(c) ? 'auf Kategorie-Ebene niemand – Zuständigkeit pro Untergruppe' : 'niemand zugeordnet – Zuständigkeit kommt aus der Liste'}</span>` : ''}
+          ${!keys.length ? '<span class="small" style="color:var(--warn)">niemand zugeordnet – Zuständigkeit kommt aus der Liste</span>' : ''}
         </div>
-        ${showSubs(c) ? subsBlock(c) : ''}
       </div>
-      <span style="white-space:nowrap"><button class="btn small ghost" data-move="${id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Höhere Priorität">▲</button><button class="btn small ghost" data-move="${id}" data-dir="1" ${i === S.order.length - 1 ? 'disabled' : ''} title="Tiefere Priorität">▼</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕</button>` : ''}</span>
+      ${moveBtns}
     </li>`;
   }).join('');
   return `<div class="catcol">
       <div class="panel">
         <div class="hd"><h2>Kategorien</h2><span class="muted small">Zuständige Personen zuordnen – auch mehrere pro Kategorie und pro Untergruppe</span></div>
         <div class="bd">
+          <div class="free" style="margin:0 0 12px"><input id="newCat" placeholder="Neue Kategorie …" style="min-width:0;flex:1"><button class="btn small primary" data-action="cat-add">＋ Neue Kategorie</button></div>
           <div class="callout" style="margin-bottom:6px"><b>★ versendet</b> den Brief, alle weiteren Personen der Kategorie unterschreiben mit (☆ anklicken macht jemand zur Hauptperson).
-            Bei <b>Untergruppen</b> (z.B. Fachgruppen › Informatik) lässt sich die Zuständigkeit einzeln festlegen – sie gilt vor allem anderen. Sonst gilt ein Kürzel in der Excel (Spalte „Zuständigkeit"), danach die Kategorie. Kommt jemand in mehreren Kategorien vor, ist die <b>obere</b> Kategorie der Vorschlag – festlegen im Tab <a href="#" data-tab="assign">Unvollständig</a>.</div>
+            Kategorien mit <b>Untergruppen</b> (z.B. Fachgruppen) aufklappen und pro Untergruppe festlegen, wer zuständig ist – das gilt vor allem anderen. Sonst gilt ein Kürzel in der Excel (Spalte „Zuständigkeit"), danach die Kategorie. Kommt jemand in mehreren Kategorien vor, ist die <b>obere</b> Kategorie der Vorschlag – festlegen im Tab <a href="#" data-tab="assign">Unvollständig</a>.</div>
           <ul class="catlist">${catRows}</ul>
-          <div class="free"><input id="newCat" placeholder="Neue Kategorie …" style="min-width:0;flex:1"><button class="btn small" data-action="cat-add">＋ Kategorie</button></div>
         </div>
       </div>
   </div>`;
@@ -2677,7 +2696,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-del],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-del],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -2746,6 +2765,12 @@ document.addEventListener('click', (ev) => {
   }
   if (t.dataset.catPrimary) { const c = S.cats.find(x => x.id === t.dataset.catPrimary); const k = t.dataset.key; c.persons = [k, ...catKeys(c).filter(x => x !== k)]; c.personsManual = true; save(); render(); return; }
   if (t.dataset.catRemove) { const c = S.cats.find(x => x.id === t.dataset.catRemove); const k = t.dataset.key; c.persons = catKeys(c).filter(x => x !== k); c.personsManual = true; save(); render(); return; }
+  if (t.dataset.catRename) {
+    ev.preventDefault();
+    const c = S.cats.find(x => x.id === t.dataset.catRename); if (!c) return;
+    const v = (prompt('Kategorie umbenennen:', c.name) || '').trim(); if (v && v !== c.name) { c.name = v; save(); render(); }
+    return;
+  }
   if (t.dataset.catDel) {
     const c = S.cats.find(x => x.id === t.dataset.catDel); if (!c || !confirm(`Kategorie „${c.name}" löschen?`)) return;
     S.cats = S.cats.filter(x => x !== c); S.order = S.order.filter(x => x !== c.id);
@@ -2811,7 +2836,8 @@ document.addEventListener('click', (ev) => {
     const name = ($('#newCat').value || '').trim(); if (!name) { toast('Bitte einen Namen für die Kategorie eintragen.'); return; }
     const id = 'cat-' + uid();
     S.cats.push({ id, name, source: '', persons: [], personsManual: true, info: '', exact: [], strong: [WB.fold(name)], weak: [], custom: true });
-    S.order.push(id); save(); render(); toast('Kategorie angelegt: ' + name);
+    S.order.push(id); save(); render(); toast('Kategorie angelegt: ' + name + ' (unten in der Liste, mit ▲ nach oben schieben)');
+    const li = document.querySelector(`[data-catli="${id}"]`); if (li) { li.scrollIntoView({ block: 'center', behavior: 'smooth' }); li.classList.add('flash'); }
   }
   else if (a === 'db-test') dbTest();
   else if (a === 'db-read-groups') dbReadGroups();

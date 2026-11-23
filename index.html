@@ -123,6 +123,13 @@ input.cell:hover{border-color:var(--line)} input.cell:focus{border-color:var(--a
 .lnk{border:0;background:transparent;cursor:pointer;color:var(--accent);padding:0 3px;font-size:12px}
 .lnk.x{color:var(--soft)} .lnk.x:hover{color:var(--bad)}
 .cand.sugg{min-width:0}
+.newcats{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:8px}
+.tog{border:1px solid var(--line);background:#fff;border-radius:999px;padding:2px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
+.tog:hover{border-color:#9fc9c1}
+.tog.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.tog.on::before{content:'✓ '}
+select.inline.mini{font-size:12px;padding:1px 4px;color:var(--muted);max-width:130px}
+.chip.cat .lnk.x{margin-left:2px;padding:0 2px}
 .sugg-wrap{position:relative;display:inline-flex}
 .sugg-x{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--soft);font-size:10px;line-height:1;cursor:pointer;padding:0;z-index:1}
 .sugg-x:hover{color:var(--bad);border-color:var(--bad)}
@@ -1358,8 +1365,8 @@ function settingsView() {
       <td><input class="cell" data-staff="${st.id}" data-k="code" value="${esc(st.code)}" placeholder="Kürzel" style="width:70px;text-transform:uppercase"></td>
       <td><input class="cell" data-staff="${st.id}" data-k="first" value="${esc(st.first ?? splitName(st.name).first)}" placeholder="Vorname" style="width:100%;min-width:80px"></td>
       <td><input class="cell" data-staff="${st.id}" data-k="last" value="${esc(st.last ?? splitName(st.name).last)}" placeholder="Nachname" style="width:100%;min-width:90px"></td>
-      <td><input class="cell" data-staff="${st.id}" data-k="aliases" value="${esc((st.aliases || []).filter(a => a !== st.code && a !== st.name).join(', '))}" placeholder="–" title="Weitere Kürzel oder Namen, unter denen diese Person in den Listen steht (mit Komma trennen). Beispiel: GL – dann gehen alle GL-Briefe an diese Person." style="width:100%;min-width:70px"></td>
-      <td>${catsOf(k).map(c => `<span class="chip cat">${catKeys(c)[0] === k ? '★ ' : ''}${esc(c.name)}</span>`).join('') || '<span class="muted small">–</span>'}</td>
+      <td><div class="cands" style="gap:4px;align-items:center">${catsOf(k).map(c => `<span class="chip cat" title="${catKeys(c)[0] === k ? 'versendet' : 'unterschreibt mit'}">${catKeys(c)[0] === k ? '★ ' : ''}${esc(c.name)}<button class="lnk x" data-cat-remove="${c.id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')}
+        <select class="inline mini" data-staff-cat-add="${esc(k)}"><option value="">＋ Kategorie</option>${S.order.map(id => S.cats.find(c => c.id === id)).filter(c => c && !catKeys(c).includes(k)).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div></td>
       <td class="small" style="white-space:nowrap">${u.send ? `<a href="#" data-owner="${esc(k)}">${u.send} Briefe</a>` : '<span class="muted">0 Briefe</span>'}${u.co ? `<br><span class="muted">✍ ${u.co}× mit</span>` : ''}</td>
       <td><button class="btn small ghost danger" data-staff-del="${st.id}" title="Person entfernen">✕</button></td></tr>`; }).join('');
   const catRows = S.order.map((id, i) => {
@@ -1397,8 +1404,9 @@ function settingsView() {
         <div class="bd" style="padding-bottom:6px">
           <div class="free" style="margin-top:0"><input id="newFirst" placeholder="Vorname" style="min-width:0;flex:1"><input id="newLast" placeholder="Nachname" style="min-width:0;flex:1"><input id="newCode" placeholder="Kürzel" title="Wird automatisch erstellt (1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname) – bei Bedarf überschreiben" style="min-width:0;width:80px;text-transform:uppercase"><button class="btn small primary" data-action="staff-add">＋ Erfassen</button></div>
           <div class="small muted" style="margin-top:4px">Das Kürzel entsteht automatisch: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname (z.B. Anna Beispiel → ABE).</div>
+          <div class="newcats"><span class="small muted">Kategorien:</span>${S.order.map(id => { const c = S.cats.find(x => x.id === id); return c ? `<button type="button" class="tog" data-newcat="${id}" title="Beim Erfassen dieser Kategorie zuordnen">${esc(c.name)}</button>` : ''; }).join('')}</div>
         </div>
-        ${S.staff.length ? `<div class="tablewrap"><table><thead><tr><th>Kürzel</th><th>Vorname</th><th>Nachname</th><th title="Weitere Kürzel/Namen aus den Listen, z.B. GL">Auch genannt</th><th>Kategorien</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
+        ${S.staff.length ? `<div class="tablewrap"><table><thead><tr><th>Kürzel</th><th>Vorname</th><th>Nachname</th><th>Kategorien</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
         ${sugg.length ? `<div class="bd" style="border-top:1px solid var(--line2)">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b class="small">In den Listen gefunden – noch nicht erfasst (${sugg.length})</b>${sugg.some(x => x.code && x.name && x.name !== x.code) ? `<button class="btn small right" data-action="staff-accept-all" title="Übernimmt alle Vorschläge mit Kürzel und Namen">Alle erkannten Personen übernehmen (${sugg.filter(x => x.code && x.name && x.name !== x.code).length})</button>` : ''}</div>
           <div class="cands">${sugg.map(x => `<span class="sugg-wrap"><button class="sugg-x" data-sugg-hide="${esc(x.label)}" title="Nicht mehr vorschlagen">✕</button><button class="cand sugg" data-staff-sugg="${esc(x.label)}" data-code="${esc(x.code)}" data-name="${esc(x.name)}" title="Übernehmen (danach bearbeitbar)">
@@ -1759,7 +1767,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-newcat],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -1769,6 +1777,7 @@ document.addEventListener('click', (ev) => {
     if (st) { renameKey(t.dataset.staffSugg, staffKey(st)); save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); }
     return;
   }
+  if (t.dataset.newcat) { t.classList.toggle('on'); return; }
   if (t.dataset.suggHide) { S.ignoredSugg = [...new Set([...(S.ignoredSugg || []), t.dataset.suggHide])]; save(); render(); return; }
   if (t.dataset.staffDel) {
     const st = S.staff.find(x => x.id === t.dataset.staffDel); if (!st) return;
@@ -1782,7 +1791,7 @@ document.addEventListener('click', (ev) => {
     }
     for (const [pk, v] of Object.entries(S.overrides)) if (v === k) delete S.overrides[pk];
     S.ignoredSugg = [...new Set([...(S.ignoredSugg || []), k])];
-    save(); render(); toast(`${k} entfernt. Briefe, bei denen in der Excel „${k}" steht, bleiben bei „${k}" – umleiten über „Auch genannt" bei einer Person.`); return;
+    save(); render(); toast(`${k} entfernt. Adressen, bei denen in der Excel „${k}" steht, bleiben bei „${k}" – umteilen im Tab „Alle Adressen".`); return;
   }
   if (t.dataset.staffQuick) {
     const label = t.dataset.staffQuick, m = staffFromData(label);
@@ -1836,7 +1845,13 @@ document.addEventListener('click', (ev) => {
     const code = codeIn.dataset.manual === '1' ? codeIn.value : '';
     if (!first.trim() && !last.trim() && !codeIn.value.trim()) { toast('Bitte Vorname und Nachname eintragen.'); return; }
     const st = addStaff(code || (!first.trim() && !last.trim() ? codeIn.value : ''), '', undefined, first, last);
-    if (st) { save(); render(); toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ')); $('#newFirst') && $('#newFirst').focus(); }
+    if (st) {
+      const k = staffKey(st), chosen = [...document.querySelectorAll('[data-newcat].on')].map(b => b.dataset.newcat);
+      for (const id of chosen) { const c = S.cats.find(x => x.id === id); if (c && !catKeys(c).includes(k)) { c.persons = [...catKeys(c), k]; c.personsManual = true; } }
+      save(); render();
+      toast('Erfasst: ' + [st.code, st.name].filter(Boolean).join(' · ') + (chosen.length ? ' → ' + chosen.map(catName).join(', ') : ''));
+      $('#newFirst') && $('#newFirst').focus();
+    }
   }
   else if (a === 'sugg-unhide') { ev.preventDefault(); S.ignoredSugg = []; save(); render(); }
   else if (a === 'staff-accept-all') {
@@ -1871,13 +1886,6 @@ document.addEventListener('change', (ev) => {
   if (t.dataset.staff) {
     const st = S.staff.find(x => x.id === t.dataset.staff); if (!st) return;
     const k = t.dataset.k, oldKey = staffKey(st);
-    if (k === 'aliases') {
-      const list = t.value.split(/[,;]+/).map(x => x.trim()).filter(Boolean);
-      const taken = list.find(a => S.staff.some(o => o !== st && (o.code === a.toUpperCase() || (o.aliases || []).some(b => WB.fold(b) === WB.fold(a)))));
-      if (taken) { toast(`„${taken}" ist schon einer anderen Person zugeordnet.`); render(); return; }
-      st.aliases = list;
-      save(); render(); toast(list.length ? `${list.join(', ')} → ${[st.code, st.name].filter(Boolean).join(' · ')}` : 'Gespeichert'); return;
-    }
     let v = t.value.trim(); if (k === 'code') v = v.toUpperCase();
     if (k === 'code' && v && S.staff.some(x => x !== st && x.code === v)) { toast(`Kürzel ${v} ist schon vergeben.`); render(); return; }
     if (st.first === undefined && st.last === undefined) Object.assign(st, splitName(st.name));
@@ -1891,6 +1899,11 @@ document.addEventListener('change', (ev) => {
     const newKey = staffKey(st);
     if (newKey !== oldKey) { st.aliases = [...new Set([...(st.aliases || []), oldKey])]; renameKey(oldKey, newKey); }
     save(); render(); return;
+  }
+  if (t.dataset.staffCatAdd !== undefined) {
+    const c = S.cats.find(x => x.id === t.value), k = t.dataset.staffCatAdd;
+    if (c && k && !catKeys(c).includes(k)) { c.persons = [...catKeys(c), k]; c.personsManual = true; save(); toast(`${k} → ${c.name}`); }
+    render(); return;
   }
   if (t.dataset.catAdd) {
     const c = S.cats.find(x => x.id === t.dataset.catAdd); let v = t.value;

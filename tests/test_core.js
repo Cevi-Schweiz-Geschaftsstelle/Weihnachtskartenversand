@@ -73,6 +73,10 @@ assert.deepStrictEqual(by('Ben Beta').coSigners.map(c => c.owner).sort(), ['QRS'
 assert.strictEqual(WB.detectCategory('PSA Cevi Schweiz', WB.DEFAULT_CATEGORIES).catId, 'kindeswohl');
 assert.strictEqual(WB.detectCategory('Krisenmanagement Cevi Schweiz, nur Krisenteam Cevi CH', WB.DEFAULT_CATEGORIES).catId, 'krisen');
 assert.strictEqual(WB.detectCategory('CCH', WB.DEFAULT_CATEGORIES).catId, 'cevi-schweiz');
+assert.strictEqual(WB.DEFAULT_CATEGORIES.find(c => c.id === 'kindeswohl').name, 'PSA');
+assert.strictEqual(WB.detectCategory('Kindeswohl', WB.DEFAULT_CATEGORIES).score, 10, 'Blatt „Kindeswohl" gehört sicher zu PSA');
+assert.strictEqual(WB.detectCategory('PSA', WB.DEFAULT_CATEGORIES).catId, 'kindeswohl');
+assert.strictEqual(WB.detectCategory('Fachgruppe Kindeswohl', WB.DEFAULT_CATEGORIES).catId, 'fachgruppen');
 
 // Organisationen aus der DB (Adresse der Gruppe) + Zusammenführen mit Excel-Zeile gleicher Organisation/PLZ
 const orgs = WB.entriesFromGroups([{ data: [{ id: '80', type: 'groups', attributes: { name: 'Cevi Region Test', address: 'Testweg 9', zip_code: '3000', town: 'Bern' } }] }], { label: 'Mitgliederorganisationen', catId: 'mio' });

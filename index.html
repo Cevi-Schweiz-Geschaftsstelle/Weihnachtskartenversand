@@ -287,8 +287,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       exact: [], strong: ['anlass', 'anlasse', 'fundraising day', 'delegiertenkonferenz'], weak: [] },
     { id: 'kommissionen', name: 'Kommissionen', source: 'DB', persons: ['GL'], info: 'DLK-Kommission',
       exact: [], strong: ['kommission'], weak: ['dlk'] },
-    { id: 'kindeswohl', name: 'Kindeswohl', source: 'DB', persons: [], info: 'nur TN Cevi Schweiz',
-      exact: ['psa'], strong: ['kindeswohl', 'psa cevi', 'praventionsschulung'], weak: [] },
+    { id: 'kindeswohl', name: 'PSA', source: 'DB', persons: [], info: 'nur TN Cevi Schweiz',
+      exact: ['psa', 'kindeswohl'], strong: ['kindeswohl', 'psa cevi', 'praventionsschulung'], weak: [] },
     { id: 'krisen', name: 'Krisenmanagement', source: 'DB', persons: [], info: 'nur Mitglieder Cevi Schweiz, ohne GS',
       exact: [], strong: ['krisen', 'krisenteam'], weak: [] },
     { id: 'international', name: 'International', source: '', persons: [], info: 'YMCAs, YWCAs, Change Agents',
@@ -896,7 +896,7 @@ function defaultState() {
     cats: WB.DEFAULT_CATEGORIES.map(c => ({ ...c })),
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
-    aliasText: '', autoAliases: true, version: 3,
+    aliasText: '', autoAliases: true, version: 4,
     decisions: {}, overrides: {}, done: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
           sources: [] },
@@ -934,6 +934,15 @@ function load() {
       }
       s.aliasText = '';
       s.version = 3;
+    }
+    if (s.version < 4) {
+      // Version 4: Kategorie „Kindeswohl" heisst „PSA" (nur wenn nicht von Hand umbenannt); Untergruppen-Schlüssel nachführen
+      const k = s.cats.find(c => c.id === 'kindeswohl');
+      if (k && k.name === 'Kindeswohl') {
+        k.name = 'PSA';
+        if (k.groups) { const g2 = {}; for (const [gk, g] of Object.entries(k.groups)) { const nk = WB.groupKey('PSA', g.name || gk) || gk; g2[nk] = g; } k.groups = g2; }
+      }
+      s.version = 4;
     }
     s.staff = s.staff || [];
     if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';

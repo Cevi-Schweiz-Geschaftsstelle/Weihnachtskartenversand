@@ -10,7 +10,9 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
 ## Ablauf
 
 1. **Zuständigkeit:**
-   - Zuständige Personen erfassen (Kürzel + Name). Nach dem Excel-Import schlägt das Tool die Personen vor, die es in den Listen findet.
+   - Zuständige Personen mit Vorname und Nachname erfassen. Das **Kürzel entsteht automatisch** aus dem 1. Buchstaben des Vornamens und dem 1. und 2. Buchstaben des Nachnamens (z.B. Anna Beispiel → ABE). Ist es schon vergeben, nimmt das Tool die nächste Variante. Von Hand überschreiben ist möglich.
+   - In der Spalte **„Auch genannt"** stehen weitere Kürzel oder Namen, unter denen die Person in den Listen vorkommt. Steht dort z.B. „GL", gehen alle GL-Briefe an diese Person.
+   - Nach dem Excel-Import schlägt das Tool die Personen vor, die es in den Listen findet. Mit ✕ lässt sich ein Vorschlag ausblenden.
    - Personen den Kategorien zuordnen, auch mehrere pro Kategorie. **★** versendet, alle weiteren unterschreiben mit.
    - Die Reihenfolge der Kategorien (▲▼) bestimmt den Vorschlag, wenn jemand in mehreren Kategorien vorkommt.
 2. **Excel importieren:** Die Adressliste ins Fenster ziehen.

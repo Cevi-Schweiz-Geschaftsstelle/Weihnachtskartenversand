@@ -58,4 +58,11 @@ assert.ok(by('Lea Lager').doneFromFile);
 assert.strictEqual(by('Ben Beta').owner, 'ABE', 'manuelle Zuteilung gewinnt');
 assert.deepStrictEqual(by('Ben Beta').coSigners.map(c => c.owner), ['GL']);
 
+// Kürzel-Regel: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname
+assert.strictEqual(WB.makeCode('Anna', 'Beispiel'), 'ABE');
+assert.strictEqual(WB.makeCode('Lea Sophie', 'Müller'), 'LMÜ');
+assert.strictEqual(WB.makeCode('Tim', 'de Graaf'), 'TDE');
+assert.strictEqual(WB.makeCode('Tim', ''), '');
+assert.deepStrictEqual(WB.codeVariants('Anna', 'Bern').slice(0, 3), ['ABE', 'ABR', 'ABN']);
+
 console.log('OK – alle Tests bestanden');

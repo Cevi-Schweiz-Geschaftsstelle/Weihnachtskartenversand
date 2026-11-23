@@ -75,6 +75,22 @@
     if (/^[a-zäöü]{2,4}$/.test(s) || /^[A-ZÄÖÜ]{2,4}$/.test(s)) return s.toUpperCase();
     return s;
   }
+  /** Kürzel = 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname (z.B. Anna Beispiel → ABE) */
+  const LETTERS = /[^A-Za-zÄÖÜäöüÉÈÊËéèêëÀÂàâÇçÎÏîïÔôÛÙûù]/g;
+  function makeCode(first, last) {
+    const f = str(first).replace(LETTERS, ''), l = str(last).replace(LETTERS, '');
+    if (!f || l.length < 2) return '';
+    return (f.charAt(0) + l.slice(0, 2)).toUpperCase();
+  }
+  /** Weitere Varianten, falls das Kürzel schon vergeben ist */
+  function codeVariants(first, last) {
+    const f = str(first).replace(LETTERS, '').toUpperCase(), l = str(last).replace(LETTERS, '').toUpperCase();
+    if (!f || l.length < 2) return [];
+    const out = [f[0] + l[0] + l[1]];
+    for (let i = 2; i < l.length; i++) out.push(f[0] + l[0] + l[i]);
+    if (f.length > 1) out.push(f[0] + f[1] + l[0]);
+    return [...new Set(out)];
+  }
   function splitOwners(v) { return str(v).split(/\s*(?:[,;\/+&]|\bund\b)\s*/i).map(str).filter(Boolean); }
   function isEmail(s) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s); }
 
@@ -544,8 +560,7 @@
     const staff = entries.filter(e => e.catId === 'cevi-schweiz' && e.first && isPersonal(e));
     const codeNames = {}, labelToCode = {}, byFirst = new Map();
     for (const e of staff) {
-      const ln = e.last.replace(/[^A-Za-zÄÖÜäöüÉÈéèàç]/g, '');
-      const code = (e.first.charAt(0) + ln.slice(0, 2)).toUpperCase();
+      const code = makeCode(e.first, e.last);
       if (!observed.has(code)) continue;
       const full = e.first.split(' ')[0] + ' ' + e.last;
       if (codeNames[code] && codeNames[code] !== full) { codeNames[code] = codeNames[code] + ' / ' + full; continue; }
@@ -567,6 +582,6 @@
     return { codeNames, labelToCode, observed: [...observed].sort() };
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, deriveAliases, splitOwners, catPersonLabels, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, deriveAliases, splitOwners, catPersonLabels, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);

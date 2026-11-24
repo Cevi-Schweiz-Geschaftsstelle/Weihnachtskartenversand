@@ -229,6 +229,8 @@ tr.decided td{background:#fbfdfc}
 .hide{display:none!important}
 /* Etiketten */
 .modal.wide{width:min(980px,100%)}
+#ngModal .modal{width:min(720px,100%)}
+table.ngtab{width:100%;border-collapse:collapse} table.ngtab td{padding:8px 4px;border-top:1px solid var(--line2);vertical-align:top} table.ngtab select{max-width:330px}
 .lbl-grid{display:grid;grid-template-columns:300px 1fr;gap:20px}
 @media (max-width:860px){.lbl-grid{grid-template-columns:1fr}}
 .lbl-form{display:grid;grid-template-columns:1fr;gap:10px}
@@ -295,6 +297,7 @@ body.print-labels #labelsPrint{display:block}
 <div class="modal-back" id="labelModal" hidden><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="labelTitle"></div></div>
 <div id="labelsPrint" aria-hidden="true"></div>
 <div class="modal-back" id="cloudModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cloudTitle"></div></div>
+<div class="modal-back" id="ngModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="ngTitle"></div></div>
 <div class="modal-back" id="catModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="catModalTitle"></div></div>
 
 <script>/* SheetJS Community Edition 0.18.5 – Apache-2.0 – https://sheetjs.com */
@@ -1294,7 +1297,7 @@ function renderKpis() {
     <div class="kpi ${open ? 'warn' : ''}"><div class="v">${open}</div><div class="l">ohne Zuständigkeit</div></div>
     <div class="kpi"><div class="v">${done} / ${P.length}</div><div class="l">erledigt (${pct}%)</div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
 }
-const openCount = () => openDecisions().length + R.review.length;
+const openCount = () => openDecisions().length + R.review.length + (S.db.pendingGroups || []).length;
 function renderTabs() {
   const tabs = [
     ['settings', 'Zuständigkeit', S.staff.length], ['cats', 'Kategorien', S.cats.length], ['assign', 'Unvollständig', openCount(), openCount() ? 'warn' : ''], ['owners', 'Pro Zuständige*r'], ['all', 'Masterliste', R.people.length],
@@ -1497,6 +1500,7 @@ function assignView() {
     <span class="muted small">${nOpen ? `<b>${nOpen} offen</b> · ` : '<b>Alles geklärt ✓</b> · '}Hier landet alles, was noch eine Entscheidung braucht: mögliche Duplikate, Adressen ohne Zuständigkeit und Personen in mehreren Listen.</span>
     <span class="right" style="display:flex;gap:6px"><button class="btn small" data-action="accept-all" title="Alle noch offenen Doppelten mit dem Vorschlag festlegen">✓ Restliche Vorschläge übernehmen</button><button class="btn small" data-action="export-assign">⇩ Liste als Excel</button><button class="btn small" data-action="print">⎙ Drucken</button></span>
   </div></div>
+  ${(S.db.pendingGroups || []).length ? `<div class="callout warn" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>🆕 ${S.db.pendingGroups.length} neue Gruppe${S.db.pendingGroups.length === 1 ? '' : 'n'} in der Cevi DB</b><span>${S.db.pendingGroups.map(p => esc(p.name)).join(', ')} – noch keiner Kategorie zugeordnet.</span><button class="btn small primary right" data-action="ng-open">Jetzt zuordnen</button></div>` : ''}
   ${reviewPanel()}
   <div class="section-title"><h3>2 · Ohne Zuständigkeit</h3><span class="muted small">${without.filter(p => p.overridden).length} von ${without.length} zugewiesen – Person frei eintragen (auch jemand, der in keiner Liste steht)</span></div>
   <div class="panel">
@@ -1720,7 +1724,7 @@ const M365_DEFAULTS = { tenantId: '29537223-9280-4035-b685-49ec81dd6aea', client
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
 const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'importDone', 'notes', 'ignoredSugg', 'version'];
-const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh'];
+const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh', 'layerId', 'knownGroups', 'pendingGroups', 'ignoredGroups', 'detachedGroups'];
 const J = WB.J;
 /** Was alle teilen (ohne Ansicht, ohne API-Key, ohne Microsoft-Einstellungen) */
 function sharedOf(s) {
@@ -2242,6 +2246,8 @@ function dbView() {
             <td style="text-align:center"><input type="checkbox" data-dbs="${s.id}" data-k="subgroups" ${s.subgroups ? 'checked' : ''}></td>
             <td><button class="btn small ghost danger" data-dbs-del="${s.id}">✕</button></td></tr>`).join('')}</tbody>
         </table></div>
+        ${(d.pendingGroups || []).length ? `<div class="bd small" style="border-top:1px solid var(--line2)">🆕 <b>${d.pendingGroups.length} neue Gruppe${d.pendingGroups.length === 1 ? '' : 'n'}</b> in der DB noch nicht zugeordnet: ${d.pendingGroups.map(p => esc(p.name)).join(', ')} · <a href="#" data-action="ng-open">jetzt zuordnen</a></div>` : ''}
+        ${(d.ignoredGroups || []).length ? `<div class="bd small muted" style="border-top:1px solid var(--line2)">Nicht übernommen: ${d.ignoredGroups.map(x => `${esc(x.name)} <button class="lnk" data-action="ng-restore" data-id="${esc(x.id)}" title="Beim nächsten Aktualisieren wieder fragen">↺</button>`).join(' · ')}</div>` : ''}
       </div>
       ${keyPanel()}
       <details class="panel" data-dblog style="margin-top:16px" ${DBUI.log ? 'open' : ''}><summary class="hd" style="cursor:pointer"><h3>Protokoll</h3><span class="muted small">nur für die Fehlersuche</span></summary><div class="bd"><div class="log" id="dblog">${esc(dbLog.join('\n')) || 'Noch keine Abfrage.'}</div></div></details>
@@ -2383,6 +2389,7 @@ async function apiAll(path, params, size = 100) {
 async function expandSubgroups(ids) {
   const all = new Set(ids), parent = new Map(), name = new Map(); let frontier = ids.slice();
   const removed = removedDbIds();
+  for (const x of heldGroupIds()) removed.add(x); // neue (noch offen), nicht übernommene oder in eine andere Kategorie verschobene Gruppen
   for (let depth = 0; depth < 6 && frontier.length; depth++) {
     const next = [];
     for (let i = 0; i < frontier.length; i += 25) {
@@ -2604,12 +2611,13 @@ async function dbReadGroups() {
     const groups = pages.flatMap(p => p.data || []).filter(g => !seen.has(String(g.id)) && seen.add(String(g.id)))
       .map(g => ({ id: String(g.id), name: g.attributes.display_name || g.attributes.name, parent_id: g.attributes.parent_id, type: g.attributes.type, layer: g.attributes.layer }));
     const root = groups.find(g => g.id === layer);
+    const allIds = groups.filter(g => g.id !== layer).map(g => g.id);
     const ex = dropExcluded(groups.filter(g => g.id !== layer));
     groups.splice(0, groups.length, ...(root ? [root] : []), ...ex.kept);
     if (ex.removed.length) logDb(`${ex.removed.length} Gruppen ausgeschlossen (${S.db.groupExclude.split(/\n+/).filter(Boolean).join(', ')})`);
     const wanted = filterEntries();
     const prop = wanted.length ? proposeFiltered(groups, layer, wanted) : { units: proposeMapping(groups, layer), notFound: [], ignored: [] };
-    DBMAP = { layer, rootName: root ? root.name : layer, units: prop.units, notFound: prop.notFound, ignored: prop.ignored, excluded: ex.removed, filtered: wanted.length > 0, count: groups.length + ex.removed.length };
+    DBMAP = { layer, allIds, rootName: root ? root.name : layer, units: prop.units, notFound: prop.notFound, ignored: prop.ignored, excluded: ex.removed, filtered: wanted.length > 0, count: groups.length + ex.removed.length };
     logDb(`OK ✓ ${groups.length} Gruppen in „${DBMAP.rootName}" gefunden`);
     render();
     const el = $('#dbmap'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2617,6 +2625,8 @@ async function dbReadGroups() {
 }
 function applyMapping() {
   if (!DBMAP) return;
+  // was jetzt geprüft wurde, gilt als bekannt – gefragt wird erst bei später neu auftauchenden Gruppen
+  S.db.layerId = DBMAP.layer; S.db.knownGroups = (DBMAP.allIds || []).slice(); S.db.pendingGroups = [];
   const fresh = [];
   for (const u of DBMAP.units) {
     if (u.header || !u.include || !u.catId) continue;
@@ -2683,6 +2693,7 @@ async function dbRefresh(auto = false) {
   const prev = { sources: S.sources.slice(), cats: S.cats.map(c => ({ ...c })), order: S.order.slice(), lastChange: S.lastChange || null, lastRefresh: S.db.lastRefresh };
   const live = new Set();
   try {
+    try { await scanNewGroups(); } catch (e) { logDb('Neue Gruppen konnten nicht geprüft werden: ' + e.message); }
     for (const s of srcs) {
       let pages;
       if (s.mode === 'orgs') {
@@ -2725,6 +2736,7 @@ async function dbRefresh(auto = false) {
     if (before && before.length) { finishChange('Cevi DB', before, { disabled }); UNDO = prev; }
     save(); render();
     const summary = before && before.length ? changeSummary() : '';
+    if ((S.db.pendingGroups || []).length && !NG_LATER) setTimeout(newGroupsDialog, 300);
     if (!auto) toast(`Cevi DB aktualisiert: ${fresh.reduce((a, s) => a + s.entries.length, 0)} Einträge aus ${fresh.length} Quellen` + (summary ? ' · ' + summary : ''));
     else if (summary && !/keine Änderungen/.test(summary)) toast('Cevi DB automatisch aktualisiert: ' + summary);
   } catch (e) {
@@ -2733,6 +2745,113 @@ async function dbRefresh(auto = false) {
     else { toast(e.message); if (S.ui.tab !== 'db') { S.ui.tab = 'db'; render(); } }
   }
   finally { DB_BUSY = false; setDbStatus(''); }
+}
+// ---------------------------------------------------------------- Neue Gruppen in der Cevi DB
+function heldGroupIds() {
+  return new Set([...(S.db.pendingGroups || []).map(p => p.id), ...(S.db.ignoredGroups || []).map(x => x.id), ...(S.db.detachedGroups || [])]);
+}
+async function dbLayerGroups() {
+  let layer = S.db.layerId;
+  if (!layer) {
+    const start = parseGroupIds(S.db.rootGroup || '')[0] || parseGroupIds(((S.db.sources || []).find(x => x.mode !== 'orgs') || {}).groupIds)[0];
+    if (!start) return null;
+    const one = await apiGet('/api/groups/' + start, {});
+    layer = String((one.data.attributes || {}).layer_group_id || start);
+    S.db.layerId = layer;
+  }
+  const pages = await apiAll('/api/groups', { 'filter[layer_group_id]': layer });
+  try { pages.push(...await apiAll('/api/groups', { 'filter[parent_id]': layer })); } catch (e) { /* nur Zusatz */ }
+  const seen = new Set();
+  const groups = pages.flatMap(p => p.data || []).filter(g => !seen.has(String(g.id)) && seen.add(String(g.id)))
+    .map(g => ({ id: String(g.id), name: g.attributes.display_name || g.attributes.name, parent_id: g.attributes.parent_id ? String(g.attributes.parent_id) : '', type: g.attributes.type }));
+  return { layer, groups };
+}
+/** Vergleicht die Gruppen der DB mit dem gemerkten Stand; neue kommen in S.db.pendingGroups. Gibt die Zahl neuer zurück. */
+async function scanNewGroups() {
+  const res = await dbLayerGroups(); if (!res) return 0;
+  const { layer, groups } = res;
+  const byId = new Map(groups.map(g => [g.id, g]));
+  if (!Array.isArray(S.db.knownGroups)) { S.db.knownGroups = groups.filter(g => g.id !== layer).map(g => g.id); S.db.pendingGroups = []; logDb(`Ausgangsstand gemerkt: ${S.db.knownGroups.length} Gruppen`); return 0; }
+  const known = new Set(S.db.knownGroups), pending = new Set((S.db.pendingGroups || []).map(p => p.id));
+  const ignored = new Set((S.db.ignoredGroups || []).map(x => x.id)), removed = removedDbIds();
+  const hidden = (g) => { let cur = g, n = 0; while (cur && n++ < 30) { if (isExcluded(cur.name) || removed.has(cur.id) || ignored.has(cur.id)) return true; cur = byId.get(cur.parent_id); } return false; };
+  const fresh = groups.filter(g => g.id !== layer && !known.has(g.id) && !pending.has(g.id));
+  const freshIds = new Set(fresh.map(g => g.id));
+  const underNew = (g) => { let cur = byId.get(g.parent_id), n = 0; while (cur && n++ < 30) { if (freshIds.has(cur.id) || pending.has(cur.id)) return true; cur = byId.get(cur.parent_id); } return false; };
+  const srcOf = (id) => S.db.sources.find(x => x.mode !== 'orgs' && parseGroupIds(x.groupIds).includes(id));
+  const add = [];
+  for (const g of fresh) {
+    if (hidden(g)) { S.db.knownGroups.push(g.id); continue; } // ausgeschlossen (z.B. „Ehemalige …") → nie fragen
+    if (underNew(g)) continue;                                  // kommt mit der neuen Obergruppe
+    const path = []; let cur = byId.get(g.parent_id), n = 0;
+    while (cur && cur.id !== layer && n++ < 20) { path.unshift(cur.name); cur = byId.get(cur.parent_id); }
+    let src = null; cur = byId.get(g.parent_id); n = 0;
+    while (cur && n++ < 20) { src = srcOf(cur.id); if (src) break; cur = byId.get(cur.parent_id); }
+    const kids = fresh.filter(x => { let c = byId.get(x.parent_id), k = 0; while (c && k++ < 30) { if (c.id === g.id) return true; c = byId.get(c.parent_id); } return false; }).map(x => x.id);
+    const org = isOrgType(g), guess = catOfGroup(g);
+    add.push({ id: g.id, name: g.name, path: path.join(' › '), parentSrc: src ? src.id : '', parentCat: src ? src.catId || '' : '', subOk: !!(src && src.subgroups && src.catId), org, children: kids,
+      sugg: org ? 'org' : src && src.subgroups && src.catId ? 'sub' : src && src.catId ? 'cat:' + src.catId : guess ? 'cat:' + guess : 'new', since: new Date().toISOString() });
+  }
+  if (add.length) { S.db.pendingGroups = [...(S.db.pendingGroups || []), ...add]; logDb(`${add.length} neue Gruppen in der Cevi DB: ${add.map(x => x.name).join(', ')}`); }
+  return add.length;
+}
+let NG_LATER = false;
+function newGroupsDialog() {
+  const P = S.db.pendingGroups || []; if (!P.length) return;
+  const catName = (id) => (S.cats.find(c => c.id === id) || {}).name || id;
+  const opts = (p) => {
+    const o = [];
+    if (p.org) o.push(['org', 'MIO – Adresse der Organisation']);
+    if (p.subOk) o.push(['sub', `Untergruppe von ${catName(p.parentCat)}`]);
+    for (const id of S.order) if (!(p.subOk && id === p.parentCat)) o.push(['cat:' + id, 'Kategorie ' + catName(id)]);
+    o.push(['new', `Neue Kategorie „${p.name}“`]);
+    o.push(['skip', 'Nicht übernehmen']);
+    return o.map(([v, l]) => `<option value="${esc(v)}" ${v === p.sugg ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  };
+  const m = $('#ngModal');
+  m.querySelector('.modal').innerHTML = `
+    <div class="hd"><h3 id="ngTitle">🆕 Neue Gruppen in der Cevi DB</h3></div>
+    <div class="bd">
+      <p class="small" style="margin-top:0">Seit dem letzten Mal ${P.length === 1 ? 'ist diese Gruppe' : `sind diese ${P.length} Gruppen`} dazugekommen. Die Mitglieder werden erst geladen, wenn du sie zuordnest.</p>
+      <table class="ngtab"><tbody>${P.map(p => `<tr><td><b>${esc(p.name)}</b>${p.path ? `<div class="small muted">unter ${esc(p.path)}</div>` : ''}${p.children && p.children.length ? `<div class="small muted">inkl. ${p.children.length} Untergruppe${p.children.length === 1 ? '' : 'n'}</div>` : ''}</td>
+        <td><select class="inline" data-ng="${esc(p.id)}">${opts(p)}</select></td></tr>`).join('')}</tbody></table>
+      <p class="small muted">„Nicht übernehmen“: Die Gruppe wird nicht mehr gefragt. Untergruppen lassen sich unter Kategorien mit ↺ zurückholen, andere Gruppen im Reiter Cevi DB.</p>
+    </div>
+    <div class="ft"><button class="btn ghost" data-action="ng-later">Später</button><button class="btn primary" data-action="ng-apply">Übernehmen</button></div>`;
+  m.hidden = false;
+}
+function applyNewGroups() {
+  const dec = {}; document.querySelectorAll('#ngModal select[data-ng]').forEach(el => { dec[el.dataset.ng] = el.value; });
+  const keep = []; let n = 0;
+  S.db.knownGroups = S.db.knownGroups || [];
+  for (const p of S.db.pendingGroups || []) {
+    const d = dec[p.id]; if (!d) { keep.push(p); continue; }
+    if (d === 'skip') {
+      const c = p.subOk && S.cats.find(x => x.id === p.parentCat);
+      if (c) { const gk = WB.groupKey(c.name, p.name) || 'g' + p.id; c.groups = c.groups || {}; c.groups[gk] = { ...(c.groups[gk] || {}), name: p.name, persons: (c.groups[gk] || {}).persons || [], removed: true, fromDb: p.id }; }
+      else S.db.ignoredGroups = [...(S.db.ignoredGroups || []), { id: p.id, name: p.name }];
+    } else if (d === 'org') {
+      const src = S.db.sources.find(x => x.mode === 'orgs');
+      if (src) src.groupIds = [...parseGroupIds(src.groupIds), p.id].join(',');
+      else S.db.sources.push({ id: 'auto-orgs', label: 'Mitgliederorganisationen', groupIds: p.id, catId: 'mio', owner: '', subgroups: false, mode: 'orgs', auto: true });
+    } else if (d !== 'sub') {
+      let catId = d.startsWith('cat:') ? d.slice(4) : '';
+      if (d === 'new') { catId = 'cat-' + uid(); S.cats.push({ id: catId, name: p.name, source: 'DB', persons: [], personsManual: true, info: '', exact: [], strong: [WB.fold(p.name)], weak: [], custom: true }); S.order.push(catId); }
+      if (!(p.subOk && catId === p.parentCat)) {
+        S.db.sources.push({ id: 'neu-' + p.id, label: p.name, groupIds: p.id, catId, owner: '', subgroups: true });
+        if (p.parentSrc) S.db.detachedGroups = [...(S.db.detachedGroups || []), p.id];
+      }
+    }
+    S.db.knownGroups.push(p.id, ...(p.children || [])); n++;
+  }
+  S.db.pendingGroups = keep;
+  $('#ngModal').hidden = true; save(); render();
+  if (n) { toast(`${n} neue Gruppe${n === 1 ? '' : 'n'} zugeordnet – Daten werden geladen …`); if (token()) dbRefresh(true); }
+}
+function restoreIgnoredGroup(id) {
+  S.db.ignoredGroups = (S.db.ignoredGroups || []).filter(x => x.id !== id);
+  S.db.knownGroups = (S.db.knownGroups || []).filter(x => x !== id); // wird beim nächsten Aktualisieren wieder gefragt
+  save(); render(); toast('Wird beim nächsten Aktualisieren wieder gefragt.');
 }
 /** Beim Öffnen/Neuladen: Daten aus der Cevi DB automatisch holen (wer einen Key hat; höchstens alle 2 Minuten für alle zusammen) */
 let AUTO_DB_DONE = false;
@@ -2908,6 +3027,10 @@ document.addEventListener('click', (ev) => {
   }
   else if (a === 'export-assign') exportAssign();
   else if (a === 'cloud-open') cloudDialog();
+  else if (a === 'ng-open') newGroupsDialog();
+  else if (a === 'ng-later') { NG_LATER = true; $('#ngModal').hidden = true; }
+  else if (a === 'ng-apply') applyNewGroups();
+  else if (a === 'ng-restore') restoreIgnoredGroup(t.dataset.id);
   else if (a === 'key-folder' || a === 'key-save' || a === 'key-replace' || a === 'key-delete') keyAction(a);
   else if (a === 'cloud-connect') { readCloudFields(); Cloud.app = null; Cloud.connect(true); }
   else if (a === 'cloud-sync') Cloud.syncNow();
@@ -3017,6 +3140,7 @@ document.addEventListener('change', (ev) => {
 document.addEventListener('keydown', (ev) => {
   if (!$('#dataMenu').hidden && ev.key === 'Escape') { setDataMenu(false); $('#btnMenu').focus(); return; }
   if (!$('#cloudModal').hidden && ev.key === 'Escape') { $('#cloudModal').hidden = true; return; }
+  if (!$('#ngModal').hidden && ev.key === 'Escape') { NG_LATER = true; $('#ngModal').hidden = true; return; }
   if (!$('#labelModal').hidden && ev.key === 'Escape') { $('#labelModal').hidden = true; return; }
   if (!$('#catModal').hidden) {
     if (ev.key === 'Escape') { ev.preventDefault(); closeCatDialog(true); }
@@ -3056,6 +3180,7 @@ document.addEventListener('click', (e) => {
 });
 $('#labelModal').addEventListener('click', (e) => { if (e.target.id === 'labelModal') $('#labelModal').hidden = true; });
 $('#cloudModal').addEventListener('click', (e) => { if (e.target.id === 'cloudModal') $('#cloudModal').hidden = true; });
+$('#ngModal').addEventListener('click', (e) => { if (e.target.id === 'ngModal') { NG_LATER = true; $('#ngModal').hidden = true; } });
 $('#catModal').addEventListener('click', (e) => { if (e.target.id === 'catModal') closeCatDialog(true); });
 $('#btnImport').addEventListener('click', () => $('#fileInput').click());
 $('#btnExport').addEventListener('click', () => exportExcel());

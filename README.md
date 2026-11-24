@@ -44,7 +44,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
 6. **Excel exportieren** (☰ Menü): Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
 
 **Oben rechts:**
-- **↻ Aktualisieren:** gleicht sofort mit allen ab (siehe unten). Beim ersten Mal öffnet er die Microsoft-Anmeldung.
+- **↻ Aktualisieren:** gleicht sofort mit allen ab und lädt die Cevi DB neu, falls ein Key da ist. Beim ersten Mal öffnet er die Microsoft-Anmeldung.
 - **☰ Menü:** Aus Excel importieren · Excel exportieren · Zurücksetzen (Erledigt-Häkchen, Zuteilungen & Duplikat-Entscheide, alle Daten auf diesem Computer)
 
 Jede Änderung wird **automatisch gespeichert**, ohne Knopf. „Erledigt“-Häkchen aus den Excel-Listen werden immer übernommen.
@@ -120,7 +120,7 @@ Einrichten:
      - Bereits übernommene werden beim nächsten Aktualisieren entfernt.
      - Einzelne Untergruppen lassen sich auch direkt im Reiter Kategorien mit „✕ entfernen" ausschliessen.
    - **Mitgliederorganisationen (MIO)** sind eigene Ebenen mit vielen Mitgliedern. Übernommen wird darum nur die **Adresse der Organisation** (ein Brief pro Organisation), nicht deren Mitglieder. Stimmen Organisation und PLZ mit genau einem Excel-Eintrag überein, ist das ein Brief.
-5. Danach aktualisiert das Tool die DB-Daten **bei jedem Öffnen oder Neuladen automatisch**, sofern ein API-Key da ist (von Hand gemerkt oder automatisch aus dem Schlüssel-Ordner). Hat jemand in den letzten 2 Minuten aktualisiert, wird nicht nochmals geladen. Von Hand geht es im Reiter Cevi DB mit „↻ Jetzt aktualisieren“, z.B. nach dem Übernehmen neuer Gruppen.
+5. Danach aktualisiert das Tool die DB-Daten **bei jedem Öffnen oder Neuladen automatisch**, sofern ein API-Key da ist (von Hand gemerkt oder automatisch aus dem Schlüssel-Ordner). Hat jemand in den letzten 2 Minuten aktualisiert, wird nicht nochmals geladen. Sofort geht es mit **„↻ Aktualisieren“** oben rechts: Der Knopf gleicht den gemeinsamen Stand ab und lädt die Cevi DB. Ist ein Key da, ist der Kasten „Verbindung zur Cevi DB“ zugeklappt. Aufklappen braucht es nur, um den Key zu ändern.
 
 Ohne Eintrag bei „Hosts mit API-Zugriff" (z.B. Datei per Doppelklick geöffnet) gibt es eine Alternative: `python3 start-tool.py` startet das Tool unter `http://localhost:8765` und leitet die Abfragen lokal weiter.
 

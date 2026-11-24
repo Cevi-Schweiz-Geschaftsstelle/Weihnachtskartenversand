@@ -1024,7 +1024,7 @@ const Cloud = {
     b.textContent = busy ? '↻ Aktualisiere …' : this.status === 'error' ? '↻ Aktualisieren ⚠' : '↻ Aktualisieren';
     b.disabled = !!busy;
     b.classList.toggle('cloud-ok', this.status === 'ok'); b.classList.toggle('cloud-err', this.status === 'error' || this.status === 'login');
-    b.title = this.status === 'ok' ? `Stand mit allen abgleichen${t ? ' · zuletzt ' + t : ''} · angemeldet als ${this.user}`
+    b.title = this.status === 'ok' ? `Stand mit allen abgleichen und Cevi DB laden${t ? ' · zuletzt ' + t : ''} · angemeldet als ${this.user}`
       : this.status === 'login' ? 'Mit dem Cevi-Konto anmelden und den Stand aller laden'
       : this.status === 'error' ? 'Abgleich gestört: ' + (this.msg || '') + ' – klicken zum erneut Versuchen'
       : 'Stand mit allen abgleichen (Microsoft 365)';
@@ -1189,18 +1189,14 @@ const Cloud = {
   /** Knopf „↻ Aktualisieren": anmelden falls nötig, eigene Änderungen senden, Stand aller holen */
   async syncNow() {
     if (this.syncing) return;
-    if (this.status !== 'ok') {
-      if (!this.configured()) return cloudDialog();
-      await this.connect(true);
-      if (this.status === 'ok') toast('Angemeldet – alles ist auf dem neusten Stand.');
-      return;
-    }
-    this.syncing = true; this.badge();
+    this.syncing = true; this.badge(); AUTO_DB_DONE = true; // die DB lädt hier der Knopf selbst
     try {
-      clearTimeout(this.pushT); await this.push();
-      await this.poll(true);
-      if (!CLOUD_KEY) this.loadKey();
-      if (this.status === 'ok') toast('Aktualisiert ✓ – du siehst den neusten Stand aller.');
+      if (this.status !== 'ok') { if (this.configured()) await this.connect(true); else if (!token()) { cloudDialog(); return; } }
+      if (this.status === 'ok') { clearTimeout(this.pushT); await this.push(); await this.poll(true); if (!CLOUD_KEY) await this.loadKey(); }
+      if (token()) await dbRefresh(true); // Cevi DB gleich mit
+      const db = token() ? ' und Cevi DB' : '';
+      if (this.status === 'ok') toast(`Aktualisiert ✓ – gemeinsamer Stand${db} sind auf dem neusten Stand.`);
+      else if (db) toast('Cevi DB aktualisiert ✓');
     } finally { this.syncing = false; this.badge(); }
   },
   async poll(force) {
@@ -1449,6 +1445,7 @@ function catsView() {
 }
 
 const KEYUI = { folderUrl: '', ok: false, busy: false, open: false };
+const DBUI = { open: false };
 function keyPanel() {
   const st = Cloud.status === 'ok' ? Cloud.key.state : 'off';
   const when = (t) => { try { return new Date(t).toLocaleDateString('de-CH'); } catch (e) { return ''; } };
@@ -1494,8 +1491,10 @@ function dbView() {
   const tok = manualToken();
   return `${ownerDatalist()}<div class="dbcol">
     <div>
-      <div class="panel">
-        <div class="hd"><h2>Verbindung zur Cevi DB</h2>${d.lastRefresh ? `<span class="badge ok right">Stand ${fmtDate(d.lastRefresh)}</span>` : ''}</div>
+      <details class="panel" data-dbconn ${!token() || DBUI.open ? 'open' : ''}>
+        <summary class="hd" style="cursor:pointer"><h2>Verbindung zur Cevi DB</h2>
+          <span class="small" style="color:${token() ? 'var(--ok)' : 'var(--warn)'}">${token() ? `✓ Key vorhanden${CLOUD_KEY && !tok ? ' (aus SharePoint)' : ''} · wird beim Öffnen und mit „↻ Aktualisieren“ automatisch geladen` : 'Noch kein Key – bitte einmal eintragen'}</span>
+          ${d.lastRefresh ? `<span class="badge ok right">Stand ${fmtDate(d.lastRefresh)}</span>` : ''}</summary>
         <div class="bd">
           <div class="form">
             <label>Adresse</label>${PROXY ? `<div><b>${esc(PROXY.target)}</b> <span class="badge ok">über start-tool.py</span><div class="small muted">Anfragen werden lokal weitergeleitet – kein CORS-Eintrag nötig.</div></div>` : `<input type="url" id="dbBase" value="${esc(d.baseUrl)}" placeholder="https://db.cevi.ch">`}
@@ -1503,11 +1502,8 @@ function dbView() {
             <span></span><label class="small"><input type="checkbox" id="dbRemember" ${d.rememberToken ? 'checked' : ''}> Token auf diesem Computer speichern (sonst nur bis zum Schliessen)</label>
             ${CLOUD_KEY && !tok ? '<span></span><div class="small" style="color:var(--ok)">✓ Key automatisch aus SharePoint geladen – nichts einzutragen.</div>' : ''}
           </div>
-          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-            <button class="btn primary" data-action="db-refresh">↻ Jetzt aktualisieren</button>
-          </div>
         </div>
-      </div>
+      </details>
       <div class="panel" style="margin-top:16px">
         <div class="hd"><h2>Gruppen automatisch übernehmen</h2></div>
         <div class="bd">
@@ -2323,7 +2319,7 @@ document.addEventListener('input', (ev) => {
   if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
 });
 // Auf-/Zuklappen der Untergruppen merken („toggle" bubbelt nicht → capture)
-document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } if (d && d.dataset && d.dataset.keybox !== undefined) KEYUI.open = d.open; }, true);
+document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } if (d && d.dataset && d.dataset.keybox !== undefined) KEYUI.open = d.open; if (d && d.dataset && d.dataset.dbconn !== undefined) DBUI.open = d.open; }, true);
 function readCloudFields() {
   const v = (id) => { const el = $(id); return el && !el.disabled ? el.value.trim() : undefined; };
   const t = v('#m365Tenant'), c = v('#m365Client'), s2 = v('#m365Site');

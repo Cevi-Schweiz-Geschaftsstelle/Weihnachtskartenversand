@@ -121,6 +121,13 @@ Einrichten:
      - Einzelne Untergruppen lassen sich auch direkt im Reiter Kategorien mit „✕ entfernen" ausschliessen.
    - **Mitgliederorganisationen (MIO)** sind eigene Ebenen mit vielen Mitgliedern. Übernommen wird darum nur die **Adresse der Organisation** (ein Brief pro Organisation), nicht deren Mitglieder. Stimmen Organisation und PLZ mit genau einem Excel-Eintrag überein, ist das ein Brief.
 5. Danach aktualisiert das Tool die DB-Daten **bei jedem Öffnen oder Neuladen automatisch**, sofern ein API-Key da ist (von Hand gemerkt oder automatisch aus dem Schlüssel-Ordner). Hat jemand in den letzten 2 Minuten aktualisiert, wird nicht nochmals geladen. Sofort geht es mit **„↻ Aktualisieren“** oben rechts: Der Knopf gleicht den gemeinsamen Stand ab und lädt die Cevi DB. Ist ein Key da, ist der Kasten „Verbindung zur Cevi DB“ zugeklappt. Aufklappen braucht es nur, um den Key zu ändern.
+6. **Neue Gruppen in der DB:** Beim Übernehmen merkt sich das Tool alle Gruppen. Taucht beim Aktualisieren eine neue Gruppe oder Untergruppe auf, fragt es in einem Fenster nach:
+   - als Untergruppe der bisherigen Kategorie (z.B. neue Fachgruppe → Fachgruppen),
+   - in eine andere Kategorie,
+   - als neue Kategorie,
+   - oder nicht übernehmen.
+
+   Bis zur Antwort werden ihre Mitglieder nicht geladen. „Später“ fragt beim nächsten Mal wieder; offene Fragen stehen auch im Reiter „Unvollständig“. Ausgeschlossene Gruppen (z.B. „Ehemalige …“) werden nicht gefragt. Nicht übernommene Gruppen lassen sich zurückholen: Untergruppen unter Kategorien mit ↺, andere im Reiter Cevi DB.
 
 Ohne Eintrag bei „Hosts mit API-Zugriff" (z.B. Datei per Doppelklick geöffnet) gibt es eine Alternative: `python3 start-tool.py` startet das Tool unter `http://localhost:8765` und leitet die Abfragen lokal weiter.
 

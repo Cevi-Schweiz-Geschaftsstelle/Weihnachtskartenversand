@@ -38,6 +38,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - Kopfzeile bis Zeile 30 (Titelzeilen davor sind kein Problem), auch zweizeilige Kopfzeilen.
      - Ohne Kopfzeile: Spalten werden am Inhalt erkannt (PLZ, Strasse mit Nummer, Vornamen). Etiketten-Listen mit der ganzen Adresse mehrzeilig in einer Zelle gehen auch. Das Tool meldet kurz, wenn es so vorgegangen ist.
      - Ja/Nein-Spalten, Telefon-, Kunden- und Belegnummern werden nicht mit Hausnummern verwechselt.
+     - Steht in der E-Mail-Spalte Text ohne @ (z.B. „Haus des Sports“), gilt er als Adresszusatz und kommt auf die Etikette.
      - Dateiformate: .xlsx, .xls, .xlsm, .ods, .csv/.tsv/.txt (Komma, Semikolon oder Tab; Umlaute aus UTF-8 und aus Excel-CSV unter Windows).
    - Blätter ohne Adressen (z.B. eine reine Zahlungsliste oder „Hinweise“) werden mit einem kurzen Hinweis übergangen.
    - Das Blatt „Überblick" liefert die Hauptzuständigkeiten. Die Sammelliste („Masterliste") wird ignoriert, damit nichts doppelt gezählt wird.
@@ -48,6 +49,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
    - **Automatisch zusammengeführt** (aufklappbar): Alle Personen, die das Tool selbst zusammengeführt hat. Bei einem Fehler „Trennen".
 5. **Pro Zuständige\*r:** Jede Person sieht ihre Briefe und wo sie mitunterschreibt. Hier gibt es Erledigt-Häkchen, Drucken und den Export.
    - **Adresse ausblenden:** Hinten in jeder Zeile (in der Masterliste und bei jeder Person) steht „✕ ausblenden“. Eine ausgeblendete Adresse wird nicht verschickt: kein Brief, keine Etikette, kein Export, keine offene Entscheidung. Sie bleibt grau in der Masterliste (Filter „Nur ausgeblendete“) und bei der Person unter „Ausgeblendet“ und lässt sich mit „↺ einblenden“ zurückholen. Das gilt auch nach neuen Importen – z.B. wenn zu viele Adressen importiert wurden.
+   - **Untergruppe zuweisen:** Ein Klick auf den Namen einer Person (oder auf ihre Kategorie unter „Gefunden in“) öffnet ein kleines Fenster. Dort lässt sich pro Kategorie die Untergruppe wählen, „keine Untergruppe“ setzen oder direkt eine **neue Untergruppe** anlegen. Danach richtet sich die Zuständigkeit nach der Untergruppe (sonst nach der Kategorie). Das funktioniert für alle Personen: aus Excel, aus der Cevi DB und von Hand erfasst. Die Wahl bleibt auch nach einem neuen Import erhalten. Wählt man wieder die Gruppe aus der Liste, gilt wieder die Liste.
    - Ganz oben in der Liste links steht **📋 Masterliste**: alle Empfänger\*innen mit Suche, Filtern und dem Gesamt-Export (früher ein eigener Reiter).
    - **🏷 Etiketten:** Alle Adressen der gewählten Person auf A4-Etikettenbögen drucken.
      - Bögen: Avery Zweckform 3475, 3474, 3422, L7160, L7163 oder eigene Masse.

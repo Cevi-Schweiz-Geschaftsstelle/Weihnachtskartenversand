@@ -170,6 +170,11 @@ assert.deepStrictEqual(WB.codeVariants('Anna', 'Bern').slice(0, 3), ['ABE', 'ABR
   // Abacus: Name 1 / Name 2 / PLZ/Ort
   t = one([['Name 1', 'Name 2', 'Strasse', 'PLZ/Ort'], ['Beispiel Anna', 'z.Hd. Buchhaltung', 'Musterweg 12', '3000 Bern']]);
   assert.strictEqual(pick(t.e[0]), want, 'Abacus'); assert.strictEqual(t.e[0].careOf, 'z.Hd. Buchhaltung');
+  // Text ohne @ in der E-Mail-Spalte = Adresszusatz; echte Mail bleibt, Platzhalter fallen weg
+  t = one([['Organisation', 'Vorname', 'Nachname', 'Email', 'Strasse', 'Nr.', 'PLZ', 'Ort'], ['Musterverband', 'Anna', 'Beispiel', 'Haus der Vereine', 'Musterweg', 12, 3000, 'Bern'], ['', 'Ben', 'Probe', 'ben@example.org', 'Testgasse', 3, 3000, 'Bern'], ['', 'Cleo', 'Test', 'keine', 'Testgasse', 4, 3000, 'Bern']]);
+  assert.strictEqual(t.e[0].careOf, 'Haus der Vereine', 'Zusatz aus E-Mail-Spalte'); assert.strictEqual(t.e[0].email, '');
+  assert.strictEqual(t.e[1].email, 'ben@example.org'); assert.strictEqual(t.e[1].careOf, '');
+  assert.strictEqual(t.e[2].careOf, '', 'Platzhalter „keine“ ist kein Zusatz');
   // Outlook (englisch)
   t = one([['Title', 'First Name', 'Last Name', 'Home Street', 'Home City', 'Home Postal Code', 'Mobile Phone'], ['', 'Anna', 'Beispiel', 'Musterweg 12', 'Bern', '3000', '079 000 00 00']]);
   assert.strictEqual(pick(t.e[0]), want, 'Outlook');

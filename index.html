@@ -43,7 +43,8 @@ header.top{background:var(--panel);border-bottom:1px solid var(--line);padding:1
 .menu .msep{height:1px;background:var(--line2);margin:6px 4px}
 .menu .mnote{font-size:12px;color:var(--muted);padding:0 10px 6px}
 .kpis{display:flex;gap:10px;margin:14px 0 12px;flex-wrap:wrap}
-.kpi{background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:8px 14px;min-width:132px}
+.kpi{background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:8px 14px;min-width:132px;font:inherit;color:inherit;text-align:left;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.kpi:hover{border-color:#b9c6d6;box-shadow:0 2px 8px rgba(0,0,0,.06)} .kpi:hover .l{color:var(--accent)}
 .kpi .v{font-size:21px;font-weight:650;font-variant-numeric:tabular-nums}
 .kpi .l{font-size:12px;color:var(--muted)}
 .kpi.warn .v{color:var(--warn)}
@@ -1598,16 +1599,22 @@ const isNew = (p) => NEW_KEYS.has(diffKey(p) + '#' + WB.key(p.zip));
 function renderKpis() {
   const P = R.active, nHidden = R.people.length - P.length;
   const done = P.filter(p => p.done).length;
-  const dup = P.filter(p => p.isDuplicate).length;
   const open = R.byOwner.get('') ? R.byOwner.get('').length : 0;
   const pct = P.length ? Math.round(done / P.length * 100) : 0;
+  // Kacheln sind klickbar und führen direkt zu den betroffenen Personen
   $('#kpis').innerHTML = !S.sources.length ? '' : `
-    <div class="kpi"><div class="v">${R.entries.length}</div><div class="l">Einträge in allen Listen</div></div>
-    <div class="kpi"><div class="v">${P.length}</div><div class="l">Briefe (eindeutige Empfänger)${nHidden ? ` · ${nHidden} ausgeblendet` : ''}</div></div>
-    <div class="kpi"><div class="v">${dup}</div><div class="l">Personen in mehreren Listen</div></div>
-    <div class="kpi ${R.review.length ? 'warn' : ''}"><div class="v">${R.review.length}</div><div class="l">mögliche Duplikate prüfen</div></div>
-    <div class="kpi ${open ? 'warn' : ''}"><div class="v">${open}</div><div class="l">ohne Zuständigkeit</div></div>
-    <div class="kpi"><div class="v">${done} / ${P.length}</div><div class="l">erledigt (${pct}%)</div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+    <button class="kpi" data-kpi="letters" title="Zur Masterliste mit allen Briefen"><div class="v">${P.length}</div><div class="l">Briefe (eindeutige Empfänger)${nHidden ? ` · ${nHidden} ausgeblendet` : ''}</div></button>
+    <button class="kpi ${R.review.length ? 'warn' : ''}" data-kpi="dups" title="Zu den möglichen Duplikaten (Reiter Unvollständig)"><div class="v">${R.review.length}</div><div class="l">mögliche Duplikate prüfen</div></button>
+    <button class="kpi ${open ? 'warn' : ''}" data-kpi="noowner" title="Zu den Briefen ohne Zuständigkeit – dort direkt zuweisen"><div class="v">${open}</div><div class="l">ohne Zuständigkeit</div></button>
+    <button class="kpi" data-kpi="done" title="Zur Masterliste: noch nicht erledigte Briefe"><div class="v">${done} / ${P.length}</div><div class="l">erledigt (${pct}%)</div><div class="bar"><i style="width:${pct}%"></i></div></button>`;
+}
+function kpiGo(k) {
+  if (k === 'dups') { S.ui.tab = 'assign'; S.ui.assignFilter = 'open'; }
+  else if (k === 'noowner') { S.ui.tab = 'owners'; S.ui.owner = ''; }
+  else { S.ui.tab = 'owners'; S.ui.owner = '__all'; S.ui.filter = { q: '', cat: '', owner: '', only: k === 'done' ? 'open' : '' }; }
+  save(); render();
+  const el = document.querySelector(k === 'dups' ? '#sec-dups' : '#main');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 const openCount = () => openDecisions().length + R.review.length + (S.db.pendingGroups || []).length;
 function renderTabs() {
@@ -1861,7 +1868,7 @@ function whoBox(p) {
     <div style="margin-top:4px">${membershipChips(p, false)}</div><div class="small muted">zuständig: ${ownerHtml(p.owner)}</div></div>`;
 }
 function reviewPanel() {
-  return `<div class="section-title"><h3>1 · Mögliche Duplikate prüfen</h3><span class="muted small">Ähnliche Einträge, die nicht automatisch zusammengeführt wurden${R.review.length ? ` · <b>${R.review.length} offen</b>` : ' ✓'}</span></div>
+  return `<div class="section-title" id="sec-dups"><h3>1 · Mögliche Duplikate prüfen</h3><span class="muted small">Ähnliche Einträge, die nicht automatisch zusammengeführt wurden${R.review.length ? ` · <b>${R.review.length} offen</b>` : ' ✓'}</span></div>
   <div class="panel">
     ${R.review.length ? R.review.map(r => `<div class="pair"><div><div class="why">${esc(r.why)}</div>${whoBox(r.a)}</div><div><div class="why">&nbsp;</div>${whoBox(r.b)}</div>
       <div class="acts"><button class="btn small primary" data-decide="same" data-pair="${esc(r.pairKey)}">Dieselbe Person</button><button class="btn small" data-decide="different" data-pair="${esc(r.pairKey)}">Verschiedene Personen</button></div></div>`).join('')
@@ -3498,7 +3505,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-kpi],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3535,6 +3542,7 @@ document.addEventListener('click', (ev) => {
     if (c.groups && c.groups[gk]) { toast('Diese Untergruppe gibt es schon.'); return; }
     setGrp(c, gk, name, []); c.groups[gk].manual = true; S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [c.id]: true }; save(); render(); return;
   }
+  if (t.dataset.kpi) { kpiGo(t.dataset.kpi); return; }
   if (t.dataset.delPerson) { deletePerson(t.dataset.delPerson); return; }
   if (t.dataset.editPerson) { openEditDialog(t.dataset.editPerson); return; }
   if (t.dataset.hide) {

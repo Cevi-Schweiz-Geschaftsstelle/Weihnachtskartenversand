@@ -192,6 +192,7 @@
     first: ['vorname', 'first name', 'first_name', 'prenom'],
     last: ['nachname', 'last name', 'last_name', 'familienname', 'nom'],
     nick: ['ubername', 'pfadiname', 'cevi-name', 'cevi name'],
+    name: ['name', 'name vorname', 'vorname name', 'name, vorname', 'vorname, name', 'nachname vorname', 'vorname nachname', 'name und vorname', 'vollstandiger name', 'empfanger', 'empfangerin', 'empfanger*in', 'kundenname', 'adressat', 'spender', 'spenderin', 'spender*in'],
     email: ['email', 'e-mail', 'haupt-e-mail', 'mail', 'e-mail-adresse', 'emailadresse'],
     street: ['strasse', 'street', 'adresse', 'address'],
     nr: ['nr', 'nr.', 'hausnummer', 'housenumber', 'hausnr'],
@@ -216,11 +217,60 @@
   // ---------------------------------------------------------------------------
   // Excel-Arbeitsmappe einlesen  (rows = Array von Arrays je Blatt)
   // ---------------------------------------------------------------------------
+  // Häufige Vornamen (gefaltet) – zum Aufteilen einer Spalte „Name" in Vor- und Nachname
+  const COMMON_FIRST = ('anna maria ruth verena ursula elisabeth monika barbara sandra daniela nicole andrea katharina christine susanne claudia karin regula esther silvia brigitte heidi rosmarie margrit erika ' +
+    'sara sarah laura lea julia lena nina lisa jana eva marianne beatrice cornelia franziska gabriela simone petra martina sabine stefanie melanie jasmin tamara corinne priska therese theres vreni rita hedi doris ' +
+    'irene judith sonja nadine rahel debora miriam lara noemi alina selina chiara elena sophie sofia mia emma hanna johanna magdalena helen marlies lotti trudi madeleine nathalie isabelle catherine francoise ' +
+    'hans peter thomas daniel martin andreas christian markus marcel michael stefan beat urs walter bruno rolf werner kurt ernst paul heinz josef fritz max david simon lukas jonas samuel matthias tobias philipp ' +
+    'patrick reto roger rene pascal adrian benjamin jan nicolas nico fabian florian dominik raphael felix marco mario roland robert rudolf alfred albert anton otto karl georg johannes jakob emil oliver sebastian ' +
+    'kevin manuel elias noah luca leon tim joel yves jean pierre jacques claude francois marc luc giovanni giuseppe sandro christoph ruedi res hansjorg hanspeter hansruedi jurg jorg ueli ulrich silvan severin ' +
+    'mathias moritz timo jonathan micha michel gabriel aaron levin nils lars erich eduard gottfried hermann viktor victor theo andre andrea').split(' ');
+  function firstKey(w) { return fold(w).replace(/[^a-z]/g, ''); }
+  const ORG_RX = /\b(stiftung|fondation|fondazione|ag|gmbh|sa|sarl|verein|association|kirchgemeinde|kirche|gemeinde|pfarrei|genossenschaft|firma|verband|cevi|jubla|ywca|ymca|schule|institut|club|klub|bank|versicherung|treuhand|immobilien|stadt)\b/i;
+  const CONN = /^(&|\+|und|u\.|et|e)$/i;
+  const PARTICLE = /^(von|van|de|der|den|des|del|della|dal|dalla|di|da|du|le|la|zu|vom|zur|ten|ter|dos|das|st\.?)$/i;
+  function nameTokens(s) { return str(s).replace(/^(herr|frau|familie|fam\.|hr\.|fr\.|herrn)\s+/i, '').replace(/\s*-\s*/g, '-').split(' ').filter(Boolean); }
+  /** Reihenfolge einer Spalte „Name": 'lastFirst' („Muster Hans") oder 'firstLast' („Hans Muster") – nach bekannten Vornamen */
+  function guessNameOrder(values, known) {
+    let front = 0, back = 0;
+    for (const v of values) {
+      if (!v || ORG_RX.test(v)) continue;
+      const t = nameTokens(v).filter(w => !CONN.test(w)); if (t.length < 2) continue;
+      if (known.has(firstKey(t[0]))) front++;
+      if (known.has(firstKey(t[t.length - 1]))) back++;
+    }
+    return front > back ? 'firstLast' : 'lastFirst';
+  }
+  /** „Muster Hans", „Hans & Anna Muster", „Stiftung XY" → { first, last } bzw. { org } */
+  function splitFullName(s, order, known) {
+    const t0 = str(s); if (!t0) return {};
+    if (ORG_RX.test(t0)) return { org: t0 };
+    const fam = /^(familie|fam\.)\s+/i.test(t0);
+    const tok = nameTokens(t0); if (!tok.length) return {};
+    if (fam) return { first: 'Familie', last: tok.join(' ') };
+    if (tok.length === 1) return { last: tok[0] };
+    const isFirst = (w) => known.has(firstKey(w));
+    let ord = order;
+    const ci = tok.findIndex(w => CONN.test(w));
+    if (ci > 0) ord = ci === 1 ? 'firstLast' : 'lastFirst';   // „Hans & Anna Muster" / „Muster Hans & Anna"
+    else if (tok.length === 2) { const a = isFirst(tok[0]), b = isFirst(tok[1]); if (a && !b) ord = 'firstLast'; else if (b && !a) ord = 'lastFirst'; }
+    if (ord === 'lastFirst') {
+      let k = tok.findIndex((w, i) => i > 0 && !PARTICLE.test(tok[i - 1]) && (isFirst(w) || CONN.test(w)));
+      if (ci > 1) k = k < 1 ? ci - 1 : Math.min(k, ci - 1); // das Wort vor „&"/„und" ist ein Vorname
+      if (k < 1) k = 1;
+      return { last: tok.slice(0, k).join(' '), first: tok.slice(k).join(' ') };
+    }
+    let k = tok.length - 1;
+    while (k > 1 && PARTICLE.test(tok[k - 1])) k--;
+    return { first: tok.slice(0, k).join(' '), last: tok.slice(k).join(' ') };
+  }
+
   function findHeaderRow(rows) {
     for (let r = 0; r < Math.min(rows.length, 15); r++) {
       const types = (rows[r] || []).map(colType);
       const n = new Set(types.filter(Boolean)).size;
       if (types.includes('first') || types.includes('last')) { if (n >= 2) return r; }
+      else if ((types.includes('name') || types.includes('org')) && (types.includes('street') || types.includes('zip') || types.includes('town'))) return r;
     }
     return -1;
   }
@@ -268,8 +318,9 @@
    * @param {Array} cats
    * @returns {{sources:Array, overview:Array|null, notes:string[]}}
    */
-  function parseWorkbookRows(sheets, fileName, cats) {
+  function parseWorkbookRows(sheets, fileName, cats, opts = {}) {
     const result = { sources: [], overview: null, notes: [] };
+    const known = new Set([...COMMON_FIRST, ...(opts.knownFirst || [])].map(firstKey));
     const fileBase = str(fileName).replace(/\.[a-z0-9]+$/i, '');
     const parsed = [];
 
@@ -279,17 +330,19 @@
       const ov = isOverviewSheet(rows);
       if (ov >= 0) { result.overview = parseOverview(rows, ov, cats); continue; }
       const hr = findHeaderRow(rows);
-      if (hr < 0) { if (rows.some(r => r && r.some(v => str(v)))) result.notes.push(`Blatt „${sh.name}": keine Adress-Spalten gefunden – übersprungen.`); continue; }
+      if (hr < 0) { if (rows.some(r => r && r.some(v => str(v)))) result.notes.push(`Blatt „${sh.name}": keine Adressliste (es fehlen Spalten wie Name, Adresse/Strasse, PLZ, Ort) – nicht verwendet.`); continue; }
       const header = rows[hr];
       const types = header.map(colType);
       const isFlat = types.includes('category') || types.includes('roles');
       // Blöcke: jede Wiederholung von "Organisation" (bzw. "Vorname") startet einen neuen Block
-      const anchorType = types.includes('org') ? 'org' : 'first';
+      const anchorType = types.includes('org') ? 'org' : types.includes('first') ? 'first' : types.includes('name') ? 'name' : 'last';
       const starts = types.map((t, i) => (t === anchorType ? i : -1)).filter(i => i >= 0);
       const blocks = starts.map((s, k) => ({ start: s, end: k + 1 < starts.length ? starts[k + 1] : header.length }));
       parsed.push({ sh, rows, hr, header, types, isFlat, blocks });
     }
 
+    // Vornamen aus Blättern mit eigener Vorname-Spalte → helfen beim Aufteilen einer Spalte „Name"
+    for (const p of parsed) { const fi = p.types.indexOf('first'); if (fi >= 0) for (let r = p.hr + 1; r < p.rows.length; r++) { const v = str((p.rows[r] || [])[fi]).split(' ')[0]; if (v) known.add(firstKey(v)); } }
     const hasBlockSheets = parsed.some(p => !p.isFlat);
     for (const p of parsed) {
       const { sh, rows, hr, types, isFlat, blocks } = p;
@@ -313,6 +366,8 @@
           confidence: det ? (det.score >= 10 ? 'sicher' : det.score >= 5 ? 'wahrscheinlich' : 'unsicher') : 'keine',
           perRow: isFlat, entries: [],
         };
+        const fullOnly = map.name !== undefined && map.first === undefined && map.last === undefined;
+        const nameOrder = fullOnly ? guessNameOrder(rows.slice(hr + 1).map(row => str((row || [])[map.name])), known) : '';
         for (let r = hr + 1; r < rows.length; r++) {
           const row = rows[r] || [];
           const get = (t) => (map[t] === undefined ? '' : str(row[map[t]]));
@@ -323,6 +378,10 @@
             done: map.done !== undefined && row[map.done] === true,
             group: src.group, catId: src.catId, rowNo: r + 1,
           };
+          if (map.name !== undefined) {
+            if (fullOnly) { const n = splitFullName(get('name'), nameOrder, known); if (n.org && !e.org) e.org = n.org; if (n.first) e.first = n.first; if (n.last) e.last = n.last; }
+            else if (!e.last && map.last === undefined) e.last = get('name'); // „Vorname" + „Name" = Nachname
+          }
           if (!e.first && !e.last && !e.org && !e.street) continue;
           let headerLike = 0;
           for (const [t, c] of Object.entries(map)) if (colType(row[c]) === t) headerLike++;
@@ -696,6 +755,6 @@
     return l; // beide haben denselben Wert verschieden geändert → die eigene Änderung gilt
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, merge3, J, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, splitFullName, guessNameOrder, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, merge3, J, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);

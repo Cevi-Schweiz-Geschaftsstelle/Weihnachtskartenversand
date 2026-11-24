@@ -9,7 +9,7 @@
   // oder werden im Tab „Zuständigkeit" erfasst – hier bewusst keine Personennamen)
   // ---------------------------------------------------------------------------
   const DEFAULT_CATEGORIES = [
-    { id: 'cevi-schweiz', name: 'Cevi Schweiz', source: 'GL', persons: ['GL'], info: 'Vorstand, Geschäftsstelle, Zivis',
+    { id: 'cevi-schweiz', name: 'Geschäftsstelle', source: 'GL', persons: ['GL'], info: 'Vorstand, Geschäftsstelle, Zivis',
       exact: ['cch', 'cevi schweiz'], strong: ['vorstand', 'geschaftsstelle', 'zivildienst'], weak: ['zivi'] },
     { id: 'alpenblick', name: 'Alpenblick', source: '', persons: [], info: '',
       exact: [], strong: ['alpenblick'], weak: [] },

@@ -116,6 +116,18 @@ td .name{font-weight:600}
 td .org{color:var(--muted);font-size:12.5px}
 td.addr{font-size:13px;white-space:nowrap}
 td.chk{width:34px}
+/* Personen-Tabellen: Name bekommt Platz, die übrigen Spalten nur so breit wie nötig (lange Texte brechen um) */
+td.who{min-width:200px;width:28%}
+td.who .name{line-height:1.3}
+td.addr{white-space:normal;min-width:165px;max-width:210px;width:1%}
+td.cats{min-width:130px;max-width:260px}
+td.cats .chip{white-space:normal;text-align:left}
+td.own{width:1%}
+td.own select.inline{max-width:180px}
+td.co{width:1%;min-width:60px;max-width:150px}
+td.co .chip{margin-bottom:3px}
+th.wrap{white-space:normal;min-width:60px;max-width:110px}
+td.hidecol .lnk{font-size:12.5px}
 input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
 .chip{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;background:#eef0f3;font-size:12px;margin:1px 3px 1px 0;white-space:nowrap}
 .chip.cat{background:var(--info-soft);color:#21477f}
@@ -1637,12 +1649,12 @@ function ownerSelect(p) {
 function personRow(p, opts = {}) {
   return `<tr class="${p.done ? 'done' : ''} ${p.hidden ? 'hiddenrow' : ''}">
     <td class="chk"><input type="checkbox" data-done="${esc(p.key)}" ${p.done ? 'checked' : ''} title="Brief erledigt"></td>
-    <td><div class="name"><button class="pname" data-pgroup="${esc(p.key)}" title="Untergruppe zuweisen">${esc(p.displayName)}</button>${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.memberships.length + ' Listen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.memberships.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
+    <td class="who"><div class="name"><button class="pname" data-pgroup="${esc(p.key)}" title="Untergruppe zuweisen">${esc(p.displayName)}</button>${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.memberships.length + ' Listen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.memberships.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
       ${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}${p.email ? `<div class="org">${esc(p.email)}</div>` : ''}${notesHtml(p)}</td>
     <td class="addr">${personAddr(p)}</td>
-    <td>${membershipChips(p)}</td>
-    ${opts.showOwner ? `<td>${ownerSelect(p)}${p.overridden ? '<div class="small muted">manuell</div>' : ''}</td>` : ''}
-    <td>${coChips(p)}</td>
+    <td class="cats">${membershipChips(p)}</td>
+    ${opts.showOwner ? `<td class="own">${ownerSelect(p)}${p.overridden ? '<div class="small muted">manuell</div>' : ''}</td>` : ''}
+    <td class="co">${coChips(p)}</td>
     <td class="hidecol noprint">${deletableEntries(p).length ? `<button class="lnk x" data-del-person="${esc(p.key)}" title="Aus ${esc([...new Set(deletableEntries(p).map(e => catName(e.catId)))].join(', '))} löschen">🗑 löschen</button><br>` : ''}${p.hidden ? `<button class="lnk" data-hide="${esc(p.key)}" title="Wieder für den Versand berücksichtigen">↺ einblenden</button><div class="small muted">kein Versand</div>` : `<button class="lnk x" data-hide="${esc(p.key)}" title="Für den Versand nicht berücksichtigen – keine Etikette, kein Export">✕ ausblenden</button>`}</td>
   </tr>`;
 }
@@ -1698,7 +1710,7 @@ function ownersView() {
         </div>
         ${!sel ? `<div class="bd"><div class="callout warn">Diese Empfänger haben weder in der Liste noch in der Kategorie eine Zuständigkeit. Im Tab <a href="#" data-tab="assign">Unvollständig</a> frei eine Person eintragen – oder im Tab <a href="#" data-tab="cats">Kategorien</a> eine Zuständigkeit pro Kategorie setzen.</div></div>` : ''}
         ${send.length ? `<div class="tablewrap"><table>
-          <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th>${!sel ? '<th>Zuständig</th>' : ''}<th>Unterschreiben auch</th><th class="noprint"></th></tr></thead>
+          <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th>${!sel ? '<th>Zuständig</th>' : ''}<th class="wrap">Unterschreiben auch</th><th class="noprint"></th></tr></thead>
           <tbody>${send.map(p => personRow(p, { showOwner: !sel })).join('')}</tbody></table></div>` : '<div class="empty">Keine eigenen Briefe.</div>'}
       </div>
       ${co.length ? `<div class="section-title"><h3>✍ Hier unterschreibt ${sel ? esc(ownerName(sel).split(' ')[0]) : ''} zusätzlich mit</h3><span class="muted small">Brief wird von jemand anderem versendet</span></div>
@@ -1745,7 +1757,7 @@ function allView() {
       <button class="btn small" data-action="export-all" title="Masterliste, ein Blatt pro zuständiger Person und die Duplikate als Excel herunterladen">⇩ Excel exportieren</button>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th><th>Hauptzuständig (versendet)</th><th>Unterschreiben auch</th><th class="noprint"></th></tr></thead>
+      <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th><th class="wrap">Hauptzuständig (versendet)</th><th class="wrap">Unterschreiben auch</th><th class="noprint"></th></tr></thead>
       <tbody>${list.slice(0, 600).map(p => personRow(p, { showOwner: true })).join('')}</tbody>
     </table>${list.length > 600 ? `<div class="empty">… ${list.length - 600} weitere – bitte Filter verwenden.</div>` : ''}${!list.length ? '<div class="empty">Keine Treffer.</div>' : ''}</div>
   </div>`;

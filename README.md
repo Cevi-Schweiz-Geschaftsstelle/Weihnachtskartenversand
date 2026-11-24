@@ -27,7 +27,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - **Jede Ebene wird einzeln ausgewiesen**, z.B. Ausschüsse › Partner & Politik › ↳ SAJV. Ist bei einer tieferen Untergruppe niemand eingetragen, **erbt** sie die Zuständigkeit der Obergruppe.
      - **„✕ entfernen"** nimmt eine Untergruppe heraus, die nicht mehr gebraucht wird (z.B. ein vergangenes Lager). Ihre Adressen fallen weg, sofern sie nicht noch in einer anderen Liste stehen. Bei jedem weiteren Import aus der Cevi DB oder aus Excel wird sie ignoriert. Mit **↺** lässt sie sich wiederherstellen.
    - Die Reihenfolge der Kategorien (▲▼) bestimmt den Vorschlag, wenn jemand in mehreren Kategorien vorkommt.
-3. **Excel importieren:** Die Adressliste ins Fenster ziehen oder **☰ Menü → „Aus Excel importieren"**.
+3. **Excel importieren:** Die Adressliste ins Fenster ziehen oder im Reiter Zuständigkeit unter „Importierte Listen“ auf **„＋ Excel hinzufügen“**.
    - Jedes Blatt bzw. jeder Block (z.B. „CCH › Vorstand") wird automatisch einer Kategorie zugeordnet.
    - **Fast jede Liste wird gelesen.** Gebraucht werden nur Name, Vorname, Strasse (mit Nr.), PLZ und Ort; alle anderen Spalten werden ignoriert.
      - Spaltentitel auf Deutsch, Französisch, Italienisch oder Englisch und aus Exporten von hitobito, Abacus, Bexio, Outlook usw., z.B. „Prénom/Nom“, „Nome/Cognome“, „First Name/Last Name“, „Strasse und Nr.“, „Adresszeile 1“, „NPA“, „Localité“, „Name 1/Name 2“.
@@ -49,11 +49,11 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - Sortiert nach Name oder PLZ, optional nur nicht erledigte.
      - Startposition für angebrauchte Bögen, Probedruck mit Rahmen, Vorschau.
      - Im Druckfenster Skalierung 100 % und Ränder „Keine" wählen.
-6. **Excel exportieren** (☰ Menü): Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
+6. **Excel exportieren** (Reiter Masterliste, oben rechts): Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
 
 **Oben rechts:**
 - **↻ Aktualisieren:** gleicht sofort mit allen ab und lädt die Cevi DB neu, falls ein Key da ist. Beim ersten Mal öffnet er die Microsoft-Anmeldung.
-- **☰ Menü:** Aus Excel importieren · Excel exportieren · Zurücksetzen (Erledigt-Häkchen, Zuteilungen & Duplikat-Entscheide, alle Daten auf diesem Computer)
+- **☰ Menü:** Zurücksetzen (Erledigt-Häkchen, Zuteilungen & Duplikat-Entscheide, alle Daten auf diesem Computer)
 
 Jede Änderung wird **automatisch gespeichert**, ohne Knopf. „Erledigt“-Häkchen aus den Excel-Listen werden immer übernommen.
 

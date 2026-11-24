@@ -28,7 +28,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - Mit „übernehmen" bzw. „Alle aus Excel übernehmen" wird die Zuständigkeit aus der Excel fest eingetragen.
      - Untergruppen aus Excel und Cevi DB werden zusammengeführt („Informatik" = „Fachgruppe Informatik").
      - **Jede Ebene wird einzeln ausgewiesen**, z.B. Ausschüsse › Partner & Politik › ↳ SAJV. Ist bei einer tieferen Untergruppe niemand eingetragen, **erbt** sie die Zuständigkeit der Obergruppe.
-     - **„✕ entfernen"** nimmt eine Untergruppe heraus, die nicht mehr gebraucht wird (z.B. ein vergangenes Lager). Ihre Adressen fallen weg, sofern sie nicht noch in einer anderen Liste stehen. Bei jedem weiteren Import aus der Cevi DB oder aus Excel wird sie ignoriert. Mit **↺** lässt sie sich wiederherstellen.
+     - **„✕ entfernen"** nimmt eine Untergruppe heraus, die nicht mehr gebraucht wird (z.B. ein vergangenes Lager). Ihre Adressen fallen weg, sofern sie nicht noch in einer anderen Liste stehen. Bei jedem weiteren Import aus der Cevi DB oder aus Excel wird sie ignoriert. Zurückholen: Reiter Cevi DB → **„Ausgeschlossene Gruppen“** → ↺.
    - Die Reihenfolge der Kategorien (▲▼) bestimmt den Vorschlag, wenn jemand in mehreren Kategorien vorkommt.
 3. **Excel importieren:** Die Adressliste ins Fenster ziehen oder im Reiter Zuständigkeit unter „Importierte Listen“ auf **„＋ Excel hinzufügen“**.
    - Jedes Blatt bzw. jeder Block (z.B. „CCH › Vorstand") wird automatisch einer Kategorie zugeordnet.
@@ -133,7 +133,8 @@ Einrichten:
      - Bereits übernommene werden beim nächsten Aktualisieren entfernt.
      - Einzelne Untergruppen lassen sich auch direkt im Reiter Kategorien mit „✕ entfernen" ausschliessen.
    - **Mitgliederorganisationen (MIO)** werden nicht aus der Cevi DB geladen. Die Kategorie MIO bleibt: für die MIO-Listen aus Excel und für von Hand erfasste Personen. Nach neuen Mitgliederorganisationen in der DB wird nicht gefragt.
-   - **PSA** wird nur auf der obersten Ebene geladen (ohne RV AG, Basel, Bern usw.). Ebenso **Conveniat** bei den Projektgruppen: nur die Projektgruppe selbst, ihre Untergruppen stehen unter „Entfernt“. Bei anderen Untergruppen mit eigenen Untergruppen geht das im Reiter Kategorien mit **„nur diese Ebene“**; neue Untergruppen darunter werden dann nicht mehr gefragt. Rückgängig: einzelne Untergruppe mit ↺ zurückholen.
+   - **PSA** wird nur auf der obersten Ebene geladen (ohne RV AG, Basel, Bern usw.). Ebenso **Conveniat** bei den Projektgruppen: nur die Projektgruppe selbst, ihre Untergruppen stehen im Reiter Cevi DB unter „Ausgeschlossene Gruppen“. Bei anderen Untergruppen mit eigenen Untergruppen geht das im Reiter Kategorien mit **„nur diese Ebene“**; neue Untergruppen darunter werden dann nicht mehr gefragt. Rückgängig: im Reiter Cevi DB unter „Ausgeschlossene Gruppen“ einzelne Untergruppe mit ↺ zurückholen.
+5. **Ausgeschlossene Gruppen** (Reiter Cevi DB, aufklappbar): alle Gruppen und Untergruppen, die beim Laden ignoriert werden – nach Kategorie geordnet, mit ↺ zum Zurückholen.
 5. Danach aktualisiert das Tool die DB-Daten **bei jedem Öffnen oder Neuladen automatisch**, sofern ein API-Key da ist (von Hand gemerkt oder automatisch aus dem Schlüssel-Ordner). Hat jemand in den letzten 2 Minuten aktualisiert, wird nicht nochmals geladen. Sofort geht es mit **„↻ Aktualisieren“** oben rechts: Der Knopf gleicht den gemeinsamen Stand ab und lädt die Cevi DB. Ist ein Key da, ist der Kasten „Verbindung zur Cevi DB“ zugeklappt. Aufklappen braucht es nur, um den Key zu ändern.
 6. **Neue Gruppen in der DB:** Beim Übernehmen merkt sich das Tool alle Gruppen. Taucht beim Aktualisieren eine neue Gruppe oder Untergruppe auf, fragt es in einem Fenster nach:
    - als Untergruppe der bisherigen Kategorie (z.B. neue Fachgruppe → Fachgruppen),
@@ -141,7 +142,7 @@ Einrichten:
    - als neue Kategorie,
    - oder nicht übernehmen.
 
-   Bis zur Antwort werden ihre Mitglieder nicht geladen. „Später“ fragt beim nächsten Mal wieder; offene Fragen stehen auch im Reiter „Unvollständig“. Ausgeschlossene Gruppen (z.B. „Ehemalige …“) werden nicht gefragt. Nicht übernommene Gruppen lassen sich zurückholen: Untergruppen unter Kategorien mit ↺, andere im Reiter Cevi DB.
+   Bis zur Antwort werden ihre Mitglieder nicht geladen. „Später“ fragt beim nächsten Mal wieder; offene Fragen stehen auch im Reiter „Unvollständig“. Ausgeschlossene Gruppen (z.B. „Ehemalige …“) werden nicht gefragt. Nicht übernommene Gruppen lassen sich im Reiter Cevi DB unter „Ausgeschlossene Gruppen“ mit ↺ zurückholen.
 
 Ohne Eintrag bei „Hosts mit API-Zugriff" (z.B. Datei per Doppelklick geöffnet) gibt es eine Alternative: `python3 start-tool.py` startet das Tool unter `http://localhost:8765` und leitet die Abfragen lokal weiter.
 

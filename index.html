@@ -63,6 +63,11 @@ main{flex:1;padding:18px 22px 40px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .catcol{max-width:1180px}
 button.chip{border:0;font:inherit;font-size:12px;cursor:pointer}
+.chip.edited{background:#eef0f3;color:var(--muted);font-weight:500;font-size:11px}
+.editgrid{display:flex;flex-wrap:wrap;gap:10px}
+.editgrid label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);flex:1 1 150px}
+.editgrid label.w2{flex:2 1 260px} .editgrid label.wnr{flex:0 0 80px}
+.editgrid input{padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:13.5px;color:var(--text)}
 button.chip.cat:hover{box-shadow:inset 0 0 0 1.5px #9db6e0}
 button.pname{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
 button.pname:hover{color:var(--accent);text-decoration:underline}
@@ -276,7 +281,7 @@ tr.decided td{background:#fbfdfc}
 .hide{display:none!important}
 /* Etiketten */
 .modal.wide{width:min(980px,100%)}
-#ngModal .modal{width:min(720px,100%)}
+#ngModal .modal{width:min(720px,100%)} #editModal .modal{width:min(640px,100%)}
 table.ngtab{width:100%;border-collapse:collapse} table.ngtab td{padding:8px 4px;border-top:1px solid var(--line2);vertical-align:top} table.ngtab select{max-width:330px}
 .lbl-grid{display:grid;grid-template-columns:300px 1fr;gap:20px}
 @media (max-width:860px){.lbl-grid{grid-template-columns:1fr}}
@@ -341,6 +346,7 @@ body.print-labels #labelsPrint{display:block}
 <div id="labelsPrint" aria-hidden="true"></div>
 <div class="modal-back" id="cloudModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cloudTitle"></div></div>
 <div class="modal-back" id="ngModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="ngTitle"></div></div>
+<div class="modal-back" id="editModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle"></div></div>
 <div class="modal-back" id="grpModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="grpModalTitle"></div></div>
 <div class="modal-back" id="catModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="catModalTitle"></div></div>
 
@@ -1276,7 +1282,7 @@ function defaultState() {
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
     aliasText: '', autoAliases: true, version: 9,
-    decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, importDone: true,
+    decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, edits: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
@@ -1454,14 +1460,17 @@ function recompute() {
   const hidden = entryFilter();
   for (const src of S.sources) {
     if (src.enabled === false) continue;
-    for (const e of src.entries) {
-      const catId = src.perRow ? (e.catId || src.catId) : src.catId;
+    for (const e0 of src.entries) {
+      const catId = src.perRow ? (e0.catId || src.catId) : src.catId;
+      // von Hand korrigierte Angaben (✎ bearbeiten) – nur für Einträge, die nicht aus der Cevi DB kommen
+      const baseId = WB.identity(e0), ed = src.kind !== 'db' && S.edits && S.edits[baseId];
+      const e = ed ? { ...e0, ...ed, edited: true } : e0;
       // von Hand gewählte Untergruppe (Klick auf die Person) hat Vorrang vor der Gruppe aus der Liste
-      const gsKey = groupSetKey(e, catId), gs = S.groupSet && S.groupSet[gsKey];
+      const gsKey = groupSetKey(e0, catId), gs = S.groupSet && S.groupSet[gsKey];
       const group = gs !== undefined ? gs : e.group;
       if (hidden(catId, group)) continue;
       if (!e.mid && S.deleted && S.deleted[gsKey]) continue; // in der Masterliste gelöscht (Kategorien mit Löschen erlaubt)
-      entries.push({ ...e, group, groupOrig: e.group, gsKey, catId, uid: ++n, sourceId: src.id,
+      entries.push({ ...e, group, groupOrig: e.group, gsKey, baseId, catId, uid: ++n, sourceId: src.id,
         sourceLabel: (src.kind === 'db' ? 'Cevi DB: ' : '') + src.label, origin: src.kind === 'db' ? 'db' : src.kind === 'manual' ? 'manual' : 'excel' });
     }
   }
@@ -1649,13 +1658,13 @@ function ownerSelect(p) {
 function personRow(p, opts = {}) {
   return `<tr class="${p.done ? 'done' : ''} ${p.hidden ? 'hiddenrow' : ''}">
     <td class="chk"><input type="checkbox" data-done="${esc(p.key)}" ${p.done ? 'checked' : ''} title="Brief erledigt"></td>
-    <td class="who"><div class="name"><button class="pname" data-pgroup="${esc(p.key)}" title="Untergruppe zuweisen">${esc(p.displayName)}</button>${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.memberships.length + ' Listen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.memberships.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
+    <td class="who"><div class="name"><button class="pname" data-pgroup="${esc(p.key)}" title="Untergruppe zuweisen">${esc(p.displayName)}</button>${personEntries(p).some(e => e.edited) ? ' <span class="chip edited" title="Von Hand angepasst (✎ bearbeiten)">angepasst</span>' : ''}${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.memberships.length + ' Listen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.memberships.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
       ${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}${p.email ? `<div class="org">${esc(p.email)}</div>` : ''}${notesHtml(p)}</td>
     <td class="addr">${personAddr(p)}</td>
     <td class="cats">${membershipChips(p)}</td>
     ${opts.showOwner ? `<td class="own">${ownerSelect(p)}${p.overridden ? '<div class="small muted">manuell</div>' : ''}</td>` : ''}
     <td class="co">${coChips(p)}</td>
-    <td class="hidecol noprint">${deletableEntries(p).length ? `<button class="lnk x" data-del-person="${esc(p.key)}" title="Aus ${esc([...new Set(deletableEntries(p).map(e => catName(e.catId)))].join(', '))} löschen">🗑 löschen</button><br>` : ''}${p.hidden ? `<button class="lnk" data-hide="${esc(p.key)}" title="Wieder für den Versand berücksichtigen">↺ einblenden</button><div class="small muted">kein Versand</div>` : `<button class="lnk x" data-hide="${esc(p.key)}" title="Für den Versand nicht berücksichtigen – keine Etikette, kein Export">✕ ausblenden</button>`}</td>
+    <td class="hidecol noprint">${!p.fromDb ? `<button class="lnk" data-edit-person="${esc(p.key)}" title="Name, Adresse usw. anpassen">✎ bearbeiten</button><br>` : ''}${deletableEntries(p).length ? `<button class="lnk x" data-del-person="${esc(p.key)}" title="Aus ${esc([...new Set(deletableEntries(p).map(e => catName(e.catId)))].join(', '))} löschen">🗑 löschen</button><br>` : ''}${p.hidden ? `<button class="lnk" data-hide="${esc(p.key)}" title="Wieder für den Versand berücksichtigen">↺ einblenden</button><div class="small muted">kein Versand</div>` : `<button class="lnk x" data-hide="${esc(p.key)}" title="Für den Versand nicht berücksichtigen – keine Etikette, kein Export">✕ ausblenden</button>`}</td>
   </tr>`;
 }
 
@@ -2038,7 +2047,7 @@ function printLabels() {
 const M365_DEFAULTS = { tenantId: '29537223-9280-4035-b685-49ec81dd6aea', clientId: 'fad64339-d256-4c02-9ab5-38894757993a', siteUrl: 'https://cevischweiz.sharepoint.com/sites/VSGS' };
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
-const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'deleted', 'importDone', 'notes', 'ignoredSugg', 'version'];
+const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'deleted', 'edits', 'importDone', 'notes', 'ignoredSugg', 'version'];
 const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh', 'layerId', 'knownGroups', 'pendingGroups', 'ignoredGroups', 'detachedGroups'];
 const J = WB.J;
 /** Was alle teilen (ohne Ansicht, ohne API-Key, ohne Microsoft-Einstellungen) */
@@ -2339,6 +2348,53 @@ function saveCatDialog() {
   }
   save(); closeCatDialog(true); render();
   toast(added.length || removed.length ? `${key}: ${[added.length ? '+ ' + added.join(', ') : '', removed.length ? '− ' + removed.join(', ') : ''].filter(Boolean).join(' · ')}` : `${key}: keine Kategorien geändert`);
+}
+
+// ---------------------------------------------------------------- Person bearbeiten (alles, was nicht aus der Cevi DB kommt)
+const EDIT_FIELDS = [['org', 'Organisation', 'w2'], ['first', 'Vorname'], ['last', 'Nachname'], ['careOf', 'Adresszusatz (z.Hd., c/o, Gebäude …)', 'w2'], ['street', 'Strasse', 'w2'], ['nr', 'Nr.', 'wnr'], ['zip', 'PLZ', 'wnr'], ['town', 'Ort'], ['country', 'Land (nur Ausland)'], ['email', 'E-Mail', 'w2']];
+let EM = null; // { key, uids }
+function openEditDialog(key) {
+  const p = R.people.find(x => x.key === key); if (!p || p.fromDb) return;
+  const es = personEntries(p).filter(e => e.origin !== 'db'); if (!es.length) return;
+  EM = { key, uids: es.map(e => e.uid) };
+  const m = $('#editModal');
+  m.querySelector('.modal').innerHTML = `
+    <div class="hd"><h3 id="editModalTitle">✎ ${esc(p.displayName)} bearbeiten</h3></div>
+    <div class="bd"><div class="editgrid">${EDIT_FIELDS.map(([k, l, cls]) => `<label class="${cls || ''}">${esc(l)}<input data-ef="${k}" value="${esc(p[k] || '')}" autocomplete="off"></label>`).join('')}</div>
+      <div class="small muted" style="margin-top:8px">Gilt für ${es.length === 1 ? 'diesen Eintrag' : `alle ${es.length} Einträge dieser Person`} (${esc([...new Set(es.map(e => e.sourceLabel))].join(', '))}). Die Änderung bleibt auch nach einem neuen Import erhalten, solange die Zeile in der Liste gleich bleibt.</div></div>
+    <div class="ft">${es.some(e => e.edited) ? '<button class="btn ghost" data-action="em-reset" title="Eigene Anpassungen verwerfen und wieder die Angaben aus der Liste verwenden" style="margin-right:auto">↺ Original aus der Liste</button>' : ''}<button class="btn ghost" data-action="em-close">Abbrechen</button><button class="btn primary" data-action="em-save">Speichern</button></div>`;
+  m.hidden = false;
+  const f = m.querySelector('[data-ef="first"]') || m.querySelector('input'); if (f) f.focus();
+}
+function closeEditDialog() { $('#editModal').hidden = true; EM = null; }
+/** Gespeicherte Häkchen/Ausblenden/Zuständigkeit hängen am Personen-Schlüssel → nach einer Namensänderung mitnehmen */
+function moveKeyAfterEdit(oldKey, uid) {
+  recompute();
+  const np = R.people.find(x => x.entryUids.includes(uid)); if (!np || np.key === oldKey) return;
+  for (const store of [S.done, S.hidden, S.overrides]) if (store && store[oldKey] !== undefined && store[np.key] === undefined) { store[np.key] = store[oldKey]; delete store[oldKey]; }
+}
+function saveEditDialog(reset) {
+  if (!EM) return closeEditDialog();
+  const es = EM.uids.map(u => R.byUid.get(u)).filter(Boolean);
+  const vals = {};
+  if (!reset) {
+    for (const [k] of EDIT_FIELDS) vals[k] = String((document.querySelector(`#editModal [data-ef="${k}"]`) || {}).value || '').trim();
+    vals.email = vals.email.toLowerCase();
+    if (!vals.org && !vals.first && !vals.last) { toast('Bitte eine Organisation oder Vor- bzw. Nachname eintragen.'); return; }
+    if (vals.zip) { const z = String(vals.zip).match(/^(?:[A-Z]{1,2}\s*-\s*)?(\d{4,5})$/i); if (z) vals.zip = z[1]; }
+  }
+  S.edits = S.edits || {};
+  const oldKey = EM.key;
+  for (const e of es) {
+    if (reset) { delete S.edits[e.baseId]; continue; }
+    const src = (S.sources.find(x => x.id === e.sourceId) || { entries: [] }).entries.find(x => WB.identity(x) === e.baseId) || {};
+    const same = EDIT_FIELDS.every(([k]) => String(src[k] || '').trim() === vals[k]);
+    if (same) delete S.edits[e.baseId]; else S.edits[e.baseId] = { ...vals };
+  }
+  closeEditDialog();
+  moveKeyAfterEdit(oldKey, es[0].uid);
+  save(); render();
+  toast(reset ? 'Angaben aus der Liste wiederhergestellt' : `${[vals.first, vals.last].filter(Boolean).join(' ') || vals.org} gespeichert`);
 }
 
 // ---------------------------------------------------------------- Untergruppe einer Person zuweisen (Klick auf Name oder Kategorie)
@@ -3442,7 +3498,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3480,6 +3536,7 @@ document.addEventListener('click', (ev) => {
     setGrp(c, gk, name, []); c.groups[gk].manual = true; S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [c.id]: true }; save(); render(); return;
   }
   if (t.dataset.delPerson) { deletePerson(t.dataset.delPerson); return; }
+  if (t.dataset.editPerson) { openEditDialog(t.dataset.editPerson); return; }
   if (t.dataset.hide) {
     const k = t.dataset.hide, y = window.scrollY, p = R.people.find(x => x.key === k);
     S.hidden = S.hidden || {}; if (S.hidden[k]) delete S.hidden[k]; else S.hidden[k] = true;
@@ -3596,6 +3653,9 @@ document.addEventListener('click', (ev) => {
   else if (a === 'cloud-close') $('#cloudModal').hidden = true;
   else if (a === 'modal-save') saveCatDialog();
   else if (a === 'gm-save') saveGroupDialog();
+  else if (a === 'em-save') saveEditDialog(false);
+  else if (a === 'em-reset') { if (confirm('Eigene Anpassungen verwerfen und wieder die Angaben aus der Liste verwenden?')) saveEditDialog(true); }
+  else if (a === 'em-close') closeEditDialog();
   else if (a === 'deleted-restore') { ev.preventDefault(); const n = Object.keys(S.deleted || {}).length; if (n && confirm(`${n} gelöschte Adresse${n === 1 ? '' : 'n'} wiederherstellen?`)) { S.deleted = {}; save(); render(); toast(`${n} wiederhergestellt`); } }
   else if (a === 'gm-close') closeGroupDialog();
   else if (a === 'modal-close') closeCatDialog(true);
@@ -3714,6 +3774,11 @@ document.addEventListener('keydown', (ev) => {
   if (!$('#cloudModal').hidden && ev.key === 'Escape') { $('#cloudModal').hidden = true; return; }
   if (!$('#ngModal').hidden && ev.key === 'Escape') { NG_LATER = true; $('#ngModal').hidden = true; return; }
   if (!$('#labelModal').hidden && ev.key === 'Escape') { $('#labelModal').hidden = true; return; }
+  if (!$('#editModal').hidden) {
+    if (ev.key === 'Escape') { ev.preventDefault(); closeEditDialog(); }
+    if (ev.key === 'Enter' && ev.target && ev.target.tagName === 'INPUT') { ev.preventDefault(); saveEditDialog(false); }
+    return;
+  }
   if (!$('#grpModal').hidden) {
     if (ev.key === 'Escape') { ev.preventDefault(); closeGroupDialog(); }
     if (ev.key === 'Enter' && !(ev.target && ev.target.tagName === 'BUTTON')) { ev.preventDefault(); saveGroupDialog(); }

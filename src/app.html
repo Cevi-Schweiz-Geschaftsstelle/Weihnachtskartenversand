@@ -1474,16 +1474,15 @@ function settingsView() {
 function listsView() {
   const srcRows = S.sources.map(s => `<tr>
     <td><input type="checkbox" data-src-enable="${esc(s.id)}" ${s.enabled !== false ? 'checked' : ''} title="Liste verwenden"></td>
-    <td><div class="name">${esc(s.label)}</div><div class="org">${s.kind === 'db' ? 'Cevi DB · Stand ' + fmtDate(s.importedAt) : esc(s.file)}</div></td>
+    <td><div class="name">${esc(s.label)}</div><div class="org">${s.kind === 'db' ? 'Cevi DB · Stand ' + fmtDate(s.importedAt) : esc(s.file)}</div>${s.enabled === false && s.disabledBy ? `<div class="small" style="color:var(--warn)">ausgeschaltet – ersetzt durch ${esc(s.disabledBy)}</div>` : ''}</td>
     <td style="text-align:right">${s.entries.length}</td>
     <td>${s.perRow ? '<span class="muted small">pro Zeile (Spalte Kategorie/Rollen)</span>' : `<select class="inline" data-src-cat="${esc(s.id)}"><option value="">– keine –</option>${S.order.map(id => `<option value="${id}" ${s.catId === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select>`}</td>
-    <td><span class="badge ${s.confidence === 'sicher' || s.confidence === 'manuell' ? 'ok' : s.confidence === 'wahrscheinlich' ? 'info' : 'warn'}">${esc(s.confidence)}</span><div class="small muted">${esc(s.detectedBy || '')}</div>${s.enabled === false && s.disabledBy ? `<div class="small" style="color:var(--warn)">ausgeschaltet – ersetzt durch ${esc(s.disabledBy)}</div>` : ''}</td>
     <td><button class="btn small ghost danger" data-src-del="${esc(s.id)}" title="Liste entfernen">✕</button></td></tr>`).join('');
   return `<div class="listcol">
       <div class="panel">
         <div class="hd"><h2>Importierte Listen</h2><span class="muted small">${S.sources.length} Listen aus ${new Set(S.sources.map(s => s.file)).size} Quellen</span></div>
         <div class="bd" style="display:flex;gap:8px"><button class="btn small" data-action="import">＋ Excel hinzufügen</button></div>
-        ${S.sources.length ? `<div class="tablewrap"><table><thead><tr><th></th><th>Liste</th><th>Einträge</th><th>Kategorie</th><th>Erkennung</th><th></th></tr></thead><tbody>${srcRows}</tbody></table></div>`
+        ${S.sources.length ? `<div class="tablewrap"><table><thead><tr><th></th><th>Liste</th><th>Einträge</th><th>Kategorie</th><th></th></tr></thead><tbody>${srcRows}</tbody></table></div>`
           : '<div class="bd"><div class="drop" id="bigdrop"><h2>Excel hierher ziehen</h2><div class="muted">oder klicken</div></div></div>'}
         ${IMPORT_NOTES.list.length && Date.now() - IMPORT_NOTES.at < NOTE_MS ? `<div class="bd small muted notes-fade" style="animation-delay:-${Date.now() - IMPORT_NOTES.at}ms">${IMPORT_NOTES.list.map(esc).join('<br>')}</div>` : ''}
       </div>

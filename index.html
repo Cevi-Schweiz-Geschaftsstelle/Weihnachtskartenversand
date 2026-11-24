@@ -61,7 +61,18 @@ main{flex:1;padding:18px 22px 40px}
 .panel>.bd{padding:14px 16px}
 .muted{color:var(--muted)} .small{font-size:12.5px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.catcol{max-width:1180px} .staffcol{max-width:1180px} .listcol{max-width:1180px}
+.catcol{max-width:1180px}
+.stafftbl td.stoggle{cursor:pointer;user-select:none}
+.stafftbl tr.staffrow:hover td{background:#f7f9fb}
+.stafftbl tr.staffrow.open td{background:#f4f7fb;border-bottom-color:transparent}
+.stafftbl tr.staffrow:hover td.stoggle{color:var(--accent)}
+.stafftbl .caret{display:inline-block;width:14px;color:var(--soft)}
+.stafftbl .scode{font-weight:650;letter-spacing:.03em}
+.stafftbl tr.staffdetail td{background:#f4f7fb;padding-top:2px}
+.sdet{padding:0 0 6px 14px}
+.sedit{display:flex;gap:10px;flex-wrap:wrap}
+.sedit label{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--muted)}
+.sedit input.cell{border-color:var(--line);background:#fff;min-width:140px} .staffcol{max-width:1180px} .listcol{max-width:1180px}
 .grid2.resp{grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr)}
 .grid2.resp.wl{grid-template-columns:minmax(0,1.65fr) minmax(300px,1fr)}
 @media (max-width:1100px){.grid2,.grid2.resp.wl{grid-template-columns:1fr}}
@@ -2331,19 +2342,34 @@ function subsBlock(c) {
   return { missing, stat, body };
 }
 
+const STAFF_OPEN = new Set();
 function settingsView() {
   const usage = staffUsage();
   const sugg = staffSuggestions();
   const catsOf = (k) => S.order.map(id => S.cats.find(c => c.id === id)).filter(c => c && catKeys(c).includes(k));
   const subsOfStaff = (k) => S.order.map(id => S.cats.find(c => c.id === id)).filter(Boolean).flatMap(c => Object.keys(c.groups || {}).filter(gk => grpKeys(c, gk).includes(k)).map(gk => ({ c, gk, lead: grpKeys(c, gk)[0] === k })));
-  const staffRows = S.staff.map(st => { const k = staffKey(st); const u = usage.get(k) || { send: 0, co: 0 }; return `<tr>
-      <td><input class="cell" data-staff="${st.id}" data-k="code" value="${esc(st.code)}" placeholder="Kürzel" style="width:70px;text-transform:uppercase"></td>
-      <td><input class="cell" data-staff="${st.id}" data-k="first" value="${esc(st.first ?? splitName(st.name).first)}" placeholder="Vorname" style="width:100%;min-width:80px"></td>
-      <td><input class="cell" data-staff="${st.id}" data-k="last" value="${esc(st.last ?? splitName(st.name).last)}" placeholder="Nachname" style="width:100%;min-width:90px"></td>
-      <td><div class="cands" style="gap:4px;align-items:center">${catsOf(k).map(c => `<span class="chip cat" title="${catKeys(c)[0] === k ? 'versendet' : 'unterschreibt mit'}">${catKeys(c)[0] === k ? '★ ' : ''}${esc(c.name)}<button class="lnk x" data-cat-remove="${c.id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')}${subsOfStaff(k).map(x => `<span class="chip cat sub" title="${x.lead ? 'versendet' : 'unterschreibt mit'}">${x.lead ? '★ ' : ''}${esc(subLabel(x.c, x.gk))}<button class="lnk x" data-sub-remove="${x.c.id}|${x.gk}" data-key="${esc(k)}" title="Aus Untergruppe entfernen">✕</button></span>`).join('')}
-        <button class="btn small ghost" data-cat-dialog="${esc(k)}" title="Kategorien dieser Person anpassen">✎ Kategorien</button></div></td>
+  const staffRows = S.staff.map(st => {
+    const k = staffKey(st); const u = usage.get(k) || { send: 0, co: 0 }; const open = STAFF_OPEN.has(st.id);
+    const first = st.first ?? splitName(st.name).first, last = st.last ?? splitName(st.name).last;
+    const chips = catsOf(k).map(c => `<span class="chip cat" title="${catKeys(c)[0] === k ? 'versendet' : 'unterschreibt mit'}">${catKeys(c)[0] === k ? '★ ' : ''}${esc(c.name)}<button class="lnk x" data-cat-remove="${c.id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')
+      + subsOfStaff(k).map(x => `<span class="chip cat sub" title="${x.lead ? 'versendet' : 'unterschreibt mit'}">${x.lead ? '★ ' : ''}${esc(subLabel(x.c, x.gk))}<button class="lnk x" data-sub-remove="${x.c.id}|${x.gk}" data-key="${esc(k)}" title="Aus Untergruppe entfernen">✕</button></span>`).join('');
+    const tip = open ? 'Details zuklappen' : 'Zuständigkeiten anzeigen und bearbeiten';
+    return `<tr class="staffrow${open ? ' open' : ''}">
+      <td class="stoggle" data-staff-toggle="${st.id}" title="${tip}"><span class="caret">${open ? '▾' : '▸'}</span><b class="scode">${esc(st.code) || '–'}</b></td>
+      <td class="stoggle" data-staff-toggle="${st.id}" title="${tip}">${esc(first)}</td>
+      <td class="stoggle" data-staff-toggle="${st.id}" title="${tip}">${esc(last)}</td>
       <td class="small" style="white-space:nowrap">${u.send ? `<a href="#" data-owner="${esc(k)}">${u.send} Briefe</a>` : '<span class="muted">0 Briefe</span>'}${u.co ? `<br><span class="muted">✍ ${u.co}× mit</span>` : ''}</td>
-      <td><button class="btn small ghost danger" data-staff-del="${st.id}" title="Person entfernen">✕</button></td></tr>`; }).join('');
+      <td><button class="btn small ghost danger" data-staff-del="${st.id}" title="Person entfernen">✕</button></td></tr>
+    ${open ? `<tr class="staffdetail"><td colspan="5"><div class="sdet">
+      <div class="sedit">
+        <label>Kürzel<input class="cell" data-staff="${st.id}" data-k="code" value="${esc(st.code)}" placeholder="Kürzel" style="width:80px;text-transform:uppercase"></label>
+        <label>Vorname<input class="cell" data-staff="${st.id}" data-k="first" value="${esc(first)}" placeholder="Vorname"></label>
+        <label>Nachname<input class="cell" data-staff="${st.id}" data-k="last" value="${esc(last)}" placeholder="Nachname"></label>
+      </div>
+      <div class="small muted" style="margin:10px 0 4px">Zuständig für <span style="color:var(--soft)">(★ = versendet, sonst unterschreibt mit)</span></div>
+      <div class="cands" style="gap:4px;align-items:center">${chips || '<span class="small muted">noch keine Kategorie</span>'}
+        <button class="btn small ghost" data-cat-dialog="${esc(k)}" title="Kategorien dieser Person anpassen">✎ Kategorien</button></div>
+    </div></td></tr>` : ''}`; }).join('');
   return `<div class="staffcol">
     <div>
       <div class="panel">
@@ -2352,7 +2378,7 @@ function settingsView() {
           <div class="free" style="margin-top:0"><input id="newFirst" placeholder="Vorname" style="min-width:0;flex:1"><input id="newLast" placeholder="Nachname" style="min-width:0;flex:1"><input id="newCode" placeholder="Kürzel" title="Wird automatisch erstellt (1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname) – bei Bedarf überschreiben" style="min-width:0;width:80px;text-transform:uppercase"><button class="btn small primary" data-action="staff-add">＋ Erfassen</button></div>
           <div class="small muted" style="margin-top:4px">Das Kürzel entsteht automatisch: 1. Buchstabe Vorname + 1. und 2. Buchstabe Nachname (z.B. Anna Beispiel → ABE).</div>
         </div>
-        ${S.staff.length ? `<div class="tablewrap"><table><thead><tr><th>Kürzel</th><th>Vorname</th><th>Nachname</th><th>Kategorien</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
+        ${S.staff.length ? `<div class="tablewrap"><table class="stafftbl"><thead><tr><th>Kürzel</th><th>Vorname</th><th>Nachname</th><th>Briefe</th><th></th></tr></thead><tbody>${staffRows}</tbody></table></div>` : '<div class="empty">Noch niemand erfasst.</div>'}
         ${sugg.length ? `<div class="bd" style="border-top:1px solid var(--line2)">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b class="small">In den Listen gefunden – noch nicht erfasst (${sugg.length})</b>${sugg.some(x => x.code && x.name && x.name !== x.code) ? `<button class="btn small right" data-action="staff-accept-all" title="Übernimmt alle Vorschläge mit Kürzel und Namen">Alle erkannten Personen übernehmen (${sugg.filter(x => x.code && x.name && x.name !== x.code).length})</button>` : ''}</div>
           <div class="cands">${sugg.map(x => `<span class="sugg-wrap"><button class="sugg-x" data-sugg-hide="${esc(x.label)}" title="Nicht mehr vorschlagen">✕</button><button class="cand sugg" data-staff-sugg="${esc(x.label)}" data-code="${esc(x.code)}" data-name="${esc(x.name)}" title="Übernehmen (danach bearbeitbar)">
@@ -3294,7 +3320,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-manual-del],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-manual-del],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3364,6 +3390,7 @@ document.addEventListener('click', (ev) => {
   }
   if (t.dataset.catDialog) { openCatDialog(t.dataset.catDialog, false); return; }
   if (t.dataset.suggHide) { S.ignoredSugg = [...new Set([...(S.ignoredSugg || []), t.dataset.suggHide])]; save(); render(); return; }
+  if (t.dataset.staffToggle) { const id = t.dataset.staffToggle; STAFF_OPEN.has(id) ? STAFF_OPEN.delete(id) : STAFF_OPEN.add(id); render(); return; }
   if (t.dataset.staffDel) {
     const st = S.staff.find(x => x.id === t.dataset.staffDel); if (!st) return;
     const k = staffKey(st);
@@ -3452,7 +3479,7 @@ document.addEventListener('click', (ev) => {
     if (!first.trim() && !last.trim() && !codeIn.value.trim()) { toast('Bitte Vorname und Nachname eintragen.'); return; }
     const st = addStaff(code || (!first.trim() && !last.trim() ? codeIn.value : ''), '', undefined, first, last);
     if (st) {
-      save(); render();
+      STAFF_OPEN.add(st.id); save(); render();
       openCatDialog(staffKey(st), true);
     }
   }

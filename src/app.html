@@ -427,7 +427,9 @@ function save(fromSync) {
   catch (e) { toast('Konnte nicht lokal speichern: ' + e.message); }
   if (!fromSync && typeof Cloud !== 'undefined' && Cloud.status === 'ok') Cloud.schedulePush();
 }
-function token() { return S.db.rememberToken ? S.db.token : sessionToken; }
+let CLOUD_KEY = ''; // API-Key aus dem geschützten SharePoint-Ordner – nur im Speicher, nie lokal oder im gemeinsamen Stand
+function manualToken() { return S.db.rememberToken ? S.db.token : sessionToken; }
+function token() { return manualToken() || CLOUD_KEY; }
 
 // ---------------------------------------------------------------- Berechnung
 const staffKey = (st) => String((st && (st.code || st.name)) || '').trim();
@@ -1082,6 +1084,47 @@ const Cloud = {
     return new GraphError(res.status, `Microsoft 365: HTTP ${res.status}${d ? ' ' + d : ''}${hint}`);
   },
   path() { return `/sites/${this.siteId}/drive/root:/${encodeURIComponent(this.cfg().folder)}/zustand.json`; },
+  // API-Key der Cevi DB: eigener Ordner, dessen Zugriff in SharePoint auf wenige Personen eingeschränkt wird
+  KEY_FOLDER: 'Weihnachtsbrief-Tool-Schluessel', KEY_FILE: 'cevi-db.json',
+  key: { state: 'unknown' },
+  keyPath(file) { return `/sites/${this.siteId}/drive/root:/${encodeURIComponent(this.KEY_FOLDER)}${file ? '/' + encodeURIComponent(this.KEY_FILE) : ''}`; },
+  async loadKey() {
+    try {
+      const res = await this.gfetch(this.keyPath(true));
+      if (res.status === 404 || res.status === 403) { CLOUD_KEY = ''; this.key = { state: 'none' }; }
+      else if (!res.ok) throw await this.fail(res);
+      else {
+        const item = await res.json(), url = item['@microsoft.graph.downloadUrl'];
+        const r2 = url ? await fetch(url, { cache: 'no-store' }) : await this.gfetch(this.keyPath(true) + ':/content');
+        if (!r2.ok) throw await this.fail(r2);
+        const j = await r2.json();
+        CLOUD_KEY = String(j.token || '').trim();
+        this.key = CLOUD_KEY ? { state: 'ok', by: j.savedBy || '', at: j.savedAt || '' } : { state: 'none' };
+      }
+    } catch (e) { CLOUD_KEY = ''; this.key = { state: 'error', msg: e.message || String(e) }; }
+    if (S.ui.tab === 'db') render();
+  },
+  async keyFolder() {
+    let r = await this.gfetch(this.keyPath(false));
+    if (r.status === 404) {
+      const mk = await this.gfetch(`/sites/${this.siteId}/drive/root/children`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: this.KEY_FOLDER, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }) });
+      if (mk.status === 409) throw new Error('Den Schlüssel-Ordner gibt es schon, aber du hast keinen Zugriff darauf. Bitte die Person fragen, die ihn eingerichtet hat.');
+      if (!mk.ok) throw await this.fail(mk);
+      r = await this.gfetch(this.keyPath(false));
+    }
+    if (!r.ok) throw await this.fail(r);
+    return r.json();
+  },
+  async saveKey(tok) {
+    const res = await this.gfetch(this.keyPath(true) + ':/content', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tok, savedBy: this.user, savedAt: new Date().toISOString() }) });
+    if (!res.ok) throw await this.fail(res);
+    await this.loadKey();
+  },
+  async deleteKey() {
+    const res = await this.gfetch(this.keyPath(true), { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) throw await this.fail(res);
+    CLOUD_KEY = ''; this.key = { state: 'none' };
+  },
   // letzter gemeinsamer Stand auch lokal merken: so gehen Änderungen kurz vor einem Neuladen nicht verloren
   keepBase() { try { localStorage.setItem(STORE_KEY + '-gemeinsam', JSON.stringify({ eTag: this.eTag, base: this.base })); } catch (e) { /* zu gross → nur im Speicher */ } },
   storedBase() { try { return JSON.parse(localStorage.getItem(STORE_KEY + '-gemeinsam') || 'null'); } catch (e) { return null; } },
@@ -1142,11 +1185,12 @@ const Cloud = {
       S.m365.enabled = true; S.m365.linked = true; S.m365.declined = false; save(true);
       this.lastSync = Date.now(); this.setStatus('ok'); render();
       this.startPolling();
+      this.loadKey();
     } catch (e) { console.error(e); this.setStatus('error', e.message || String(e)); if (interactive) toast(e.message || String(e)); }
   },
   disconnect(silent) {
     clearInterval(this.pollT); clearTimeout(this.pushT);
-    S.m365.enabled = false; S.m365.linked = false; this.base = null; this.eTag = ''; save(true);
+    S.m365.enabled = false; S.m365.linked = false; this.base = null; this.eTag = ''; CLOUD_KEY = ''; this.key = { state: 'unknown' }; KEYUI.folderUrl = ''; KEYUI.ok = false; save(true);
     try { localStorage.removeItem(STORE_KEY + '-gemeinsam'); } catch (e) { /* egal */ }
     this.setStatus('off'); if (!silent) toast('Getrennt – das Tool arbeitet wieder nur auf diesem Computer.');
   },
@@ -1416,9 +1460,49 @@ function catsView() {
   </div>`;
 }
 
+const KEYUI = { folderUrl: '', ok: false, busy: false };
+function keyPanel() {
+  const st = Cloud.status === 'ok' ? Cloud.key.state : 'off';
+  const when = (t) => { try { return new Date(t).toLocaleDateString('de-CH'); } catch (e) { return ''; } };
+  let body;
+  if (st === 'off') body = `<div class="small muted">Wer berechtigt ist, bekommt den Key nach der Anmeldung bei Microsoft (oben „☁“) automatisch – ohne ihn einzutippen.</div>`;
+  else if (st === 'unknown') body = '<div class="small muted">Prüfe, ob für dich ein Key hinterlegt ist …</div>';
+  else if (st === 'ok') body = `<div class="callout" style="background:var(--ok-soft);border-color:transparent;margin:0"><b>✓ Der API-Key wurde automatisch aus SharePoint geladen.</b>${Cloud.key.by ? ` Hinterlegt von ${esc(Cloud.key.by)}${Cloud.key.at ? ' am ' + esc(when(Cloud.key.at)) : ''}.` : ''} Du kannst direkt aktualisieren.</div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn small" data-action="key-replace" title="Den oben eingetragenen neuen Key im Schlüssel-Ordner speichern">Key ersetzen</button><button class="btn small ghost danger" data-action="key-delete">Key aus SharePoint löschen</button></div>`;
+  else if (st === 'error') body = `<div class="callout warn" style="margin:0">Key konnte nicht geladen werden: ${esc(Cloud.key.msg || '')}</div>`;
+  else body = `<div class="small muted" style="margin-bottom:10px">Für dich ist kein Key hinterlegt, oder du hast keinen Zugriff auf den Schlüssel-Ordner. Einrichten (einmalig, durch eine berechtigte Person):</div>
+      <ol class="small" style="margin:0 0 0 18px;padding:0;display:grid;gap:8px">
+        <li>Oben den API-Key eintragen.</li>
+        <li><button class="btn small" data-action="key-folder" ${KEYUI.busy ? 'disabled' : ''}>Schlüssel-Ordner in SharePoint anlegen</button>${KEYUI.folderUrl ? ` ✓ <a href="${esc(KEYUI.folderUrl)}" target="_blank" rel="noopener">Ordner in SharePoint öffnen</a>` : ''}</li>
+        <li><b>Zugriff einschränken</b> (in SharePoint): Ordner „${esc(Cloud.KEY_FOLDER)}“ → „⋯“ → „Zugriff verwalten“ → „Erweitert“ → „Berechtigungsvererbung beenden“ → die Gruppen „Mitglieder“ und „Besucher“ entfernen → nur die Personen hinzufügen, die aktualisieren sollen. Besitzer*innen der Website behalten immer Zugriff.</li>
+        <li><label><input type="checkbox" id="keyConfirm" ${KEYUI.ok ? 'checked' : ''}> Der Zugriff auf den Ordner ist eingeschränkt.</label></li>
+        <li><button class="btn small primary" data-action="key-save" ${KEYUI.ok && KEYUI.folderUrl && manualToken() && !KEYUI.busy ? '' : 'disabled'}>🔒 Key im Schlüssel-Ordner speichern</button></li>
+      </ol>`;
+  return `<div class="panel" style="margin-top:16px">
+        <div class="hd"><h2>🔒 Key automatisch für Berechtigte</h2></div>
+        <div class="bd">${body}</div>
+      </div>`;
+}
+async function keyAction(a) {
+  if (Cloud.status !== 'ok') return toast('Bitte zuerst oben mit „☁“ bei Microsoft anmelden.');
+  try {
+    KEYUI.busy = true; render();
+    if (a === 'key-folder') { const f = await Cloud.keyFolder(); KEYUI.folderUrl = f.webUrl || ''; toast('Schlüssel-Ordner bereit – jetzt in SharePoint den Zugriff einschränken.'); }
+    else if (a === 'key-save' || a === 'key-replace') {
+      const tok = manualToken(); if (!tok) { toast('Bitte zuerst oben den API-Key eintragen.'); return; }
+      if (a === 'key-replace' && !confirm('Den Key in SharePoint durch den oben eingetragenen ersetzen?')) return;
+      await Cloud.saveKey(tok); toast('Key gespeichert – berechtigte Personen bekommen ihn ab jetzt automatisch.');
+    }
+    else if (a === 'key-delete') {
+      if (!confirm('Key aus SharePoint löschen? Danach muss jede Person den Key wieder selbst eintragen.')) return;
+      await Cloud.deleteKey(); toast('Key aus SharePoint gelöscht.');
+    }
+  } catch (e) { toast(e.message || String(e)); }
+  finally { KEYUI.busy = false; render(); }
+}
 function dbView() {
   const d = S.db;
-  const tok = token();
+  const tok = manualToken();
   return `${ownerDatalist()}<div class="dbcol">
     <div>
       <div class="panel">
@@ -1426,7 +1510,7 @@ function dbView() {
         <div class="bd">
           <div class="form">
             <label>Adresse</label>${PROXY ? `<div><b>${esc(PROXY.target)}</b> <span class="badge ok">über start-tool.py</span><div class="small muted">Anfragen werden lokal weitergeleitet – kein CORS-Eintrag nötig.</div></div>` : `<input type="url" id="dbBase" value="${esc(d.baseUrl)}" placeholder="https://db.cevi.ch">`}
-            <label>API-Key (Service-Token)</label><input type="password" id="dbToken" value="${esc(tok)}" placeholder="wird in der Cevi DB unter „API-Keys“ erstellt" autocomplete="off">
+            <label>API-Key (Service-Token)</label><input type="password" id="dbToken" value="${esc(tok)}" placeholder="${CLOUD_KEY ? 'automatisch aus SharePoint geladen ✓' : 'wird in der Cevi DB unter „API-Keys“ erstellt'}" autocomplete="off">
             <span></span><label class="small"><input type="checkbox" id="dbRemember" ${d.rememberToken ? 'checked' : ''}> Token auf diesem Computer speichern (sonst nur bis zum Schliessen)</label>
           </div>
           <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
@@ -1436,6 +1520,7 @@ function dbView() {
           </div>
         </div>
       </div>
+      ${keyPanel()}
       <div class="panel" style="margin-top:16px">
         <div class="hd"><h2>Gruppen automatisch übernehmen</h2></div>
         <div class="bd">
@@ -2122,6 +2207,7 @@ document.addEventListener('click', (ev) => {
   }
   else if (a === 'export-assign') exportAssign();
   else if (a === 'cloud-open') cloudDialog();
+  else if (a === 'key-folder' || a === 'key-save' || a === 'key-replace' || a === 'key-delete') keyAction(a);
   else if (a === 'cloud-connect') { readCloudFields(); Cloud.app = null; Cloud.connect(true); }
   else if (a === 'cloud-sync') { Cloud.poll(); Cloud.schedulePush(); }
   else if (a === 'cloud-off') { if (confirm('Vom gemeinsamen Stand trennen? Der aktuelle Stand bleibt auf diesem Computer, wird aber nicht mehr abgeglichen.')) { S.m365.declined = true; Cloud.disconnect(); cloudDialog(); } }
@@ -2225,7 +2311,8 @@ document.addEventListener('change', (ev) => {
   if (t.dataset.mapCat !== undefined && DBMAP) { const u = DBMAP.units[+t.dataset.mapCat]; u.catId = t.value; u.include = !!t.value; render(); return; }
   if (t.dataset.mapInc !== undefined && DBMAP) { const u = DBMAP.units[+t.dataset.mapInc]; u.include = t.checked; render(); return; }
   if (t.id === 'dbBase') { S.db.baseUrl = t.value.trim(); save(); return; }
-  if (t.id === 'dbToken') { if (S.db.rememberToken) S.db.token = t.value.trim(); sessionToken = t.value.trim(); save(); return; }
+  if (t.id === 'dbToken') { if (S.db.rememberToken) S.db.token = t.value.trim(); sessionToken = t.value.trim(); save(); if (Cloud.key.state === 'none') render(); return; }
+  if (t.id === 'keyConfirm') { KEYUI.ok = t.checked; render(); return; }
   if (t.id === 'dbRemember') { S.db.rememberToken = t.checked; S.db.token = t.checked ? sessionToken : ''; save(); return; }
   if (t.id === 'fcat' || t.id === 'fowner' || t.id === 'fonly') { S.ui.filter[{ fcat: 'cat', fowner: 'owner', fonly: 'only' }[t.id]] = t.value; save(); render(); return; }
 });

@@ -58,7 +58,12 @@ Mit dem Knopf **„☁ Gemeinsam arbeiten"** liegt der Stand des Tools in einer 
 - Jede Person meldet sich mit ihrem **eigenen Cevi-Microsoft-Konto** an.
 - Alle Mitglieder der Website sehen denselben Stand. Änderungen erscheinen bei den anderen nach etwa 20 Sekunden.
 - **Gleichzeitige Änderungen** werden zusammengeführt. Haben zwei Personen denselben Wert verschieden geändert, gilt die zuletzt gespeicherte Änderung.
-- Der **API-Key der Cevi DB** wird nicht geteilt. Die Person, die die Daten aus der DB lädt, speichert sie für alle. Alle anderen brauchen keinen Key.
+- Der **API-Key der Cevi DB** ist nicht im gemeinsamen Stand. Wer aus der DB aktualisiert, speichert die Daten für alle. Alle anderen brauchen keinen Key.
+- **Key automatisch für Berechtigte** (Reiter Cevi DB): Der Key kann in einem eigenen Ordner `Weihnachtsbrief-Tool-Schluessel` liegen, dessen Zugriff in SharePoint auf wenige Personen eingeschränkt ist. Wer Zugriff hat, bekommt den Key nach der Microsoft-Anmeldung automatisch, nur im Speicher des Browsers. Einrichten:
+  1. Key oben eintragen.
+  2. „Schlüssel-Ordner in SharePoint anlegen“.
+  3. In SharePoint die Vererbung der Berechtigungen beenden, Mitglieder und Besucher entfernen, nur die Berechtigten hinzufügen.
+  4. Bestätigen und „Key im Schlüssel-Ordner speichern“.
 - Gespeichert wird die Datei `Weihnachtsbrief-Tool/zustand.json` in der Standard-Dokumentbibliothek der Website.
 
 **Einrichtung durch die IT:**
@@ -119,7 +124,7 @@ Einrichten:
 
 Ohne Eintrag bei „Hosts mit API-Zugriff" (z.B. Datei per Doppelklick geöffnet) gibt es eine Alternative: `python3 start-tool.py` startet das Tool unter `http://localhost:8765` und leitet die Abfragen lokal weiter.
 
-Der API-Key gibt Lesezugriff auf Personendaten. Er gehört nie ins Repository oder in einen Chat. Das Tool speichert ihn ab Werk nicht. Nach dem Versand den Key in der Cevi DB löschen.
+Der API-Key gibt Lesezugriff auf Personendaten. Er gehört nie ins Repository, in einen Chat oder in eine Mail. Das Tool speichert ihn ab Werk nicht lokal. Geteilt wird er nur über den eingeschränkten Schlüssel-Ordner (siehe „Gemeinsam arbeiten“). Nach dem Versand den Key in der Cevi DB löschen.
 
 ## Datenschutz
 

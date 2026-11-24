@@ -1745,7 +1745,8 @@ function printLabels() {
 // Der gemeinsame Stand liegt als Datei in der SharePoint-Website von Cevi. Jede Person meldet sich mit dem
 // eigenen Microsoft-Konto an; das Tool liest/schreibt die Datei über Microsoft Graph (mit eTag) und gleicht
 // regelmässig ab. Ändern zwei Personen gleichzeitig, werden beide Änderungen zusammengeführt.
-const M365_DEFAULTS = { tenantId: '', clientId: '', siteUrl: '' }; // nach Rückmeldung der IT hier fest eintragen
+// Angaben der IT (öffentliche Kennungen, keine Geheimnisse) – fest hinterlegt, damit niemand etwas eintragen muss
+const M365_DEFAULTS = { tenantId: '29537223-9280-4035-b685-49ec81dd6aea', clientId: 'fad64339-d256-4c02-9ab5-38894757993a', siteUrl: 'https://cevischweiz.sharepoint.com/sites/VSGS' };
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
 const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'importDone', 'notes', 'ignoredSugg', 'version'];
@@ -1770,7 +1771,7 @@ class GraphError extends Error { constructor(status, msg) { super(msg); this.sta
 
 const Cloud = {
   status: 'off', msg: '', user: '', siteId: '', eTag: '', base: null, lastSync: null, busy: false, again: false, pushT: null, pollT: null, app: null, account: null,
-  cfg() { const c = { ...M365_DEFAULTS }; for (const k of ['tenantId', 'clientId', 'siteUrl']) if (S.m365[k]) c[k] = S.m365[k]; c.folder = S.m365.folder || 'Weihnachtsbrief-Tool'; return c; },
+  cfg() { const c = { ...M365_DEFAULTS }; if (!this.fixed()) for (const k of ['tenantId', 'clientId', 'siteUrl']) if (S.m365[k]) c[k] = S.m365[k]; c.folder = S.m365.folder || 'Weihnachtsbrief-Tool'; return c; },
   configured() { const c = this.cfg(); return !!(c.tenantId && c.clientId && c.siteUrl); },
   setStatus(st, msg) { this.status = st; this.msg = msg || ''; this.badge(); if (!$('#cloudModal').hidden) cloudDialog(); },
   badge() {
@@ -1931,7 +1932,7 @@ function cloudDialog() {
     <div class="bd">
       <p class="small" style="margin-top:0">Mit Microsoft angemeldet, liegt der Stand des Tools in der SharePoint-Website von Cevi: Listen, Zuständige, Zuteilungen, Erledigt-Häkchen. Alle Mitglieder der Website sehen und bearbeiten denselben Stand; Änderungen erscheinen bei den anderen nach etwa 20 Sekunden. Der API-Key der Cevi DB bleibt auf diesem Computer.</p>
       <div class="callout ${Cloud.status === 'error' ? 'warn' : ''}" style="margin:10px 0"><b>Status:</b> ${esc(st)}${Cloud.user && Cloud.status === 'ok' ? ` · angemeldet als ${esc(Cloud.user)}` : ''}${Cloud.lastSync && Cloud.status === 'ok' ? ` · abgeglichen ${new Date(Cloud.lastSync).toLocaleTimeString('de-CH')}` : ''}${Cloud.msg && Cloud.status !== 'ok' ? `<div class="small" style="margin-top:4px">${esc(Cloud.msg)}</div>` : ''}</div>
-      <details ${fixed || Cloud.configured() ? '' : 'open'}><summary class="small" style="cursor:pointer"><b>Angaben der IT</b> ${Cloud.configured() ? '<span class="muted">(eingetragen)</span>' : '<span style="color:var(--warn)">(fehlen noch)</span>'}</summary>
+      <details ${fixed || Cloud.configured() ? '' : 'open'}><summary class="small" style="cursor:pointer"><b>Angaben der IT</b> ${fixed ? '<span class="muted">(fest im Tool hinterlegt – nichts einzutragen)</span>' : Cloud.configured() ? '<span class="muted">(eingetragen)</span>' : '<span style="color:var(--warn)">(fehlen noch)</span>'}</summary>
         <div class="form" style="margin-top:10px;grid-template-columns:150px 1fr">
           <label for="m365Tenant">Verzeichnis-ID</label><input type="text" id="m365Tenant" value="${esc(c.tenantId)}" placeholder="Tenant-ID (GUID)" ${fixed ? 'disabled' : ''}>
           <label for="m365Client">Anwendungs-ID</label><input type="text" id="m365Client" value="${esc(c.clientId)}" placeholder="Client-ID (GUID)" ${fixed ? 'disabled' : ''}>

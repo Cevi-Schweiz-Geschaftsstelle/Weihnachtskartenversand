@@ -68,7 +68,7 @@ Mit dem Knopf **„☁ Gemeinsam arbeiten"** liegt der Stand des Tools in einer 
   - Umleitungs-URI `https://fabulousteaching.github.io/Weihnachtskartenversand/auth.html`,
   - delegierte Graph-Berechtigungen `User.Read` und `Sites.ReadWrite.All`,
   - Administratorzustimmung.
-- Zurückmelden: Tenant-ID, Client-ID und die Adresse der Website. Diese Werte trägt man einmal im Fenster „Gemeinsam arbeiten" ein. Später werden sie in `src/app.html` (`M365_DEFAULTS`) fest hinterlegt.
+- Zurückmelden: Tenant-ID, Client-ID und die Adresse der Website. Sie sind in `src/app.html` (`M365_DEFAULTS`) fest hinterlegt. Niemand muss etwas eintragen: Beim ersten Öffnen meldet man sich einmal mit dem Cevi-Konto an, danach läuft der Abgleich automatisch.
 
 Ohne diese Einrichtung arbeitet das Tool wie bisher nur auf dem eigenen Computer.
 

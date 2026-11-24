@@ -278,12 +278,8 @@ body.print-labels #labelsPrint{display:block}
       <div class="spacer"></div>
       <button class="btn" id="btnCloud" title="Stand mit allen abgleichen (Microsoft 365)">↻ Aktualisieren</button>
       <div class="menuwrap noprint">
-        <button class="btn" id="btnMenu" aria-haspopup="true" aria-expanded="false" title="Importieren, Exportieren und Zurücksetzen">☰ Menü</button>
+        <button class="btn" id="btnMenu" aria-haspopup="true" aria-expanded="false" title="Zurücksetzen">☰ Menü</button>
         <div class="menu" id="dataMenu" role="menu" hidden>
-          <div class="mh">Daten</div>
-          <button class="mi" id="btnImport" title="Excel- oder CSV-Dateien einlesen">⤓ Aus Excel importieren</button>
-          <button class="mi" id="btnExport" title="Ergebnis als Excel herunterladen">⇩ Excel exportieren</button>
-          <div class="msep"></div>
           <div class="mh">Zurücksetzen</div>
           <button class="mi" data-action="reset-done">↺ Alle Erledigt-Häkchen zurücksetzen</button>
           <button class="mi" data-action="reset-manual">↺ Zuteilungen & Duplikat-Entscheide zurücksetzen</button>
@@ -719,6 +715,7 @@ function allView() {
       <select id="fowner"><option value="">Alle Zuständigen</option><option value="__none" ${f.owner === '__none' ? 'selected' : ''}>⚠ ohne Zuständigkeit</option>${allOwners().map(o => `<option value="${esc(o)}" ${f.owner === o ? 'selected' : ''}>${esc(o)}${R.aliases.codeNames[o] && R.aliases.codeNames[o] !== o ? ' · ' + esc(R.aliases.codeNames[o]) : ''}</option>`).join('')}</select>
       <select id="fonly"><option value="">Alle</option><option value="dup" ${f.only === 'dup' ? 'selected' : ''}>Nur mehrfach gelistete</option><option value="open" ${f.only === 'open' ? 'selected' : ''}>Nur nicht erledigte</option><option value="notes" ${f.only === 'notes' ? 'selected' : ''}>Nur mit Hinweisen ⚠</option></select>
       <span class="muted small right">${list.length} von ${R.people.length}</span>
+      <button class="btn small" data-action="export-all" title="Masterliste, ein Blatt pro zuständiger Person und die Duplikate als Excel herunterladen">⇩ Excel exportieren</button>
     </div>
     <div class="tablewrap"><table>
       <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th><th>Hauptzuständig (versendet)</th><th>Unterschreiben auch</th></tr></thead>
@@ -2303,6 +2300,7 @@ document.addEventListener('click', (ev) => {
   else if (a === 'labels-close') $('#labelModal').hidden = true;
   else if (a === 'labels-print') { $('#labelModal').hidden = true; printLabels(); }
   else if (a === 'export-owner') exportExcel(S.ui.owner || '');
+  else if (a === 'export-all') exportExcel();
   else if (a === 'import') $('#fileInput').click();
   else if (a === 'reset-done') { if (confirm('Alle Erledigt-Häkchen entfernen?')) { S.done = {}; for (const p of R.people) if (p.doneFromFile) S.done[p.key] = false; save(); render(); } }
   else if (a === 'reset-manual') { if (confirm('Manuelle Zuteilungen und Duplikat-Entscheide zurücksetzen?')) { S.overrides = {}; S.decisions = {}; save(); render(); } }
@@ -2472,8 +2470,6 @@ $('#labelModal').addEventListener('click', (e) => { if (e.target.id === 'labelMo
 $('#cloudModal').addEventListener('click', (e) => { if (e.target.id === 'cloudModal') $('#cloudModal').hidden = true; });
 $('#ngModal').addEventListener('click', (e) => { if (e.target.id === 'ngModal') { NG_LATER = true; $('#ngModal').hidden = true; } });
 $('#catModal').addEventListener('click', (e) => { if (e.target.id === 'catModal') closeCatDialog(true); });
-$('#btnImport').addEventListener('click', () => $('#fileInput').click());
-$('#btnExport').addEventListener('click', () => exportExcel());
 $('#fileInput').addEventListener('change', (e) => { const f = [...e.target.files]; e.target.value = ''; if (f.length) importFiles(f); });
 let dragN = 0;
 window.addEventListener('dragenter', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { dragN++; $('#dropmask').classList.add('show'); } });

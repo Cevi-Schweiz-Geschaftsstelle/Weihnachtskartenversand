@@ -201,6 +201,8 @@ textarea{min-height:90px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,
 .log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#0f1720;color:#d8e1ea;border-radius:8px;padding:10px 12px;max-height:220px;overflow:auto;white-space:pre-wrap}
 .toast{position:fixed;right:18px;bottom:18px;background:#1d232b;color:#fff;padding:11px 15px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.2);z-index:60;max-width:440px;font-size:13.5px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
 .toast.show{opacity:1;transform:none}
+.notes-fade{animation:notesFade 10s linear forwards}
+@keyframes notesFade{0%,80%{opacity:1}100%{opacity:0}}
 .kbd{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#eef0f3;border-radius:4px;padding:0 5px}
 .right{margin-left:auto}
 .cands{display:flex;flex-wrap:wrap;gap:6px}
@@ -1172,6 +1174,7 @@ function load() {
     }
     s.staff = s.staff || [];
     s.sources = (s.sources || []).filter(x => !x.demo); // frühere „Demo ohne Verbindung"-Daten
+    s.notes = []; // Import-Hinweise werden nur noch kurz angezeigt
     s.m365 = Object.assign({ tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false }, s.m365 || {});
     if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';
     if (s.db.groupExclude === undefined) s.db.groupExclude = 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025';
@@ -2181,7 +2184,7 @@ function settingsView() {
         <div class="bd" style="display:flex;gap:8px"><button class="btn small" data-action="import">＋ Excel hinzufügen</button></div>
         ${S.sources.length ? `<div class="tablewrap"><table><thead><tr><th></th><th>Liste</th><th>Einträge</th><th>Kategorie</th><th>Erkennung</th><th></th></tr></thead><tbody>${srcRows}</tbody></table></div>`
           : '<div class="bd"><div class="drop" id="bigdrop"><h2>Excel hierher ziehen</h2><div class="muted">oder klicken</div></div></div>'}
-        ${(S.notes || []).length ? `<div class="bd small muted">${S.notes.map(esc).join('<br>')}</div>` : ''}
+        ${IMPORT_NOTES.list.length && Date.now() - IMPORT_NOTES.at < NOTE_MS ? `<div class="bd small muted notes-fade" style="animation-delay:-${Date.now() - IMPORT_NOTES.at}ms">${IMPORT_NOTES.list.map(esc).join('<br>')}</div>` : ''}
       </details>
     </div>
   </div>`;
@@ -2367,6 +2370,7 @@ function finishChange(label, before, lists) {
 // Eine neue Version ersetzt die alte: gleicher Dateiname ODER gleiche Blattnamen (z.B. 2025 → 2026).
 const GENERIC_SHEET = /^\s*((tabelle|sheet|blatt|feuil|foglio)\s*\d*|export|personen|people|daten|data|liste)\s*$/i;
 async function importFiles(files) {
+  const notesNow = [];
   const before = S.sources.length ? snapshotPeople() : null;
   const prev = { sources: S.sources.slice(), cats: S.cats.map(c => ({ ...c })), order: S.order.slice(), lastChange: S.lastChange || null };
   const lists = { replaced: 0, removed: [] };
@@ -2401,7 +2405,7 @@ async function importFiles(files) {
       S.sources = S.sources.filter(o => !remove.has(o.id));
       const now = new Date().toISOString();
       for (const src of res.sources) S.sources.push({ ...src, importedAt: now, enabled: true });
-      S.notes = res.notes;
+      notesNow.push(...res.notes);
       const n = res.sources.reduce((a, x) => a + x.entries.length, 0);
       msgs.push(`${f.name}: ${res.sources.length} Listen, ${n} Einträge${res.overview ? ', Überblick übernommen' : ''}${replacedHere ? `, ${replacedHere} alte Listen ersetzt` : ''}${remove.size > replacedHere ? `, ${remove.size - replacedHere} entfernt` : ''}`);
     } catch (e) {
@@ -2411,8 +2415,14 @@ async function importFiles(files) {
   }
   if (before && before.length) { finishChange(files.map(f => f.name).join(', '), before, lists); UNDO = prev; }
   else { S.lastChange = null; UNDO = null; if (S.staff.length < 3) S.ui.tab = 'settings'; }
+  S.notes = [];
+  IMPORT_NOTES = { list: notesNow, at: Date.now() };
+  setTimeout(() => { if (Date.now() - IMPORT_NOTES.at >= NOTE_MS - 50) { IMPORT_NOTES.list = []; document.querySelectorAll('.notes-fade').forEach(el => el.remove()); } }, NOTE_MS);
   save(); render(); toast(msgs.join('\n') + (S.lastChange ? '\n' + changeSummary() : ''));
 }
+// Hinweise zum Import (z.B. „Blatt … nicht verwendet") nur kurz zeigen, dann ausblenden
+const NOTE_MS = 10000;
+let IMPORT_NOTES = { list: [], at: 0 };
 
 // ---------------------------------------------------------------- Cevi DB
 let dbLog = [];

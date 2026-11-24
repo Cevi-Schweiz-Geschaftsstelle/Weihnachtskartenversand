@@ -2458,7 +2458,7 @@ function setDbStatus(t) { const el = $('#subline'); if (!el) return; if (t) { el
 function rowFor(p) {
   return {
     'Versendet von': p.owner, 'Name Zuständige*r': R.aliases.codeNames[p.owner] || '', 'Organisation': p.org, 'Vorname': p.first, 'Nachname': p.last,
-    'Adresszusatz': p.careOf, 'Strasse': p.street, 'Nr.': p.nr, 'PLZ': p.zip, 'Ort': p.town, 'E-Mail': p.email,
+    'Adresszusatz': p.careOf, 'Strasse': p.street, 'Nr.': p.nr, 'PLZ': p.zip, 'Ort': p.town, 'Land': p.country || '', 'E-Mail': p.email,
     'Kategorie': p.primaryCat, 'Gruppe': p.primaryGroup, 'Alle Listen': p.memberships.map(m => m.cat + (m.group && m.group !== m.cat ? ' › ' + m.group : '') + ' (' + (m.owner || 'offen') + ')').join('; '),
     'Zus. Unterschriften': p.coSigners.map(c => c.owner).join(', '), 'Mehrfach gelistet': p.isDuplicate ? 'ja' : '', 'Hinweise': p.notes.join('; '), 'Erledigt': p.done ? 'ja' : '',
   };

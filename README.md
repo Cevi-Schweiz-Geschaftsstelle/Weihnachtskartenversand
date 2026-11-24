@@ -39,6 +39,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - Ohne Kopfzeile: Spalten werden am Inhalt erkannt (PLZ, Strasse mit Nummer, Vornamen). Etiketten-Listen mit der ganzen Adresse mehrzeilig in einer Zelle gehen auch. Das Tool meldet kurz, wenn es so vorgegangen ist.
      - Ja/Nein-Spalten, Telefon-, Kunden- und Belegnummern werden nicht mit Hausnummern verwechselt.
      - Steht in der E-Mail-Spalte Text ohne @ (z.B. „Haus des Sports“), gilt er als Adresszusatz und kommt auf die Etikette.
+     - Ausland: „D-58313“ oder „D-Herdecke“ (auch A-, F-, I-, FL-) und „Bruxelles, BELGIUM“ werden erkannt. Auf der Etikette steht dann „58313 Herdecke“ und darunter das Land in Grossbuchstaben (z.B. DEUTSCHLAND), wie es die Post verlangt. Im Excel-Export gibt es dafür die Spalte „Land“.
      - Dateiformate: .xlsx, .xls, .xlsm, .ods, .csv/.tsv/.txt (Komma, Semikolon oder Tab; Umlaute aus UTF-8 und aus Excel-CSV unter Windows).
    - Blätter ohne Adressen (z.B. eine reine Zahlungsliste oder „Hinweise“) werden mit einem kurzen Hinweis übergangen.
    - Das Blatt „Überblick" liefert die Hauptzuständigkeiten. Die Sammelliste („Masterliste") wird ignoriert, damit nichts doppelt gezählt wird.

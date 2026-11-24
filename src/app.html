@@ -1445,7 +1445,7 @@ function catsView() {
 }
 
 const KEYUI = { folderUrl: '', ok: false, busy: false, open: false };
-const DBUI = { open: false };
+const DBUI = { open: false, log: false };
 function keyPanel() {
   const st = Cloud.status === 'ok' ? Cloud.key.state : 'off';
   const when = (t) => { try { return new Date(t).toLocaleDateString('de-CH'); } catch (e) { return ''; } };
@@ -1519,20 +1519,18 @@ function dbView() {
       <div class="panel" style="margin-top:16px">
         <div class="hd"><h2>Welche Gruppen sollen geladen werden?</h2><button class="btn small right" data-action="db-add">＋ Gruppe</button></div>
         <div class="tablewrap"><table>
-          <thead><tr><th>Bezeichnung</th><th>Gruppen-ID(s) oder Link</th><th>Kategorie</th><th>Zuständig</th><th title="Alle Untergruppen mitladen">inkl. Unter&shy;gruppen</th><th title="Excel-Listen derselben Kategorie ausschalten, sobald die DB-Daten geladen sind">ersetzt Excel</th><th></th></tr></thead>
-          <tbody>${!d.sources.length ? '<tr><td colspan="7" class="muted small" style="padding:14px 10px">Noch keine Gruppen – am einfachsten oben über „Gruppen automatisch übernehmen". Von Hand: „＋ Gruppe".</td></tr>' : ''}${d.sources.map(s => `<tr>
+          <thead><tr><th>Bezeichnung</th><th>Gruppen-ID(s) oder Link</th><th>Kategorie</th><th>Zuständig</th><th title="Alle Untergruppen mitladen">inkl. Unter&shy;gruppen</th><th></th></tr></thead>
+          <tbody>${!d.sources.length ? '<tr><td colspan="6" class="muted small" style="padding:14px 10px">Noch keine Gruppen – am einfachsten oben über „Gruppen automatisch übernehmen". Von Hand: „＋ Gruppe".</td></tr>' : ''}${d.sources.map(s => `<tr>
             <td><input type="text" data-dbs="${s.id}" data-k="label" value="${esc(s.label)}" style="width:100%;min-width:150px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
             <td><input type="text" data-dbs="${s.id}" data-k="groupIds" value="${esc(s.groupIds)}" placeholder="z.B. 1234 oder https://db.cevi.ch/groups/1234" style="width:100%;min-width:170px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
             <td><select class="inline" data-dbs="${s.id}" data-k="catId"><option value="">automatisch</option>${S.order.map(id => `<option value="${id}" ${s.catId === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select></td>
             <td><input type="text" list="ownerList" data-dbs="${s.id}" data-k="owner" value="${esc(s.owner)}" placeholder="Kürzel" style="width:80px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
             <td style="text-align:center"><input type="checkbox" data-dbs="${s.id}" data-k="subgroups" ${s.subgroups ? 'checked' : ''}></td>
-            <td style="text-align:center"><input type="checkbox" data-dbs="${s.id}" data-k="replaceExcel" ${s.replaceExcel ? 'checked' : ''} ${s.catId ? '' : 'disabled title="Zuerst eine Kategorie wählen"'} ></td>
             <td><button class="btn small ghost danger" data-dbs-del="${s.id}">✕</button></td></tr>`).join('')}</tbody>
         </table></div>
-        <div class="bd small muted">Die Gruppen-ID steht in der Adresszeile, z.B. <span class="kbd">db.cevi.ch/groups/<b>1234</b>/people</span>. Excel-Listen und DB-Daten werden zusammen ausgewertet. Beim Aktualisieren werden die DB-Daten komplett neu geladen – wer nicht mehr in der Gruppe ist, fällt raus. Mit „ersetzt Excel" wird die alte Excel-Liste derselben Kategorie ausgeschaltet.</div>
       </div>
-      <div class="panel" style="margin-top:16px"><div class="hd"><h3>Protokoll</h3></div><div class="bd"><div class="log" id="dblog">${esc(dbLog.join('\n')) || 'Noch keine Abfrage.'}</div></div></div>
       ${keyPanel()}
+      <details class="panel" data-dblog style="margin-top:16px" ${DBUI.log ? 'open' : ''}><summary class="hd" style="cursor:pointer"><h3>Protokoll</h3><span class="muted small">nur für die Fehlersuche</span></summary><div class="bd"><div class="log" id="dblog">${esc(dbLog.join('\n')) || 'Noch keine Abfrage.'}</div></div></details>
     </div>
   </div>`;
 }
@@ -1895,8 +1893,8 @@ function applyMapping() {
   const fresh = [];
   for (const u of DBMAP.units) {
     if (u.header || !u.include || !u.catId) continue;
-    if (u.mode === 'orgs') { fresh.push({ id: 'auto-orgs', label: u.name, groupIds: u.orgIds.join(','), catId: u.catId, owner: '', subgroups: false, mode: 'orgs', replaceExcel: false, auto: true }); continue; }
-    fresh.push({ id: 'auto-' + u.id, label: u.subName && u.subName !== u.name ? u.name : u.name, groupIds: u.id, catId: u.catId, owner: '', subgroups: u.container, replaceExcel: false, auto: true });
+    if (u.mode === 'orgs') { fresh.push({ id: 'auto-orgs', label: u.name, groupIds: u.orgIds.join(','), catId: u.catId, owner: '', subgroups: false, mode: 'orgs', auto: true }); continue; }
+    fresh.push({ id: 'auto-' + u.id, label: u.subName && u.subName !== u.name ? u.name : u.name, groupIds: u.id, catId: u.catId, owner: '', subgroups: u.container, auto: true });
     const c = S.cats.find(x => x.id === u.catId); if (!c) continue;
     const addSub = (name, dbId) => {
       const gk = WB.groupKey(c.name, name); if (!gk) return;
@@ -1995,10 +1993,6 @@ async function dbRefresh(auto = false) {
     S.sources = S.sources.filter(x => x.kind !== 'db');
     S.sources.push(...fresh);
     const disabled = [];
-    for (const s of srcs) if (s.replaceExcel && s.catId) {
-      S.sources = S.sources.map(x => (x.kind === 'excel' && !x.perRow && x.catId === s.catId && x.enabled !== false)
-        ? (disabled.push(x.label), { ...x, enabled: false, disabledBy: 'Cevi DB: ' + s.label }) : x);
-    }
     S.db.lastRefresh = now;
     { const n = pruneDbSubgroups(live) + pathFilterPrune(); if (n) logDb(`${n} Untergruppen entfernt, die nicht mehr geladen werden`); }
     if (before && before.length) { finishChange('Cevi DB', before, { disabled }); UNDO = prev; }
@@ -2279,7 +2273,7 @@ document.addEventListener('change', (ev) => {
   if (t.dataset.catName) { const c = S.cats.find(x => x.id === t.dataset.catName); const v = t.value.trim(); if (v) { c.name = v; save(); } render(); return; }
   if (t.dataset.catOwner) { const c = S.cats.find(x => x.id === t.dataset.catOwner); c.owner = resolveOwner(t.value); c.ownerManual = true; save(); render(); return; }
   if (t.dataset.catInfo) { const c = S.cats.find(x => x.id === t.dataset.catInfo); c.info = t.value; save(); return; }
-  if (t.dataset.dbs) { const s = S.db.sources.find(x => x.id === t.dataset.dbs); const k = t.dataset.k; s[k] = t.type === 'checkbox' ? t.checked : t.value.trim(); if (k === 'catId' && !s.catId) s.replaceExcel = false; save(); if (k === 'catId') render(); return; }
+  if (t.dataset.dbs) { const s = S.db.sources.find(x => x.id === t.dataset.dbs); const k = t.dataset.k; s[k] = t.type === 'checkbox' ? t.checked : t.value.trim(); save(); if (k === 'catId') render(); return; }
   if (t.id === 'aliasText') { S.aliasText = t.value; save(); render(); return; }
   if (t.id === 'autoAliases') { S.autoAliases = t.checked; save(); render(); return; }
   if (t.id === 'dbRoot') { S.db.rootGroup = t.value.trim(); save(); return; }
@@ -2319,7 +2313,7 @@ document.addEventListener('input', (ev) => {
   if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
 });
 // Auf-/Zuklappen der Untergruppen merken („toggle" bubbelt nicht → capture)
-document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } if (d && d.dataset && d.dataset.keybox !== undefined) KEYUI.open = d.open; if (d && d.dataset && d.dataset.dbconn !== undefined) DBUI.open = d.open; }, true);
+document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } if (d && d.dataset && d.dataset.keybox !== undefined) KEYUI.open = d.open; if (d && d.dataset && d.dataset.dbconn !== undefined) DBUI.open = d.open; if (d && d.dataset && d.dataset.dblog !== undefined) DBUI.log = d.open; }, true);
 function readCloudFields() {
   const v = (id) => { const el = $(id); return el && !el.disabled ? el.value.trim() : undefined; };
   const t = v('#m365Tenant'), c = v('#m365Client'), s2 = v('#m365Site');

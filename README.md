@@ -59,7 +59,7 @@ Der Knopf **„↻ Aktualisieren“** oben rechts gleicht sofort ab: Er sendet d
 - Alle Mitglieder der Website sehen denselben Stand. Änderungen erscheinen bei den anderen nach etwa 20 Sekunden.
 - **Gleichzeitige Änderungen** werden zusammengeführt. Haben zwei Personen denselben Wert verschieden geändert, gilt die zuletzt gespeicherte Änderung.
 - Der **API-Key der Cevi DB** ist nicht im gemeinsamen Stand. Wer aus der DB aktualisiert, speichert die Daten für alle. Alle anderen brauchen keinen Key.
-- **Key automatisch für Berechtigte** (Reiter Cevi DB): Der Key kann in einem eigenen Ordner `Weihnachtsbrief-Tool-Schluessel` liegen, dessen Zugriff in SharePoint auf wenige Personen eingeschränkt ist. Wer Zugriff hat, bekommt den Key nach der Microsoft-Anmeldung automatisch, nur im Speicher des Browsers. Einrichten:
+- **Key für Berechtigte** (zuunterst im Reiter Cevi DB, zugeklappt): Der Key kann in einem eigenen Ordner `Weihnachtsbrief-Tool-Schluessel` liegen, dessen Zugriff in SharePoint auf wenige Personen eingeschränkt ist. Wer Zugriff hat, bekommt den Key nach der Microsoft-Anmeldung automatisch, nur im Speicher des Browsers. Einrichten:
   1. Key oben eintragen.
   2. „Schlüssel-Ordner in SharePoint anlegen“.
   3. In SharePoint die Vererbung der Berechtigungen beenden, Mitglieder und Besucher entfernen, nur die Berechtigten hinzufügen.
@@ -95,7 +95,7 @@ Die Cevi DB läuft auf [hitobito](https://github.com/hitobito/hitobito). Das Too
 |---|---|
 | `GET /api/roles?filter[group_id]=…&include=person,group` | Mitglieder einer Gruppe inkl. Adresse |
 | `GET /api/groups?filter[parent_id]=…` | Untergruppen |
-| `GET /api/groups/:id` | Verbindungstest |
+| `GET /api/groups/:id` | Gruppe Cevi Schweiz lesen (Gruppen automatisch übernehmen) |
 
 Einrichten:
 1. In der Cevi DB bei der Gruppe Cevi Schweiz → Tab **API-Keys** → neuer Key.

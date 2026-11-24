@@ -1093,7 +1093,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const memberships = [];
       for (const e of ranked) {
         const m = { catId: e.catId, cat: (catById[e.catId] || {}).name || 'ohne Kategorie', group: e.group, owner: effOwner(e), source: e.sourceLabel || '', origin: e.origin || 'excel', roles: e.roles || '' };
-        if (!memberships.some(x => x.cat === m.cat && x.group === m.group && x.owner === m.owner)) memberships.push(m);
+        if (e.mid) m.mid = e.mid; // von Hand erfasst → lässt sich in der Masterliste löschen
+        if (!memberships.some(x => x.cat === m.cat && x.group === m.group && x.owner === m.owner && !m.mid)) memberships.push(m);
       }
       const person = {
         key: pKey, entryUids: es.map(e => e.uid),
@@ -1509,7 +1510,7 @@ function personAddr(p) {
   return [l1, l2, l3].filter(Boolean).map(esc).join('<br>') || '<span class="note bad">keine Adresse</span>';
 }
 function membershipChips(p, highlightPrimary = true) {
-  return p.memberships.map((m, i) => `<span class="chip cat ${highlightPrimary && i === 0 && m.catId === p.primaryCatId ? 'prim' : ''}" title="${esc(m.source + (m.roles ? ' · ' + m.roles : '') + ' · zuständig: ' + (m.owner || 'offen'))}">${m.origin === 'db' ? '● ' : ''}${esc(m.cat)}${m.group && m.group !== m.cat ? ' › ' + esc(m.group) : ''}</span>`).join('');
+  return p.memberships.map((m, i) => `<span class="chip cat ${highlightPrimary && i === 0 && m.catId === p.primaryCatId ? 'prim' : ''}" title="${esc(m.source + (m.roles ? ' · ' + m.roles : '') + ' · zuständig: ' + (m.owner || 'offen'))}">${m.origin === 'db' ? '● ' : m.origin === 'manual' ? '<span title="von Hand erfasst">✎ </span>' : ''}${esc(m.cat)}${m.group && m.group !== m.cat ? ' › ' + esc(m.group) : ''}</span>`).join('');
 }
 function coChips(p) {
   return p.coSigners.length ? p.coSigners.map(c => `<span class="chip co" title="${esc(c.via.join('\n'))}">✍ ${esc(c.owner)}${R.aliases.codeNames[c.owner] && R.aliases.codeNames[c.owner] !== c.owner ? ' · ' + esc(R.aliases.codeNames[c.owner].split(' ')[0]) : ''}</span>`).join('') : '<span class="muted small">–</span>';
@@ -1535,7 +1536,7 @@ function personRow(p, opts = {}) {
     <td>${membershipChips(p)}</td>
     ${opts.showOwner ? `<td>${ownerSelect(p)}${p.overridden ? '<div class="small muted">manuell</div>' : ''}</td>` : ''}
     <td>${coChips(p)}</td>
-    <td class="hidecol noprint">${p.hidden ? `<button class="lnk" data-hide="${esc(p.key)}" title="Wieder für den Versand berücksichtigen">↺ einblenden</button><div class="small muted">kein Versand</div>` : `<button class="lnk x" data-hide="${esc(p.key)}" title="Für den Versand nicht berücksichtigen – keine Etikette, kein Export">✕ ausblenden</button>`}</td>
+    <td class="hidecol noprint">${p.memberships.filter(m => m.mid).map(m => `<button class="lnk x" data-manual-del="${esc(m.mid)}" title="Von Hand erfasste Person löschen">🗑 löschen</button><br>`).join('')}${p.hidden ? `<button class="lnk" data-hide="${esc(p.key)}" title="Wieder für den Versand berücksichtigen">↺ einblenden</button><div class="small muted">kein Versand</div>` : `<button class="lnk x" data-hide="${esc(p.key)}" title="Für den Versand nicht berücksichtigen – keine Etikette, kein Export">✕ ausblenden</button>`}</td>
   </tr>`;
 }
 
@@ -2330,12 +2331,10 @@ function manualSource() {
 function manualPanel() {
   const c = S.cats.find(x => x.id === MF.cat);
   const subs = c ? subgroupsOf(c) : [];
-  const list = manualEntries();
   const opt = (v, l, cur) => `<option value="${esc(v)}" ${cur === v ? 'selected' : ''}>${esc(l)}</option>`;
   const catOpts = opt('', 'Kategorie wählen …', MF.cat) + S.order.map(id => S.cats.find(x => x.id === id)).filter(Boolean).map(x => opt(x.id, x.name, MF.cat)).join('') + opt('__new', '＋ Neue Kategorie …', MF.cat);
   const subOpts = opt('', subs.length ? '– keine Untergruppe –' : 'keine Untergruppe', MF.sub) + subs.map(g => opt(g.gk, g.name, MF.sub)).join('') + opt('__new', '＋ Neue Untergruppe …', MF.sub);
   const ownOpts = opt('', 'Zuständig …', MF.owner) + S.staff.map(st => opt(staffKey(st), [st.code, st.name].filter(Boolean).join(' · '), MF.owner)).join('');
-  const catOf = (e) => ((S.cats.find(x => x.id === e.catId) || {}).name || '–') + (e.group ? ' › ' + e.group : '');
   return `<div class="panel" style="margin-bottom:16px">
     <div class="hd"><h2>Person anlegen und zuweisen</h2><span class="muted small">für Empfänger*innen, die in keiner Liste und nicht in der Cevi DB stehen</span></div>
     <div class="bd">
@@ -2355,11 +2354,6 @@ function manualPanel() {
         <button class="btn primary" data-action="manual-add">＋ Person anlegen</button>
       </div>
       ${!S.staff.length ? '<div class="small" style="color:var(--warn);margin-top:6px">Zuerst im Reiter Zuständigkeit die zuständigen Personen erfassen.</div>' : ''}
-      ${list.length ? `<details class="mlist" data-mlist ${MF.listOpen ? 'open' : ''}><summary class="small"><b>Von Hand erfasst (${list.length})</b></summary>
-        <table class="subtab"><tbody>${list.map(e => `<tr><td><b>${esc([e.first, e.last].filter(Boolean).join(' '))}</b></td>
-          <td class="small">${esc([[e.street, e.nr].filter(Boolean).join(' '), [e.zip, e.town].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</td>
-          <td class="small">${esc(catOf(e))}</td><td class="small">${ownerHtml(e.owner)}</td>
-          <td style="text-align:right"><button class="lnk x" data-manual-del="${esc(e.mid)}" title="Person wieder löschen">✕ löschen</button></td></tr>`).join('')}</tbody></table></details>` : ''}
     </div>
   </div>`;
 }
@@ -2389,7 +2383,7 @@ function manualAdd() {
     owner: MF.owner, fixedOwner: true, extra: '', done: false, group, catId: c.id, rowNo: src.entries.length + 1, createdAt: new Date().toISOString() });
   const who = [v('first'), v('last')].filter(Boolean).join(' ');
   // Kategorie, Untergruppe und Zuständig bleiben für die nächste Person stehen
-  Object.assign(MF, { first: '', last: '', street: '', zip: '', town: '', catNew: '', subNew: '', cat: c.id, sub: group ? WB.groupKey(c.name, group) : '', listOpen: true });
+  Object.assign(MF, { first: '', last: '', street: '', zip: '', town: '', catNew: '', subNew: '', cat: c.id, sub: group ? WB.groupKey(c.name, group) : '' });
   save(); render();
   toast(`${who} angelegt – ${c.name}${group ? ' › ' + group : ''}, zuständig: ${ownerName(MF.owner)}`);
   const f = document.querySelector('[data-mf="first"]'); if (f) f.focus();

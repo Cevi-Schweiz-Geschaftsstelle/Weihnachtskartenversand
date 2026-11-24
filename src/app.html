@@ -143,6 +143,9 @@ details.grp>summary::before{content:'▸';color:var(--soft);width:10px}
 details.grp[open]>summary::before{content:'▾'}
 details.grp>summary .ttl{font-weight:650;font-size:14px}
 details.grp>summary:hover .ttl{color:var(--accent)}
+details.grp>summary .miss{color:var(--warn);font-weight:500}
+.catmeta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.catlist .mv{opacity:.35} .catlist li:hover .mv,.catlist .mv:focus-within{opacity:1}
 details.grp .grpbody{margin-top:8px;border:1px solid var(--line2);border-radius:10px;padding:6px 12px 8px;background:#fbfcfd}
 .catlist li.fromdb{background:#eaf7ee;border-radius:10px;border-top-color:transparent;padding:10px 8px;margin-top:6px}
 .catlist li.fromdb+li{border-top-color:transparent}
@@ -1315,11 +1318,10 @@ function srcBadge(c, o) {
   return ` <span class="badge db" title="Die Adressen dieser Kategorie kommen aus der Cevi DB${o.excel.has(c.id) ? ' und aus Excel' : ''}">● Cevi DB${o.excel.has(c.id) ? ' + Excel' : ''}</span>`;
 }
 const removedOf = (c) => Object.entries(c.groups || {}).filter(([, g]) => g.removed).sort((a, b) => String(a[1].name).localeCompare(String(b[1].name), 'de'));
-function subsBlock(c, origins) {
+function subsBlock(c) {
   const subs = subgroupsOf(c);
   const assigned = subs.filter(g => grpKeys(c, g.gk).length).length;
   const adoptable = subs.filter(g => !grpKeys(c, g.gk).length && g.codes.size).length;
-  const open = !!(S.ui.subsOpen && S.ui.subsOpen[c.id]); // standardmässig zugeklappt
   const row = (g) => {
     const keys = grpKeys(c, g.gk), ref = `${c.id}|${g.gk}`;
     const avail = S.staff.filter(st => !keys.includes(staffKey(st)));
@@ -1340,17 +1342,12 @@ function subsBlock(c, origins) {
       </div></td></tr>`;
   };
   const missing = subs.filter(g => !grpKeys(c, g.gk).length && !inheritedFrom(c, g.gk) && !g.codes.size && !catKeys(c).length).length;
-  const info = [c.source && !/\bDB\b/i.test(c.source) ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · ');
-  return `<details class="grp" data-subs="${c.id}" ${open ? 'open' : ''}>
-    <summary><span class="ttl">${esc(c.name)}</span>${origins ? srcBadge(c, origins) : ''}${info ? ` <span class="small muted">${esc(info)}</span>` : ''}
-      <span class="small muted stat">${subs.length} Untergruppen · ${assigned} mit Zuständigkeit${catKeys(c).length ? ` · <span title="Gilt für Untergruppen ohne eigenen Eintrag – ändern im Reiter Zuständigkeit (✎ Kategorien)">sonst ${catKeys(c).map(k => `<span title="${esc(ownerName(k))}">${esc(k)}</span>`).join(', ')}</span>` : ''}${missing ? ` · <span style="color:var(--warn)">${missing} noch niemand</span>` : ''}</span></summary>
-    <div class="grpbody">
-      ${adoptable ? `<div style="margin-bottom:4px"><button class="btn small ghost" data-sub-adopt-all="${c.id}" title="Bei allen Untergruppen ohne Zuständigkeit die häufigste aus der Excel übernehmen">Alle aus Excel übernehmen (${adoptable})</button></div>` : ''}
+  const stat = `${subs.length} Untergruppen · ${assigned} mit Zuständigkeit${catKeys(c).length ? ` · <span title="Gilt für Untergruppen ohne eigenen Eintrag – ändern im Reiter Zuständigkeit (✎ Kategorien)">sonst ${catKeys(c).map(k => `<span title="${esc(ownerName(k))}">${esc(k)}</span>`).join(', ')}</span>` : ''}`;
+  const body = `${adoptable ? `<div style="margin-bottom:4px"><button class="btn small ghost" data-sub-adopt-all="${c.id}" title="Bei allen Untergruppen ohne Zuständigkeit die häufigste aus der Excel übernehmen">Alle aus Excel übernehmen (${adoptable})</button></div>` : ''}
       ${subs.length ? `<table class="subtab"><tbody>${subs.map(row).join('')}</tbody></table>` : '<div class="small muted" style="padding:6px 0">Noch keine Untergruppen – erscheinen nach dem Excel-Import oder hier von Hand anlegen.</div>'}
       ${removedOf(c).length ? `<div class="small muted" style="padding:6px 0">Entfernt (wird beim Import ignoriert): ${removedOf(c).map(([gk, g]) => `${esc(g.name || gk)} <button class="lnk" data-sub-unhide="${c.id}|${esc(gk)}" title="Wiederherstellen">↺</button>`).join(' · ')}</div>` : ''}
-      <div class="free"><input data-sub-newname="${c.id}" placeholder="Neue Untergruppe, z.B. Informatik" style="min-width:0;flex:1"><button class="btn small" data-sub-new="${c.id}">＋ Untergruppe</button></div>
-    </div>
-  </details>`;
+      <div class="free"><input data-sub-newname="${c.id}" placeholder="Neue Untergruppe, z.B. Informatik" style="min-width:0;flex:1"><button class="btn small" data-sub-new="${c.id}">＋ Untergruppe</button></div>`;
+  return { missing, stat, body };
 }
 
 function settingsView() {
@@ -1410,28 +1407,32 @@ function catsView() {
     const c = S.cats.find(x => x.id === id); if (!c) return '';
     const keys = catKeys(c);
     const avail = S.staff.filter(st => !keys.includes(staffKey(st)));
-    const moveBtns = `<span style="white-space:nowrap">${showSubs(c) ? `<button class="btn small ghost" data-cat-rename="${id}" title="Kategorie umbenennen">✎</button>` : ''}<button class="btn small ghost" data-move="${id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Höhere Priorität">▲</button><button class="btn small ghost" data-move="${id}" data-dir="1" ${i === S.order.length - 1 ? 'disabled' : ''} title="Tiefere Priorität">▼</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕</button>` : ''}</span>`;
-    const db = origins.db.has(id) ? ' fromdb' : '';
-    if (showSubs(c)) return `<li class="grpcat${db}" data-catli="${id}">
-      <span class="rank">${i + 1}.</span>
-      ${subsBlock(c, origins)}
-      ${moveBtns}
-    </li>`;
-    return `<li class="${db.trim()}" data-catli="${id}">
-      <span class="rank">${i + 1}.</span>
-      <div>
-        <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><input class="cell catname" data-cat-name="${id}" value="${esc(c.name)}" title="Kategorie umbenennen">${srcBadge(c, origins)}
-          <span class="small muted">${esc([c.source && !/\bDB\b/i.test(c.source) ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · '))}</span></div>
-        <div class="cands" style="margin-top:6px;align-items:center">
+    const open = !!(S.ui.subsOpen && S.ui.subsOpen[id]);
+    const info = [c.source && !/\bDB\b/i.test(c.source) ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · ');
+    let missing, stat = '', body;
+    if (showSubs(c)) {
+      const g = subsBlock(c); missing = g.missing ? `${g.missing} noch niemand` : ''; stat = g.stat; body = g.body;
+    } else {
+      const open1 = !keys.length && R.entries.some(e => e.catId === id && !(e.owner && resolveOwner(e.owner)));
+      missing = open1 ? 'noch niemand zugeordnet' : '';
+      body = `<div class="cands" style="align-items:center">
           ${keys.map((k, j) => `<span class="chip pers ${isStaff(k) ? '' : 'unknown'}" title="${j === 0 ? 'Versendet standardmässig' : 'Unterschreibt mit – Klick auf ☆ macht diese Person zur Hauptperson'}">
               ${j === 0 ? '<b title="Versendet">★</b>' : `<button class="lnk" data-cat-primary="${id}" data-key="${esc(k)}" title="Zur Hauptperson machen">☆</button>`}
               ${ownerHtml(k)}${isStaff(k) ? '' : ` <button class="lnk" data-staff-quick="${esc(k)}" title="Als Person erfassen">noch nicht erfasst – erfassen</button>`}
               <button class="lnk x" data-cat-remove="${id}" data-key="${esc(k)}" title="Aus Kategorie entfernen">✕</button></span>`).join('')}
           <select class="inline" data-cat-add="${id}"><option value="">＋ Person zuordnen …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc([st.code, st.name].filter(Boolean).join(' · '))}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
-          ${!keys.length ? '<span class="small" style="color:var(--warn)">niemand zugeordnet – Zuständigkeit kommt aus der Liste</span>' : ''}
-        </div>
-      </div>
-      ${moveBtns}
+          ${!keys.length ? `<span class="small" style="color:var(--warn)">${missing ? 'Für einen Teil der Adressen ist niemand zuständig.' : 'Zuständigkeit kommt aus der Liste (Spalte „Zuständigkeit“).'}</span>` : ''}
+        </div>`;
+    }
+    const meta = `<div class="catmeta">${srcBadge(c, origins)}${info ? `<span class="small muted">${esc(info)}</span>` : ''}${stat ? `<span class="small muted">${stat}</span>` : ''}
+        <span class="right" style="display:flex;gap:4px"><button class="btn small ghost" data-cat-rename="${id}" title="Kategorie umbenennen">✎ Umbenennen</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕ Löschen</button>` : ''}</span></div>`;
+    return `<li class="grpcat${origins.db.has(id) ? ' fromdb' : ''}" data-catli="${id}">
+      <span class="rank">${i + 1}.</span>
+      <details class="grp" data-subs="${id}" ${open ? 'open' : ''}>
+        <summary><span class="ttl">${esc(c.name)}</span>${missing ? ` <span class="small miss">${missing}</span>` : ''}</summary>
+        <div class="grpbody">${meta}${body}</div>
+      </details>
+      <span class="mv" style="white-space:nowrap"><button class="btn small ghost" data-move="${id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Höhere Priorität">▲</button><button class="btn small ghost" data-move="${id}" data-dir="1" ${i === S.order.length - 1 ? 'disabled' : ''} title="Tiefere Priorität">▼</button></span>
     </li>`;
   }).join('');
   return `<div class="catcol">
@@ -1440,7 +1441,7 @@ function catsView() {
         <div class="bd">
           <div class="free" style="margin:0 0 12px"><input id="newCat" placeholder="Neue Kategorie …" style="min-width:0;flex:1"><button class="btn small primary" data-action="cat-add">＋ Neue Kategorie</button></div>
           <div class="callout" style="margin-bottom:6px"><b>★ versendet</b> den Brief, alle weiteren Personen der Kategorie unterschreiben mit (☆ anklicken macht jemand zur Hauptperson).
-            Kategorien mit <b>Untergruppen</b> (z.B. Fachgruppen) aufklappen und pro Untergruppe festlegen, wer zuständig ist – das gilt vor allem anderen. Sonst gilt ein Kürzel in der Excel (Spalte „Zuständigkeit"), danach die Kategorie. Kommt jemand in mehreren Kategorien vor, ist die <b>obere</b> Kategorie der Vorschlag – festlegen im Tab <a href="#" data-tab="assign">Unvollständig</a>.</div>
+            Auf eine Kategorie klicken, um Personen zuzuordnen. Bei Kategorien mit <b>Untergruppen</b> (z.B. Fachgruppen) wird pro Untergruppe festgelegt, wer zuständig ist – das gilt vor allem anderen. Sonst gilt ein Kürzel in der Excel (Spalte „Zuständigkeit"), danach die Kategorie. Kommt jemand in mehreren Kategorien vor, ist die <b>obere</b> Kategorie der Vorschlag – festlegen im Tab <a href="#" data-tab="assign">Unvollständig</a>.</div>
           ${origins.db.size ? '<div class="small muted" style="margin:10px 0 2px"><span class="legend-db"></span> Hellgrün = die Adressen dieser Kategorie kommen aus der Cevi DB</div>' : ''}
           <ul class="catlist">${catRows}</ul>
         </div>
@@ -2331,6 +2332,7 @@ document.addEventListener('click', (ev) => {
     const name = ($('#newCat').value || '').trim(); if (!name) { toast('Bitte einen Namen für die Kategorie eintragen.'); return; }
     const id = 'cat-' + uid();
     S.cats.push({ id, name, source: '', persons: [], personsManual: true, info: '', exact: [], strong: [WB.fold(name)], weak: [], custom: true });
+    S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [id]: true };
     S.order.push(id); save(); render(); toast('Kategorie angelegt: ' + name + ' (unten in der Liste, mit ▲ nach oben schieben)');
     const li = document.querySelector(`[data-catli="${id}"]`); if (li) { li.scrollIntoView({ block: 'center', behavior: 'smooth' }); li.classList.add('flash'); }
   }

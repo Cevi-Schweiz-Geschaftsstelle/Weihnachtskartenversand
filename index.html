@@ -64,6 +64,10 @@ main{flex:1;padding:18px 22px 40px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .catcol{max-width:1180px}
 button.chip{border:0;font:inherit;font-size:12px;cursor:pointer}
+.addrpick{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.addropt{border:1px solid #e2b4b4;background:#fff7f7;border-radius:8px;padding:4px 8px;font:inherit;font-size:12.5px;text-align:left;cursor:pointer;line-height:1.35}
+.addropt:hover{border-color:var(--accent);background:#f2f8f6}
+.addropt .dbdot{color:#2b5ea8}
 .chip.edited{background:#eef0f3;color:var(--muted);font-weight:500;font-size:11px}
 .editgrid{display:flex;flex-wrap:wrap;gap:10px}
 .editgrid label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);flex:1 1 150px}
@@ -992,6 +996,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (isPersonal(e)) return key(e.first) + '|' + key(e.last);
     return 'org|' + key(e.org) + '|' + key(e.first) + '|' + key(e.last);
   }
+  function addrKey(e) { return key(e.street) + key(e.nr) + '#' + key(e.zip); }
   function identity(e) { return [personNameKey(e), key(e.zip), e.email].join('#'); }
   function pairKey(a, b) { return a < b ? a + '§' + b : b + '§' + a; }
 
@@ -1005,6 +1010,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const catById = Object.fromEntries(cats.map(c => [c.id, c]));
     const decisions = opts.decisions || {};
     const overrides = opts.overrides || {};
+    const addrPick = opts.addrPick || {}; // { personKey: addrKey } – von Hand gewählte Adresse bei mehreren Adressen
     const codeNames = opts.codeNames || {};
     const catPersonCache = new Map();
     const catPersons = (catId) => {
@@ -1140,11 +1146,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         { const x = extraOwners(e); for (const o of x.list) addCo(o, label + (x.via === ' (Untergruppe)' ? ' (weitere Zuständige der Untergruppe)' : ' (weitere Zuständige der Kategorie)')); }
         if (e.extra) for (const part of splitOwners(e.extra)) addCo(aliasOf(part), 'Spalte „Zus. Unterschriften" (' + label + ')');
       }
+      // Mehrere verschiedene Adressen sind nicht gültig → eine muss gewählt werden (addrPick)
       const addrSet = new Map();
-      for (const e of es) if (e.zip || e.street) { const k = key(e.street) + key(e.nr) + '#' + key(e.zip); if (!addrSet.has(k)) addrSet.set(k, e); }
+      for (const e of es) if (e.zip || e.street) { const k = addrKey(e); if (!addrSet.has(k)) addrSet.set(k, e); }
+      const picked = addrSet.size > 1 && addrSet.get(addrPick[pKey]);
+      const A = picked || best;
+      const addrConflict = addrSet.size > 1 && !picked;
       const notes = [];
-      if (addrSet.size > 1) notes.push('Unterschiedliche Adressen: ' + [...addrSet.values()].map(e => [e.street, e.nr].filter(Boolean).join(' ') + ', ' + [e.zip, e.town].filter(Boolean).join(' ')).join(' ⟷ '));
-      if (!best.zip || !best.street) notes.push('Adresse unvollständig');
+      if (addrConflict) notes.push(`${addrSet.size} verschiedene Adressen – bitte eine wählen`);
+      if (!A.zip || !A.street) notes.push('Adresse unvollständig');
       if (!owner) notes.push('Keine Zuständigkeit hinterlegt');
       if (isSelf(owner)) notes.push('Zuständig ist die Person selbst – bitte anders zuteilen');
       notes.push(...selfNotes);
@@ -1158,7 +1168,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         key: pKey, entryUids: es.map(e => e.uid),
         org: best.org || (es.find(e => e.org) || {}).org || '', first: best.first, last: best.last, nick: best.nick || '',
         email: best.email || (es.find(e => e.email) || {}).email || '',
-        street: best.street, nr: best.nr, careOf: best.careOf || '', zip: best.zip, town: best.town, country: best.country || '',
+        street: A.street, nr: A.nr, careOf: A.careOf || '', zip: A.zip, town: A.town, country: A.country || '',
+        addrConflict, addrPicked: !!picked,
+        addrOptions: addrSet.size > 1 ? [...addrSet].map(([k, e]) => ({ key: k, careOf: e.careOf || '', street: e.street, nr: e.nr, zip: e.zip, town: e.town, country: e.country || '', origin: e.origin || 'excel', source: e.sourceLabel || '' })) : [],
         owner, overridden, suggested, candidates, primaryCatId: primary.catId, primaryCat: (catById[primary.catId] || {}).name || 'ohne Kategorie', primaryGroup: primary.group,
         coSigners, memberships, notes,
         mergeReasons: es.length > 1 ? [...(reasons.get(root) || [])] : [],
@@ -1264,7 +1276,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return l; // beide haben denselben Wert verschieden geändert → die eigene Änderung gilt
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, splitFullName, guessNameOrder, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, merge3, J, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, addrKey, splitFullName, guessNameOrder, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, merge3, J, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -1283,7 +1295,7 @@ function defaultState() {
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
     aliasText: '', autoAliases: true, version: 9,
-    decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, edits: {}, importDone: true,
+    decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, edits: {}, addrPick: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
@@ -1490,7 +1502,7 @@ function recompute() {
     for (const a of st.aliases || []) aliases.set(WB.fold(a), k);
     codeNames[k] = st.name || '';
   }
-  const { people, review } = WB.buildPeople(entries, { cats, order: S.order, aliases, codeNames, decisions: S.decisions, overrides: S.overrides });
+  const { people, review } = WB.buildPeople(entries, { cats, order: S.order, aliases, codeNames, decisions: S.decisions, overrides: S.overrides, addrPick: S.addrPick || {} });
   const byOwner = new Map(), coByOwner = new Map(), hiddenByOwner = new Map();
   for (const p of people) {
     p.done = S.done[p.key] !== undefined ? S.done[p.key] : !!p.doneFromFile; // „Erledigt" aus Excel wird immer übernommen
@@ -1604,7 +1616,7 @@ function renderKpis() {
   // Kacheln sind klickbar und führen direkt zu den betroffenen Personen
   $('#kpis').innerHTML = !S.sources.length ? '' : `
     <button class="kpi" data-kpi="letters" title="Zur Masterliste mit allen Briefen"><div class="v">${P.length}</div><div class="l">Briefe (eindeutige Empfänger)${nHidden ? ` · ${nHidden} ausgeblendet` : ''}</div></button>
-    <button class="kpi ${R.review.length ? 'warn' : ''}" data-kpi="dups" title="Zu den möglichen Duplikaten (Reiter Unvollständig)"><div class="v">${R.review.length}</div><div class="l">mögliche Duplikate prüfen</div></button>
+    <button class="kpi ${R.review.length + addrConflicts().length ? 'warn' : ''}" data-kpi="dups" title="Zu den möglichen Duplikaten und Personen mit mehreren Adressen (Reiter Unvollständig)"><div class="v">${R.review.length + addrConflicts().length}</div><div class="l">mögliche Duplikate prüfen</div></button>
     <button class="kpi ${open ? 'warn' : ''}" data-kpi="noowner" title="Zu den Briefen ohne Zuständigkeit – dort direkt zuweisen"><div class="v">${open}</div><div class="l">ohne Zuständigkeit</div></button>
     <button class="kpi" data-kpi="done" title="Zur Masterliste: noch nicht erledigte Briefe"><div class="v">${done} / ${P.length}</div><div class="l">erledigt (${pct}%)</div><div class="bar"><i style="width:${pct}%"></i></div></button>`;
 }
@@ -1616,7 +1628,8 @@ function kpiGo(k) {
   const el = document.querySelector(k === 'dups' ? '#sec-dups' : '#main');
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-const openCount = () => openDecisions().length + R.review.length + (S.db.pendingGroups || []).length;
+const addrConflicts = () => R.active.filter(p => p.addrConflict);
+const openCount = () => openDecisions().length + R.review.length + addrConflicts().length + (S.db.pendingGroups || []).length;
 function renderTabs() {
   const tabs = [
     ['settings', 'Zuständigkeit', S.staff.length], ['cats', 'Kategorien', S.cats.length], ['assign', 'Unvollständig', openCount(), openCount() ? 'warn' : ''], ['owners', 'Pro Zuständige*r', R.active.length],
@@ -1638,6 +1651,14 @@ function emptyView() {
   </div>`;
 }
 
+/** Mehrere Adressen sind ungültig: Auswahl anzeigen, bis eine gewählt ist */
+function addrChoice(p) {
+  return `<div class="addrpick"><div class="small" style="color:var(--bad);font-weight:600;margin-bottom:3px">Welche Adresse gilt?</div>${p.addrOptions.map(o => `<button class="addropt" data-addr-pick="${esc(p.key)}" data-addr="${esc(o.key)}" title="Diese Adresse verwenden (${o.origin === 'db' ? 'aus der Cevi DB' : 'aus ' + esc(o.source || 'Excel')})">${o.origin === 'db' ? '<span class="dbdot">●</span> ' : ''}${o.careOf ? esc(o.careOf) + '<br>' : ''}${esc([o.street, o.nr].filter(Boolean).join(' '))}<br>${esc([o.zip, o.town].filter(Boolean).join(' '))}</button>`).join('')}</div>`;
+}
+function addrCell(p) {
+  if (p.addrConflict) return addrChoice(p);
+  return personAddr(p) + (p.addrPicked ? `<div><button class="lnk small" data-addr-reset="${esc(p.key)}" title="Es gibt ${p.addrOptions.length} Adressen – eine andere wählen">↺ andere Adresse wählen</button></div>` : '');
+}
 function personAddr(p) {
   const l1 = [p.careOf].filter(Boolean).join('');
   const l2 = [p.street, p.nr].filter(Boolean).join(' ');
@@ -1650,7 +1671,7 @@ function membershipChips(p, highlightPrimary = true) {
 function coChips(p) {
   return p.coSigners.length ? p.coSigners.map(c => `<span class="chip co" title="${esc(c.via.join('\n'))}">✍ ${esc(c.owner)}${R.aliases.codeNames[c.owner] && R.aliases.codeNames[c.owner] !== c.owner ? ' · ' + esc(R.aliases.codeNames[c.owner].split(' ')[0]) : ''}</span>`).join('') : '<span class="muted small">–</span>';
 }
-function notesHtml(p) { return p.notes.map(n => `<span class="note ${/fehlt|keine|unvollständig|selbst – bitte/i.test(n) ? 'bad' : ''}">⚠ ${esc(n)}</span>`).join(''); }
+function notesHtml(p) { return p.notes.map(n => `<span class="note ${/fehlt|keine|unvollständig|selbst – bitte|wählen/i.test(n) ? 'bad' : ''}">⚠ ${esc(n)}</span>`).join(''); }
 function ownerSelect(p) {
   const opts = allOwners();
   const fromLists = p.ownerOptions;
@@ -1665,9 +1686,9 @@ function ownerSelect(p) {
 function personRow(p, opts = {}) {
   return `<tr class="${p.done ? 'done' : ''} ${p.hidden ? 'hiddenrow' : ''}">
     <td class="chk"><input type="checkbox" data-done="${esc(p.key)}" ${p.done ? 'checked' : ''} title="Brief erledigt"></td>
-    <td class="who"><div class="name"><button class="pname" data-pgroup="${esc(p.key)}" title="Untergruppe zuweisen">${esc(p.displayName)}</button>${personEntries(p).some(e => e.edited) ? ' <span class="chip edited" title="Von Hand angepasst (✎ bearbeiten)">angepasst</span>' : ''}${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.memberships.length + ' Listen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.memberships.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
+    <td class="who"><div class="name"><button class="pname" data-pgroup="${esc(p.key)}" title="Untergruppe zuweisen">${esc(p.displayName)}</button>${personEntries(p).some(e => e.edited) ? ' <span class="chip edited" title="Von Hand angepasst (✎ bearbeiten)">angepasst</span>' : ''}${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.entryUids.length + ' Einträgen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.entryUids.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
       ${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}${p.email ? `<div class="org">${esc(p.email)}</div>` : ''}${notesHtml(p)}</td>
-    <td class="addr">${personAddr(p)}</td>
+    <td class="addr">${addrCell(p)}</td>
     <td class="cats">${membershipChips(p)}</td>
     ${opts.showOwner ? `<td class="own">${ownerSelect(p)}${p.overridden ? '<div class="small muted">manuell</div>' : ''}</td>` : ''}
     <td class="co">${coChips(p)}</td>
@@ -1870,10 +1891,16 @@ function whoBox(p) {
 function reviewPanel() {
   return `<div class="section-title" id="sec-dups"><h3>1 · Mögliche Duplikate prüfen</h3><span class="muted small">Ähnliche Einträge, die nicht automatisch zusammengeführt wurden${R.review.length ? ` · <b>${R.review.length} offen</b>` : ' ✓'}</span></div>
   <div class="panel">
-    ${R.review.length ? R.review.map(r => `<div class="pair"><div><div class="why">${esc(r.why)}</div>${whoBox(r.a)}</div><div><div class="why">&nbsp;</div>${whoBox(r.b)}</div>
-      <div class="acts"><button class="btn small primary" data-decide="same" data-pair="${esc(r.pairKey)}">Dieselbe Person</button><button class="btn small" data-decide="different" data-pair="${esc(r.pairKey)}">Verschiedene Personen</button></div></div>`).join('')
+    ${R.review.length ? R.review.map(r => {
+      // verschiedene Adressen: „Dieselbe Person“ nur zusammen mit der Wahl der Adresse
+      const ka = WB.addrKey(r.a), kb = WB.addrKey(r.b), two = (r.a.zip || r.a.street) && (r.b.zip || r.b.street) && ka !== kb;
+      const keep = (p, k) => two ? `<button class="btn small primary" style="margin-top:6px" data-decide="same" data-pair="${esc(r.pairKey)}" data-addr="${esc(k)}" data-uid="${p.entryUids[0]}" title="Zusammenführen und diese Adresse verwenden">Dieselbe Person – diese Adresse</button>` : '';
+      return `<div class="pair"><div><div class="why">${esc(r.why)}${two ? ' · <b>verschiedene Adressen</b>' : ''}</div>${whoBox(r.a)}${keep(r.a, ka)}</div><div><div class="why">&nbsp;</div>${whoBox(r.b)}${keep(r.b, kb)}</div>
+      <div class="acts">${two ? '' : `<button class="btn small primary" data-decide="same" data-pair="${esc(r.pairKey)}">Dieselbe Person</button>`}<button class="btn small" data-decide="different" data-pair="${esc(r.pairKey)}">Verschiedene Personen</button></div></div>`; }).join('')
     : '<div class="empty" style="padding:14px">Nichts zu prüfen ✓</div>'}
-  </div>`;
+  </div>
+  ${addrConflicts().length ? `<div class="section-title" id="sec-addr"><h3>Mehrere Adressen – eine wählen</h3><span class="muted small">Dieselbe Person mit verschiedenen Adressen ist nicht gültig und wird nicht gedruckt · <b>${addrConflicts().length} offen</b></span></div>
+  <div class="panel"><div class="tablewrap"><table><thead><tr><th>Person</th><th>Welche Adresse gilt?</th><th>Gefunden in</th></tr></thead><tbody>${addrConflicts().map(p => `<tr><td class="who"><div class="name">${esc(p.displayName)}</div>${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}${p.email ? `<div class="org">${esc(p.email)}</div>` : ''}</td><td>${addrChoice(p).replace('<div class="small" style="color:var(--bad);font-weight:600;margin-bottom:3px">Welche Adresse gilt?</div>', '')}</td><td class="cats">${membershipChips(p, false)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
 }
 function mergedPanel() {
   const merged = R.people.filter(p => p.isDuplicate);
@@ -1986,7 +2013,7 @@ function labelList() {
   const st = labelOpts();
   let list = (R.byOwner.get(LABEL_OWNER) || []).slice();
   if (st.onlyOpen) list = list.filter(p => !p.done);
-  const complete = (p) => !!((p.street || p.careOf) && p.zip && p.town);
+  const complete = (p) => !p.addrConflict && !!((p.street || p.careOf) && p.zip && p.town);
   const ok = list.filter(complete), missing = list.filter(p => !complete(p));
   if (st.sort === 'zip') ok.sort((a, b) => ((parseInt(a.zip, 10) || 0) - (parseInt(b.zip, 10) || 0)) || String(a.last || a.org).localeCompare(String(b.last || b.org), 'de'));
   return { ok, missing };
@@ -2023,7 +2050,7 @@ function labelsDialog(owner) {
         ${chk('org', 'Organisation aufdrucken')}
         ${chk('frame', 'Rahmen drucken (Probedruck auf Normalpapier)')}
         <div class="callout small"><b>${ok.length} Etiketten auf ${sheets.length} ${sheets.length === 1 ? 'Bogen' : 'Bögen'}</b>${st.start > 1 ? ` · beginnt bei Etikett ${esc(st.start)}` : ''}<br>Im Druckfenster: Papier A4, Skalierung 100 % („Tatsächliche Grösse"), Ränder „Keine". Zuerst einen Probedruck auf Normalpapier machen und gegen den Bogen halten.</div>
-        ${missing.length ? `<details class="small"><summary style="cursor:pointer;color:var(--warn)">${missing.length} ohne vollständige Adresse – werden nicht gedruckt</summary><div class="muted" style="margin-top:4px">${missing.map(p => esc(p.displayName)).join(' · ')}</div></details>` : ''}
+        ${missing.length ? `<details class="small"><summary style="cursor:pointer;color:var(--warn)">${missing.length} ohne vollständige oder mit mehreren Adressen – werden nicht gedruckt</summary><div class="muted" style="margin-top:4px">${missing.map(p => esc(p.displayName)).join(' · ')}</div></details>` : ''}
       </div>
       <div><div class="small muted" style="margin-bottom:6px">Vorschau: Bogen 1 von ${sheets.length}</div>
         <div class="lbl-preview-wrap"><div style="width:calc(210mm * ${scale});height:calc(297mm * ${scale});overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.15)"><div class="lbl-preview" style="transform:scale(${scale})">${sheets[0]}</div></div></div>
@@ -2054,7 +2081,7 @@ function printLabels() {
 const M365_DEFAULTS = { tenantId: '29537223-9280-4035-b685-49ec81dd6aea', clientId: 'fad64339-d256-4c02-9ab5-38894757993a', siteUrl: 'https://cevischweiz.sharepoint.com/sites/VSGS' };
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
-const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'deleted', 'edits', 'importDone', 'notes', 'ignoredSugg', 'version'];
+const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'deleted', 'edits', 'addrPick', 'importDone', 'notes', 'ignoredSugg', 'version'];
 const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh', 'layerId', 'knownGroups', 'pendingGroups', 'ignoredGroups', 'detachedGroups'];
 const J = WB.J;
 /** Was alle teilen (ohne Ansicht, ohne API-Key, ohne Microsoft-Einstellungen) */
@@ -2378,7 +2405,7 @@ function closeEditDialog() { $('#editModal').hidden = true; EM = null; }
 function moveKeyAfterEdit(oldKey, uid) {
   recompute();
   const np = R.people.find(x => x.entryUids.includes(uid)); if (!np || np.key === oldKey) return;
-  for (const store of [S.done, S.hidden, S.overrides]) if (store && store[oldKey] !== undefined && store[np.key] === undefined) { store[np.key] = store[oldKey]; delete store[oldKey]; }
+  for (const store of [S.done, S.hidden, S.overrides, S.addrPick]) if (store && store[oldKey] !== undefined && store[np.key] === undefined) { store[np.key] = store[oldKey]; delete store[oldKey]; }
 }
 function saveEditDialog(reset) {
   if (!EM) return closeEditDialog();
@@ -3505,7 +3532,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-kpi],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-kpi],[data-addr-pick],[data-addr-reset],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3619,7 +3646,17 @@ document.addEventListener('click', (ev) => {
   if (t.dataset.afilter) { S.ui.assignFilter = t.dataset.afilter; save(); render(); return; }
   if (t.dataset.tab) { ev.preventDefault(); S.ui.tab = t.dataset.tab; save(); render(); window.scrollTo(0, 0); return; }
   if (t.dataset.owner !== undefined) { ev.preventDefault(); S.ui.owner = t.dataset.owner; S.ui.tab = 'owners'; save(); render(); return; }
-  if (t.dataset.decide) { S.decisions[t.dataset.pair] = t.dataset.decide; save(); render(); toast(t.dataset.decide === 'same' ? 'Zusammengeführt ✓' : 'Als verschiedene Personen markiert'); return; }
+  if (t.dataset.addrPick) { S.addrPick = S.addrPick || {}; S.addrPick[t.dataset.addrPick] = t.dataset.addr; save(); render(); toast('Adresse gewählt ✓'); return; }
+  if (t.dataset.addrReset) { if (S.addrPick) delete S.addrPick[t.dataset.addrReset]; save(); render(); return; }
+  if (t.dataset.decide) {
+    S.decisions[t.dataset.pair] = t.dataset.decide;
+    if (t.dataset.addr) { // zusammenführen und gleich die Adresse festlegen
+      recompute();
+      const np = R.people.find(p => p.entryUids.includes(Number(t.dataset.uid)));
+      if (np && np.addrOptions.some(o => o.key === t.dataset.addr)) { S.addrPick = S.addrPick || {}; S.addrPick[np.key] = t.dataset.addr; }
+    }
+    save(); render(); toast(t.dataset.decide === 'same' ? 'Zusammengeführt ✓' + (t.dataset.addr ? ' – Adresse gewählt' : '') : 'Als verschiedene Personen markiert'); return;
+  }
   if (t.dataset.split) {
     const p = R.people.find(x => x.key === t.dataset.split); if (!p) return;
     const es = R.entries.filter(e => p.entryUids.includes(e.uid)).map(WB.identity);

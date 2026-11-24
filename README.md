@@ -11,7 +11,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
 
 Oben stehen vier Kacheln, die sich anklicken lassen:
 - **Briefe (eindeutige Empfänger)** öffnet die Masterliste mit allen Briefen.
-- **mögliche Duplikate prüfen** öffnet den Reiter Unvollständig beim Abschnitt mit den Duplikaten.
+- **mögliche Duplikate prüfen** (inkl. Personen mit mehreren Adressen) öffnet den Reiter Unvollständig beim Abschnitt mit den Duplikaten.
 - **ohne Zuständigkeit** öffnet die Liste „⚠ Ohne Zuständigkeit“, wo man die Zuständigkeit direkt wählen kann.
 - **erledigt** öffnet die Masterliste mit dem Filter „Nur nicht erledigte“.
 
@@ -50,7 +50,8 @@ Oben stehen vier Kacheln, die sich anklicken lassen:
    - Blätter ohne Adressen (z.B. eine reine Zahlungsliste oder „Hinweise“) werden mit einem kurzen Hinweis übergangen.
    - Das Blatt „Überblick" liefert die Hauptzuständigkeiten. Die Sammelliste („Masterliste") wird ignoriert, damit nichts doppelt gezählt wird.
 4. **Unvollständig:** Alles, was noch eine Entscheidung braucht, in einem Reiter. Die Zahl am Reiter zeigt, wie viel noch offen ist.
-   - **Mögliche Duplikate prüfen:** Unsichere Fälle bestätigen oder ablehnen, z.B. gleicher Name mit anderer PLZ oder ein Tippfehler im Vornamen.
+   - **Mögliche Duplikate prüfen:** Unsichere Fälle bestätigen oder ablehnen, z.B. gleicher Name mit anderer PLZ oder ein Tippfehler im Vornamen. Haben die beiden Einträge verschiedene Adressen, gibt es unter jedem Eintrag „Dieselbe Person – diese Adresse“: zusammenführen und gleich festlegen, welche Adresse gilt.
+   - **Mehrere Adressen – eine wählen:** Eine Person mit zwei oder mehr verschiedenen Adressen ist nicht gültig. Sie wird rot markiert („Welche Adresse gilt?“), nicht gedruckt und zählt als offen, bis eine Adresse angeklickt ist. Die Wahl geht auch direkt in der Masterliste (Spalte Adresse). Mit „↺ andere Adresse wählen“ lässt sie sich ändern.
    - **Ohne Zuständigkeit:** Diese Adressen lassen sich frei zuweisen.
    - **Mehrfach gelistet:** Für Personen in mehreren Listen wählt man per Klick die Hauptverantwortung. Die anderen unterschreiben automatisch mit.
    - **Automatisch zusammengeführt** (aufklappbar): Alle Personen, die das Tool selbst zusammengeführt hat. Bei einem Fehler „Trennen".

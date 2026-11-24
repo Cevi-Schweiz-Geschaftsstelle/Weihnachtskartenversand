@@ -84,6 +84,25 @@ assert.deepStrictEqual([orgs[0].org, orgs[0].street, orgs[0].nr, orgs[0].zip], [
 const mixed = [{ ...orgs[0], uid: 900, origin: 'db' }, { org: 'Cevi Region Test', first: 'z.Hd. Team', last: '', street: 'Testweg', nr: '9', zip: '3000', town: 'Bern', catId: 'mio', group: 'Regionalverbände', uid: 901, origin: 'excel' }];
 assert.strictEqual(WB.buildPeople(mixed, { cats, aliases: new Map(), codeNames: {} }).people.length, 1, 'gleiche Organisation + PLZ = ein Brief');
 
+// Dieselbe Person mit zwei verschiedenen Adressen → ungültig, bis eine gewählt ist
+{
+  const two = [
+    { uid: 1, first: 'Anna', last: 'Beispiel', email: 'anna@example.org', street: 'Musterweg', nr: '2', zip: '4600', town: 'Olten', catId: cats[0].id, origin: 'db' },
+    { uid: 2, first: 'Anna', last: 'Beispiel', email: 'anna@example.org', street: 'Testgasse', nr: '46', zip: '3000', town: 'Bern', catId: cats[0].id, origin: 'excel' },
+  ];
+  let r = WB.buildPeople(two, { cats, aliases: new Map(), codeNames: {} });
+  assert.strictEqual(r.people.length, 1, 'gleiche E-Mail = eine Person');
+  let p = r.people[0];
+  assert.strictEqual(p.addrConflict, true); assert.strictEqual(p.addrOptions.length, 2);
+  assert.ok(p.notes.some(n => /verschiedene Adressen – bitte eine wählen/.test(n)));
+  const pick = p.addrOptions.find(o => o.zip === '3000').key;
+  r = WB.buildPeople(two, { cats, aliases: new Map(), codeNames: {}, addrPick: { [p.key]: pick } });
+  p = r.people[0];
+  assert.strictEqual(p.addrConflict, false); assert.strictEqual(p.addrPicked, true);
+  assert.deepStrictEqual([p.street, p.nr, p.zip, p.town], ['Testgasse', '46', '3000', 'Bern'], 'gewählte Adresse gilt');
+  assert.ok(!p.notes.some(n => /Adressen/.test(n)));
+}
+
 // Verschachtelte Untergruppen: jede Ebene einzeln, Vererbung von der Obergruppe
 {
   const t = WB.subgroupTree('Ausschüsse', ['1'], [

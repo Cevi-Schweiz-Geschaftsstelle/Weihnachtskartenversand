@@ -611,6 +611,7 @@
     if (isPersonal(e)) return key(e.first) + '|' + key(e.last);
     return 'org|' + key(e.org) + '|' + key(e.first) + '|' + key(e.last);
   }
+  function addrKey(e) { return key(e.street) + key(e.nr) + '#' + key(e.zip); }
   function identity(e) { return [personNameKey(e), key(e.zip), e.email].join('#'); }
   function pairKey(a, b) { return a < b ? a + '§' + b : b + '§' + a; }
 
@@ -624,6 +625,7 @@
     const catById = Object.fromEntries(cats.map(c => [c.id, c]));
     const decisions = opts.decisions || {};
     const overrides = opts.overrides || {};
+    const addrPick = opts.addrPick || {}; // { personKey: addrKey } – von Hand gewählte Adresse bei mehreren Adressen
     const codeNames = opts.codeNames || {};
     const catPersonCache = new Map();
     const catPersons = (catId) => {
@@ -759,11 +761,15 @@
         { const x = extraOwners(e); for (const o of x.list) addCo(o, label + (x.via === ' (Untergruppe)' ? ' (weitere Zuständige der Untergruppe)' : ' (weitere Zuständige der Kategorie)')); }
         if (e.extra) for (const part of splitOwners(e.extra)) addCo(aliasOf(part), 'Spalte „Zus. Unterschriften" (' + label + ')');
       }
+      // Mehrere verschiedene Adressen sind nicht gültig → eine muss gewählt werden (addrPick)
       const addrSet = new Map();
-      for (const e of es) if (e.zip || e.street) { const k = key(e.street) + key(e.nr) + '#' + key(e.zip); if (!addrSet.has(k)) addrSet.set(k, e); }
+      for (const e of es) if (e.zip || e.street) { const k = addrKey(e); if (!addrSet.has(k)) addrSet.set(k, e); }
+      const picked = addrSet.size > 1 && addrSet.get(addrPick[pKey]);
+      const A = picked || best;
+      const addrConflict = addrSet.size > 1 && !picked;
       const notes = [];
-      if (addrSet.size > 1) notes.push('Unterschiedliche Adressen: ' + [...addrSet.values()].map(e => [e.street, e.nr].filter(Boolean).join(' ') + ', ' + [e.zip, e.town].filter(Boolean).join(' ')).join(' ⟷ '));
-      if (!best.zip || !best.street) notes.push('Adresse unvollständig');
+      if (addrConflict) notes.push(`${addrSet.size} verschiedene Adressen – bitte eine wählen`);
+      if (!A.zip || !A.street) notes.push('Adresse unvollständig');
       if (!owner) notes.push('Keine Zuständigkeit hinterlegt');
       if (isSelf(owner)) notes.push('Zuständig ist die Person selbst – bitte anders zuteilen');
       notes.push(...selfNotes);
@@ -777,7 +783,9 @@
         key: pKey, entryUids: es.map(e => e.uid),
         org: best.org || (es.find(e => e.org) || {}).org || '', first: best.first, last: best.last, nick: best.nick || '',
         email: best.email || (es.find(e => e.email) || {}).email || '',
-        street: best.street, nr: best.nr, careOf: best.careOf || '', zip: best.zip, town: best.town, country: best.country || '',
+        street: A.street, nr: A.nr, careOf: A.careOf || '', zip: A.zip, town: A.town, country: A.country || '',
+        addrConflict, addrPicked: !!picked,
+        addrOptions: addrSet.size > 1 ? [...addrSet].map(([k, e]) => ({ key: k, careOf: e.careOf || '', street: e.street, nr: e.nr, zip: e.zip, town: e.town, country: e.country || '', origin: e.origin || 'excel', source: e.sourceLabel || '' })) : [],
         owner, overridden, suggested, candidates, primaryCatId: primary.catId, primaryCat: (catById[primary.catId] || {}).name || 'ohne Kategorie', primaryGroup: primary.group,
         coSigners, memberships, notes,
         mergeReasons: es.length > 1 ? [...(reasons.get(root) || [])] : [],
@@ -883,6 +891,6 @@
     return l; // beide haben denselben Wert verschieden geändert → die eigene Änderung gilt
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, splitFullName, guessNameOrder, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, merge3, J, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, addrKey, splitFullName, guessNameOrder, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, merge3, J, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);

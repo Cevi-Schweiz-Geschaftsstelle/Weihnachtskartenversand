@@ -753,7 +753,8 @@
       const memberships = [];
       for (const e of ranked) {
         const m = { catId: e.catId, cat: (catById[e.catId] || {}).name || 'ohne Kategorie', group: e.group, owner: effOwner(e), source: e.sourceLabel || '', origin: e.origin || 'excel', roles: e.roles || '' };
-        if (!memberships.some(x => x.cat === m.cat && x.group === m.group && x.owner === m.owner)) memberships.push(m);
+        if (e.mid) m.mid = e.mid; // von Hand erfasst → lässt sich in der Masterliste löschen
+        if (!memberships.some(x => x.cat === m.cat && x.group === m.group && x.owner === m.owner && !m.mid)) memberships.push(m);
       }
       const person = {
         key: pKey, entryUids: es.map(e => e.uid),

@@ -42,10 +42,6 @@ header.top{background:var(--panel);border-bottom:1px solid var(--line);padding:1
 .menu label.mi input{margin-top:3px}
 .menu .msep{height:1px;background:var(--line2);margin:6px 4px}
 .menu .mnote{font-size:12px;color:var(--muted);padding:0 10px 6px}
-.menu .mrow{display:flex;gap:9px;padding:6px 10px;font-size:13.5px}
-.menu .mrow .mic{width:16px;text-align:center;flex:none}
-.menu .mrow.ok .mic{color:var(--ok)} .menu .mrow.warn .mic{color:var(--warn)}
-.menu .mnote0{font-size:12px;color:var(--muted);margin-top:1px}
 .kpis{display:flex;gap:10px;margin:14px 0 12px;flex-wrap:wrap}
 .kpi{background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:8px 14px;min-width:132px}
 .kpi .v{font-size:21px;font-weight:650;font-variant-numeric:tabular-nums}
@@ -273,19 +269,13 @@ body.print-labels #labelsPrint{display:block}
         <div class="sub" id="subline">Adressen zusammenführen · Duplikate erkennen · Zuständigkeiten verteilen</div>
       </div>
       <div class="spacer"></div>
-      <button class="btn" id="btnCloud" title="Gemeinsam arbeiten über Microsoft 365 (SharePoint)">☁ Gemeinsam arbeiten</button>
+      <button class="btn" id="btnCloud" title="Stand mit allen abgleichen (Microsoft 365)">↻ Aktualisieren</button>
       <div class="menuwrap noprint">
-        <button class="btn" id="btnMenu" aria-haspopup="true" aria-expanded="false" title="Importieren, Aktualisieren, Exportieren, Speichern und Zurücksetzen">☰ Menü</button>
+        <button class="btn" id="btnMenu" aria-haspopup="true" aria-expanded="false" title="Importieren, Exportieren und Zurücksetzen">☰ Menü</button>
         <div class="menu" id="dataMenu" role="menu" hidden>
           <div class="mh">Daten</div>
           <button class="mi" id="btnImport" title="Excel- oder CSV-Dateien einlesen">⤓ Aus Excel importieren</button>
-          <button class="mi" id="btnRefresh" title="Daten live aus der Cevi DB neu laden">↻ Aus Cevi DB aktualisieren</button>
           <button class="mi" id="btnExport" title="Ergebnis als Excel herunterladen">⇩ Excel exportieren</button>
-          <div class="msep"></div>
-          <div class="mh">Speichern</div>
-          <div id="saveStatus"></div>
-          <div class="msep"></div>
-          <label class="mi"><input type="checkbox" id="importDone"> „Erledigt"-Häkchen aus den Excel-Listen übernehmen</label>
           <div class="msep"></div>
           <div class="mh">Zurücksetzen</div>
           <button class="mi" data-action="reset-done">↺ Alle Erledigt-Häkchen zurücksetzen</button>
@@ -398,32 +388,10 @@ function load() {
     return s;
   } catch (e) { console.warn(e); return defaultState(); }
 }
-let LAST_SAVE = null;
-/** Menü „⚙ Daten" → Speichern: lokal immer automatisch; Abgleich mit allen über Microsoft 365 */
-function renderSaveStatus() {
-  const el = document.getElementById('saveStatus'); if (!el) return;
-  let C = null; try { C = Cloud; } catch (e) { /* noch nicht bereit */ }
-  const hm = (t) => new Date(t).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
-  const row = (icon, title, note, cls = '') => `<div class="mrow ${cls}"><span class="mic">${icon}</span><div><b>${title}</b><div class="mnote0">${note}</div></div></div>`;
-  let h = row('✓', `Automatisch gespeichert${LAST_SAVE ? ' · ' + hm(LAST_SAVE) : ''}`, 'Jede Änderung wird sofort gesichert. Auch nach dem Schliessen ist alles noch da.', 'ok');
-  const st = C ? C.status : 'off';
-  if (st === 'ok') h += row('☁', `Automatisch synchronisiert${C.lastSync ? ' · ' + hm(C.lastSync) : ''}`, 'Alle im Team sehen denselben Stand. Abgleich alle 20 Sekunden.', 'ok')
-    + '<button class="mi" data-action="cloud-sync">↻ Jetzt abgleichen</button>';
-  else if (st === 'connecting') h += row('☁', 'Verbinde …', 'Der gemeinsame Stand wird geladen.');
-  else if (st === 'login') h += row('☁', 'Noch nicht angemeldet', 'Einmal mit dem Cevi-Konto anmelden – danach wird alles automatisch mit allen synchronisiert.', 'warn')
-    + '<button class="mi" data-action="cloud-open">☁ Mit Microsoft anmelden</button>';
-  else if (st === 'error') h += row('⚠', 'Abgleich gestört', esc(C.msg || 'Unbekannter Fehler'), 'warn')
-    + '<button class="mi" data-action="cloud-open">☁ Details und erneut verbinden</button>';
-  else if (C && C.configured()) h += row('☁', 'Abgleich mit anderen ist aus', 'Nur in diesem Browser gespeichert.', 'warn')
-    + '<button class="mi" data-action="cloud-open">☁ Verbinden</button>';
-  else h += row('☁', 'Noch kein Abgleich mit anderen', 'Gespeichert wird nur in diesem Browser. Sobald Microsoft 365 eingerichtet ist, wird alles automatisch mit allen synchronisiert.', 'warn')
-    + '<button class="mi" data-action="cloud-open">☁ Gemeinsam arbeiten einrichten</button>';
-  el.innerHTML = h;
-}
 function save(fromSync) {
   const copy = { ...S, db: { ...S.db } };
   if (!S.db.rememberToken) copy.db.token = '';
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(copy)); LAST_SAVE = Date.now(); renderSaveStatus(); }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(copy)); }
   catch (e) { toast('Konnte nicht lokal speichern: ' + e.message); }
   if (!fromSync && typeof Cloud !== 'undefined' && Cloud.status === 'ok') Cloud.schedulePush();
 }
@@ -485,7 +453,7 @@ function recompute() {
   const { people, review } = WB.buildPeople(entries, { cats, order: S.order, aliases, codeNames, decisions: S.decisions, overrides: S.overrides });
   const byOwner = new Map(), coByOwner = new Map();
   for (const p of people) {
-    p.done = S.done[p.key] !== undefined ? S.done[p.key] : (S.importDone && p.doneFromFile);
+    p.done = S.done[p.key] !== undefined ? S.done[p.key] : !!p.doneFromFile; // „Erledigt" aus Excel wird immer übernommen
     const o = p.owner || '';
     if (!byOwner.has(o)) byOwner.set(o, []);
     byOwner.get(o).push(p);
@@ -577,10 +545,9 @@ function renderNow() {
   else if (t === 'cats') main.innerHTML = catsView();
   else if (t === 'db') main.innerHTML = top + dbView();
   const big = $('#bigdrop'); if (big) bindDrop(big);
-  $('#subline').textContent = S.sources.length
+  if (!$('#subline').dataset.db) $('#subline').textContent = S.sources.length
     ? `${S.sources.filter(s => s.kind === 'excel').length} Excel-Listen` + (S.sources.some(s => s.kind === 'db') ? ` · ${S.sources.filter(s => s.kind === 'db').length} Cevi-DB-Quellen (Stand ${fmtDate(S.db.lastRefresh)})` : '')
     : 'Adressen zusammenführen · Duplikate erkennen · Zuständigkeiten verteilen';
-  const idc = $('#importDone'); if (idc) idc.checked = !!S.importDone;
   if (typeof Cloud !== 'undefined') Cloud.badge();
 }
 let NEW_KEYS = new Set();
@@ -1052,11 +1019,14 @@ const Cloud = {
   badge() {
     const b = $('#btnCloud'); if (!b) return;
     const t = this.lastSync ? new Date(this.lastSync).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : '';
-    const map = { off: '☁ Gemeinsam arbeiten', login: '☁ Anmelden', connecting: '☁ verbinde …', ok: `☁ Gemeinsam ✓${t ? ' ' + t : ''}`, error: '☁ Gemeinsam ⚠' };
-    b.textContent = map[this.status] || map.off;
-    b.classList.toggle('cloud-ok', this.status === 'ok'); b.classList.toggle('cloud-err', this.status === 'error');
-    b.title = this.status === 'ok' ? `Gemeinsamer Stand in SharePoint · angemeldet als ${this.user}${t ? ' · zuletzt abgeglichen ' + t : ''}` : this.msg || 'Gemeinsam arbeiten über Microsoft 365 (SharePoint)';
-    renderSaveStatus();
+    const busy = this.syncing || this.status === 'connecting';
+    b.textContent = busy ? '↻ Aktualisiere …' : this.status === 'error' ? '↻ Aktualisieren ⚠' : '↻ Aktualisieren';
+    b.disabled = !!busy;
+    b.classList.toggle('cloud-ok', this.status === 'ok'); b.classList.toggle('cloud-err', this.status === 'error' || this.status === 'login');
+    b.title = this.status === 'ok' ? `Stand mit allen abgleichen${t ? ' · zuletzt ' + t : ''} · angemeldet als ${this.user}`
+      : this.status === 'login' ? 'Mit dem Cevi-Konto anmelden und den Stand aller laden'
+      : this.status === 'error' ? 'Abgleich gestört: ' + (this.msg || '') + ' – klicken zum erneut Versuchen'
+      : 'Stand mit allen abgleichen (Microsoft 365)';
   },
   async auth() {
     if (window.__WB_FAKE_AUTH) return window.__WB_FAKE_AUTH; // nur für automatische Tests
@@ -1156,7 +1126,7 @@ const Cloud = {
       const a = await this.auth();
       this.account = a.account();
       if (!this.account && interactive) this.account = await a.login();
-      if (!this.account) { this.setStatus('login', 'Bitte mit Microsoft anmelden.'); return; }
+      if (!this.account) { this.setStatus('login', 'Bitte mit Microsoft anmelden.'); autoDbRefresh(); return; }
       this.user = this.account.username || this.account.name || '';
       const u = new URL(this.cfg().siteUrl);
       // nur „/sites/<Name>" bzw. „/teams/<Name>" – Reste wie „/SitePages/Home.aspx" oder „/Freigegebene Dokumente" weglassen
@@ -1185,8 +1155,8 @@ const Cloud = {
       S.m365.enabled = true; S.m365.linked = true; S.m365.declined = false; save(true);
       this.lastSync = Date.now(); this.setStatus('ok'); render();
       this.startPolling();
-      this.loadKey();
-    } catch (e) { console.error(e); this.setStatus('error', e.message || String(e)); if (interactive) toast(e.message || String(e)); }
+      this.loadKey().then(() => autoDbRefresh());
+    } catch (e) { console.error(e); this.setStatus('error', e.message || String(e)); if (interactive) toast(e.message || String(e)); autoDbRefresh(); }
   },
   disconnect(silent) {
     clearInterval(this.pollT); clearTimeout(this.pushT);
@@ -1215,8 +1185,25 @@ const Cloud = {
     } catch (e) { console.error(e); this.setStatus('error', e.message || String(e)); }
     finally { this.busy = false; if (this.again) { this.again = false; this.schedulePush(); } }
   },
-  async poll() {
-    if (this.status !== 'ok' || this.busy || isEditing() || document.hidden) return;
+  /** Knopf „↻ Aktualisieren": anmelden falls nötig, eigene Änderungen senden, Stand aller holen */
+  async syncNow() {
+    if (this.syncing) return;
+    if (this.status !== 'ok') {
+      if (!this.configured()) return cloudDialog();
+      await this.connect(true);
+      if (this.status === 'ok') toast('Angemeldet – alles ist auf dem neusten Stand.');
+      return;
+    }
+    this.syncing = true; this.badge();
+    try {
+      clearTimeout(this.pushT); await this.push();
+      await this.poll(true);
+      if (!CLOUD_KEY) this.loadKey();
+      if (this.status === 'ok') toast('Aktualisiert ✓ – du siehst den neusten Stand aller.');
+    } finally { this.syncing = false; this.badge(); }
+  },
+  async poll(force) {
+    if (this.status !== 'ok' || this.busy || (!force && (isEditing() || document.hidden))) return;
     try {
       const res = await this.gfetch(this.path() + '?$select=eTag');
       if (res.status === 404) { this.eTag = ''; this.base = null; return this.schedulePush(); } // Datei gelöscht → neu anlegen
@@ -1236,7 +1223,7 @@ const Cloud = {
     this.badge();
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.poll(); });
     if (S.m365.enabled && this.configured()) this.connect(false);
-    else if (this.fixed() && !S.m365.declined) this.setStatus('login', 'Einmal mit dem Cevi-Konto anmelden – danach wird alles automatisch synchronisiert.');
+    else { if (this.fixed() && !S.m365.declined) this.setStatus('login', 'Einmal mit dem Cevi-Konto anmelden – danach wird alles automatisch synchronisiert.'); autoDbRefresh(); }
   },
   fixed() { return !!(M365_DEFAULTS.tenantId && M365_DEFAULTS.clientId && M365_DEFAULTS.siteUrl); },
 };
@@ -1245,7 +1232,7 @@ function cloudDialog() {
   const st = { off: 'Nur auf diesem Computer', login: 'Anmeldung nötig', connecting: 'Verbinde …', ok: 'Verbunden – alle sehen denselben Stand', error: 'Fehler' }[Cloud.status];
   const m = $('#cloudModal');
   m.querySelector('.modal').innerHTML = `
-    <div class="hd"><h3 id="cloudTitle">☁ Gemeinsam arbeiten (Microsoft 365)</h3></div>
+    <div class="hd"><h3 id="cloudTitle">☁ Verbindung mit Microsoft 365</h3></div>
     <div class="bd">
       <p class="small" style="margin-top:0">Mit Microsoft angemeldet, liegt der Stand des Tools in der SharePoint-Website von Cevi: Listen, Zuständige, Zuteilungen, Erledigt-Häkchen. Alle Mitglieder der Website sehen und bearbeiten denselben Stand; Änderungen erscheinen bei den anderen nach etwa 20 Sekunden. Der API-Key der Cevi DB bleibt auf diesem Computer.</p>
       <div class="callout ${Cloud.status === 'error' ? 'warn' : ''}" style="margin:10px 0"><b>Status:</b> ${esc(st)}${Cloud.user && Cloud.status === 'ok' ? ` · angemeldet als ${esc(Cloud.user)}` : ''}${Cloud.lastSync && Cloud.status === 'ok' ? ` · abgeglichen ${new Date(Cloud.lastSync).toLocaleTimeString('de-CH')}` : ''}${Cloud.msg && Cloud.status !== 'ok' ? `<div class="small" style="margin-top:4px">${esc(Cloud.msg)}</div>` : ''}</div>
@@ -1465,9 +1452,9 @@ function keyPanel() {
   const st = Cloud.status === 'ok' ? Cloud.key.state : 'off';
   const when = (t) => { try { return new Date(t).toLocaleDateString('de-CH'); } catch (e) { return ''; } };
   let body;
-  if (st === 'off') body = `<div class="small muted">Wer berechtigt ist, bekommt den Key nach der Anmeldung bei Microsoft (oben „☁“) automatisch – ohne ihn einzutippen.</div>`;
+  if (st === 'off') body = `<div class="small muted">Wer berechtigt ist, bekommt den Key nach der Anmeldung bei Microsoft (oben „↻ Aktualisieren“) automatisch – ohne ihn einzutippen.</div>`;
   else if (st === 'unknown') body = '<div class="small muted">Prüfe, ob für dich ein Key hinterlegt ist …</div>';
-  else if (st === 'ok') body = `<div class="callout" style="background:var(--ok-soft);border-color:transparent;margin:0"><b>✓ Der API-Key wurde automatisch aus SharePoint geladen.</b>${Cloud.key.by ? ` Hinterlegt von ${esc(Cloud.key.by)}${Cloud.key.at ? ' am ' + esc(when(Cloud.key.at)) : ''}.` : ''} Du kannst direkt aktualisieren.</div>
+  else if (st === 'ok') body = `<div class="callout" style="background:var(--ok-soft);border-color:transparent;margin:0"><b>✓ Der API-Key wurde automatisch aus SharePoint geladen.</b>${Cloud.key.by ? ` Hinterlegt von ${esc(Cloud.key.by)}${Cloud.key.at ? ' am ' + esc(when(Cloud.key.at)) : ''}.` : ''} Die Daten aus der Cevi DB werden beim Öffnen automatisch aktualisiert.</div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn small" data-action="key-replace" title="Den oben eingetragenen neuen Key im Schlüssel-Ordner speichern">Key ersetzen</button><button class="btn small ghost danger" data-action="key-delete">Key aus SharePoint löschen</button></div>`;
   else if (st === 'error') body = `<div class="callout warn" style="margin:0">Key konnte nicht geladen werden: ${esc(Cloud.key.msg || '')}</div>`;
   else body = `<div class="small muted" style="margin-bottom:10px">Für dich ist kein Key hinterlegt, oder du hast keinen Zugriff auf den Schlüssel-Ordner. Einrichten (einmalig, durch eine berechtigte Person):</div>
@@ -1484,7 +1471,7 @@ function keyPanel() {
       </div>`;
 }
 async function keyAction(a) {
-  if (Cloud.status !== 'ok') return toast('Bitte zuerst oben mit „☁“ bei Microsoft anmelden.');
+  if (Cloud.status !== 'ok') return toast('Bitte zuerst oben mit „↻ Aktualisieren“ bei Microsoft anmelden.');
   try {
     KEYUI.busy = true; render();
     if (a === 'key-folder') { const f = await Cloud.keyFolder(); KEYUI.folderUrl = f.webUrl || ''; toast('Schlüssel-Ordner bereit – jetzt in SharePoint den Zugriff einschränken.'); }
@@ -1964,17 +1951,21 @@ async function dbTest() {
     toast('Verbindung zur Cevi DB funktioniert ✓');
   } catch (e) { logDb('Fehler: ' + e.message); toast(e.message); }
 }
-async function dbRefresh(demo = false) {
-  if (!demo && !token()) { S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
+let DB_BUSY = false;
+async function dbRefresh(demo = false, auto = false) {
+  if (DB_BUSY) return;
+  if (!demo && !token()) { if (auto) return; S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
   if (!demo && cleanExcluded()) save();
   const srcs = demo ? demoSources() : S.db.sources.filter(s => parseGroupIds(s.groupIds).length);
+  if (!srcs.length && auto) return;
   if (!srcs.length) {
     S.ui.tab = 'db'; render();
     if (parseGroupIds(S.db.rootGroup || '').length) { toast('Noch keine Gruppen ausgewählt – ich lese zuerst die Gruppen aus der Cevi DB. Bitte den Vorschlag prüfen und übernehmen.'); return dbReadGroups(); }
     const f = $('#dbRoot'); if (f) { f.focus(); f.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     return toast('Das Tool weiss noch nicht, welche Gruppen es laden soll: Unter „Gruppen automatisch übernehmen" den Link zur Gruppe Cevi Schweiz einfügen und auf „Gruppen lesen" klicken.');
   }
-  const btn = $('#btnRefresh'); btn.disabled = true; btn.textContent = '↻ lädt …'; toast('Lade Daten aus der Cevi DB …');
+  DB_BUSY = true; setDbStatus('↻ Cevi DB wird aktualisiert …');
+  if (!auto) toast('Lade Daten aus der Cevi DB …');
   const now = new Date().toISOString();
   const fresh = [];
   const before = S.sources.length ? snapshotPeople() : null;
@@ -2027,10 +2018,27 @@ async function dbRefresh(demo = false) {
     if (!demo) { const n = pruneDbSubgroups(live) + pathFilterPrune(); if (n) logDb(`${n} Untergruppen entfernt, die nicht mehr geladen werden`); }
     if (before && before.length) { finishChange('Cevi DB' + (demo ? ' (Demo)' : ''), before, { disabled }); UNDO = prev; }
     save(); render();
-    toast(`Cevi DB${demo ? ' (Demo)' : ''} aktualisiert: ${fresh.reduce((a, s) => a + s.entries.length, 0)} Einträge aus ${fresh.length} Quellen` + (before && before.length ? ' · ' + changeSummary() : ''));
-  } catch (e) { logDb('Fehler: ' + e.message); toast(e.message); if (S.ui.tab !== 'db') { S.ui.tab = 'db'; render(); } }
-  finally { btn.disabled = false; btn.textContent = '↻ Aus Cevi DB aktualisieren'; }
+    const summary = before && before.length ? changeSummary() : '';
+    if (!auto) toast(`Cevi DB${demo ? ' (Demo)' : ''} aktualisiert: ${fresh.reduce((a, s) => a + s.entries.length, 0)} Einträge aus ${fresh.length} Quellen` + (summary ? ' · ' + summary : ''));
+    else if (summary && !/keine Änderungen/.test(summary)) toast('Cevi DB automatisch aktualisiert: ' + summary);
+  } catch (e) {
+    logDb('Fehler: ' + e.message);
+    if (auto) toast('Cevi DB konnte nicht automatisch aktualisiert werden: ' + e.message);
+    else { toast(e.message); if (S.ui.tab !== 'db') { S.ui.tab = 'db'; render(); } }
+  }
+  finally { DB_BUSY = false; setDbStatus(''); }
 }
+/** Beim Öffnen/Neuladen: Daten aus der Cevi DB automatisch holen (wer einen Key hat; höchstens alle 2 Minuten für alle zusammen) */
+let AUTO_DB_DONE = false;
+function autoDbRefresh() {
+  if (AUTO_DB_DONE) return;
+  if (!token() || !S.db.sources.some(s => parseGroupIds(s.groupIds).length)) return;
+  AUTO_DB_DONE = true;
+  const last = S.db.lastRefresh ? Date.parse(S.db.lastRefresh) : 0;
+  if (Date.now() - last < 2 * 60 * 1000) return; // gerade erst (von jemandem) aktualisiert
+  dbRefresh(false, true);
+}
+function setDbStatus(t) { const el = $('#subline'); if (!el) return; if (t) { el.dataset.db = t; el.textContent = t; } else { delete el.dataset.db; render(); } }
 function demoSources() { return [{ id: 'demo1', label: 'Fachgruppe Testgruppe', catId: '', owner: 'TSC' }, { id: 'demo2', label: 'Projektgruppe Testlager 26', catId: '', owner: 'NBA' }]; }
 function demoPages(s) {
   // Erfundene Testpersonen im Format der hitobito JSON:API – zeigt den Ablauf ohne echte Verbindung
@@ -2195,7 +2203,7 @@ document.addEventListener('click', (ev) => {
   else if (a === 'labels-print') { $('#labelModal').hidden = true; printLabels(); }
   else if (a === 'export-owner') exportExcel(S.ui.owner || '');
   else if (a === 'import') $('#fileInput').click();
-  else if (a === 'reset-done') { if (confirm('Alle Erledigt-Häkchen entfernen?')) { S.done = {}; S.importDone = false; save(); render(); } }
+  else if (a === 'reset-done') { if (confirm('Alle Erledigt-Häkchen entfernen?')) { S.done = {}; for (const p of R.people) if (p.doneFromFile) S.done[p.key] = false; save(); render(); } }
   else if (a === 'reset-manual') { if (confirm('Manuelle Zuteilungen und Duplikat-Entscheide zurücksetzen?')) { S.overrides = {}; S.decisions = {}; save(); render(); } }
   else if (a === 'wipe') { if (confirm('Wirklich alle importierten Daten und Einstellungen auf diesem Computer löschen?' + (Cloud.status === 'ok' ? '\n\nDer gemeinsame Stand in SharePoint bleibt erhalten; dieser Computer wird davon getrennt.' : ''))) { Cloud.disconnect(true); localStorage.removeItem(STORE_KEY); localStorage.removeItem(STORE_KEY + '-gemeinsam'); S = defaultState(); sessionToken = ''; render(); } }
   else if (a === 'accept-all') {
@@ -2209,7 +2217,7 @@ document.addEventListener('click', (ev) => {
   else if (a === 'cloud-open') cloudDialog();
   else if (a === 'key-folder' || a === 'key-save' || a === 'key-replace' || a === 'key-delete') keyAction(a);
   else if (a === 'cloud-connect') { readCloudFields(); Cloud.app = null; Cloud.connect(true); }
-  else if (a === 'cloud-sync') { Cloud.poll(); Cloud.schedulePush(); }
+  else if (a === 'cloud-sync') Cloud.syncNow();
   else if (a === 'cloud-off') { if (confirm('Vom gemeinsamen Stand trennen? Der aktuelle Stand bleibt auf diesem Computer, wird aber nicht mehr abgeglichen.')) { S.m365.declined = true; Cloud.disconnect(); cloudDialog(); } }
   else if (a === 'cloud-close') $('#cloudModal').hidden = true;
   else if (a === 'modal-save') saveCatDialog();
@@ -2304,7 +2312,6 @@ document.addEventListener('change', (ev) => {
   if (t.dataset.dbs) { const s = S.db.sources.find(x => x.id === t.dataset.dbs); const k = t.dataset.k; s[k] = t.type === 'checkbox' ? t.checked : t.value.trim(); if (k === 'catId' && !s.catId) s.replaceExcel = false; save(); if (k === 'catId') render(); return; }
   if (t.id === 'aliasText') { S.aliasText = t.value; save(); render(); return; }
   if (t.id === 'autoAliases') { S.autoAliases = t.checked; save(); render(); return; }
-  if (t.id === 'importDone') { S.importDone = t.checked; save(); render(); return; }
   if (t.id === 'dbRoot') { S.db.rootGroup = t.value.trim(); save(); return; }
   if (t.id === 'dbFilter') { S.db.groupFilter = t.value; save(); return; }
   if (t.id === 'dbExclude') { S.db.groupExclude = t.value; const n = cleanExcluded(); save(); if (n) { render(); toast(`${n} ausgeschlossene Gruppen/Untergruppen entfernt`); } return; }
@@ -2349,8 +2356,8 @@ function readCloudFields() {
   if (t !== undefined) S.m365.tenantId = t; if (c !== undefined) S.m365.clientId = c; if (s2 !== undefined) S.m365.siteUrl = s2;
   save(true);
 }
-$('#btnCloud').addEventListener('click', () => cloudDialog());
-function setDataMenu(open) { if (open) renderSaveStatus(); $('#dataMenu').hidden = !open; $('#btnMenu').setAttribute('aria-expanded', String(open)); $('#btnMenu').classList.toggle('on', open); }
+$('#btnCloud').addEventListener('click', () => Cloud.syncNow());
+function setDataMenu(open) { $('#dataMenu').hidden = !open; $('#btnMenu').setAttribute('aria-expanded', String(open)); $('#btnMenu').classList.toggle('on', open); }
 $('#btnMenu').addEventListener('click', (e) => { e.stopPropagation(); setDataMenu($('#dataMenu').hidden); });
 document.addEventListener('click', (e) => {
   if ($('#dataMenu').hidden) return;
@@ -2361,7 +2368,6 @@ $('#cloudModal').addEventListener('click', (e) => { if (e.target.id === 'cloudMo
 $('#catModal').addEventListener('click', (e) => { if (e.target.id === 'catModal') closeCatDialog(true); });
 $('#btnImport').addEventListener('click', () => $('#fileInput').click());
 $('#btnExport').addEventListener('click', () => exportExcel());
-$('#btnRefresh').addEventListener('click', () => dbRefresh(false));
 $('#fileInput').addEventListener('change', (e) => { const f = [...e.target.files]; e.target.value = ''; if (f.length) importFiles(f); });
 let dragN = 0;
 window.addEventListener('dragenter', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { dragN++; $('#dropmask').classList.add('show'); } });
@@ -2369,6 +2375,7 @@ window.addEventListener('dragleave', () => { dragN = Math.max(0, dragN - 1); if 
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => { e.preventDefault(); dragN = 0; $('#dropmask').classList.remove('show'); const f = [...(e.dataTransfer?.files || [])]; if (f.length) importFiles(f); });
 if (S.db.rememberToken) sessionToken = S.db.token;
+if (S.importDone === false) { try { recompute(); for (const p of R.people) if (p.doneFromFile && S.done[p.key] === undefined) S.done[p.key] = false; } catch (e) { console.warn(e); } S.importDone = true; save(true); }
 if (S._pruneV6) { delete S._pruneV6; try { pathFilterPrune(); } catch (e) { console.warn(e); } save(true); }
 render();
 detectProxy();

@@ -43,17 +43,17 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - Im Druckfenster Skalierung 100 % und Ränder „Keine" wählen.
 6. **Excel exportieren** (☰ Menü): Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
 
-**☰ Menü** (oben rechts):
-- **Daten:** Aus Excel importieren · Aus Cevi DB aktualisieren · Excel exportieren
-- **Speichern:** Jede Änderung wird **automatisch gespeichert**, ohne Knopf. Das Menü zeigt, wann zuletzt gespeichert wurde und ob mit den anderen synchronisiert wird.
-  - Ohne Microsoft-365-Anbindung bleibt der Stand im eigenen Browser.
-  - Mit Anbindung („☁ Gemeinsam arbeiten") wird alles automatisch mit allen synchronisiert. Sind die Angaben der IT im Tool hinterlegt, fragt es beim ersten Öffnen nach der Anmeldung. Danach läuft der Abgleich von selbst.
-- „Erledigt"-Häkchen aus den Excel-Listen übernehmen (ein/aus)
-- **Zurücksetzen:** Erledigt-Häkchen, Zuteilungen & Duplikat-Entscheide, alle Daten auf diesem Computer
+**Oben rechts:**
+- **↻ Aktualisieren:** gleicht sofort mit allen ab (siehe unten). Beim ersten Mal öffnet er die Microsoft-Anmeldung.
+- **☰ Menü:** Aus Excel importieren · Excel exportieren · Zurücksetzen (Erledigt-Häkchen, Zuteilungen & Duplikat-Entscheide, alle Daten auf diesem Computer)
 
-## Gemeinsam arbeiten (Microsoft 365)
+Jede Änderung wird **automatisch gespeichert**, ohne Knopf. „Erledigt“-Häkchen aus den Excel-Listen werden immer übernommen.
 
-Mit dem Knopf **„☁ Gemeinsam arbeiten"** liegt der Stand des Tools in einer SharePoint-Website von Cevi statt nur im eigenen Browser. Dazu gehören Listen, Zuständige, Kategorien, Zuteilungen, Duplikat-Entscheide und Erledigt-Häkchen.
+## Mit allen abgleichen (Microsoft 365)
+
+Der Stand des Tools liegt in einer SharePoint-Website von Cevi statt nur im eigenen Browser. Dazu gehören Listen, Zuständige, Kategorien, Zuteilungen, Duplikat-Entscheide und Erledigt-Häkchen.
+
+Der Knopf **„↻ Aktualisieren“** oben rechts gleicht sofort ab: Er sendet die eigenen Änderungen und holt den Stand aller. Ohne Anmeldung öffnet er zuerst die Microsoft-Anmeldung. Ist er orange, braucht es eine Anmeldung oder der Abgleich ist gestört (Hinweis beim Darüberfahren).
 
 - Jede Person meldet sich mit ihrem **eigenen Cevi-Microsoft-Konto** an.
 - Alle Mitglieder der Website sehen denselben Stand. Änderungen erscheinen bei den anderen nach etwa 20 Sekunden.
@@ -120,11 +120,11 @@ Einrichten:
      - Bereits übernommene werden beim nächsten Aktualisieren entfernt.
      - Einzelne Untergruppen lassen sich auch direkt im Reiter Kategorien mit „✕ entfernen" ausschliessen.
    - **Mitgliederorganisationen (MIO)** sind eigene Ebenen mit vielen Mitgliedern. Übernommen wird darum nur die **Adresse der Organisation** (ein Brief pro Organisation), nicht deren Mitglieder. Stimmen Organisation und PLZ mit genau einem Excel-Eintrag überein, ist das ein Brief.
-5. Später genügt **☰ Menü → „↻ Aus Cevi DB aktualisieren"**.
+5. Danach aktualisiert das Tool die DB-Daten **bei jedem Öffnen oder Neuladen automatisch**, sofern ein API-Key da ist (von Hand gemerkt oder automatisch aus dem Schlüssel-Ordner). Hat jemand in den letzten 2 Minuten aktualisiert, wird nicht nochmals geladen. Von Hand geht es im Reiter Cevi DB mit „↻ Jetzt aktualisieren“, z.B. nach dem Übernehmen neuer Gruppen.
 
 Ohne Eintrag bei „Hosts mit API-Zugriff" (z.B. Datei per Doppelklick geöffnet) gibt es eine Alternative: `python3 start-tool.py` startet das Tool unter `http://localhost:8765` und leitet die Abfragen lokal weiter.
 
-Der API-Key gibt Lesezugriff auf Personendaten. Er gehört nie ins Repository, in einen Chat oder in eine Mail. Das Tool speichert ihn ab Werk nicht lokal. Geteilt wird er nur über den eingeschränkten Schlüssel-Ordner (siehe „Gemeinsam arbeiten“). Nach dem Versand den Key in der Cevi DB löschen.
+Der API-Key gibt Lesezugriff auf Personendaten. Er gehört nie ins Repository, in einen Chat oder in eine Mail. Das Tool speichert ihn ab Werk nicht lokal. Geteilt wird er nur über den eingeschränkten Schlüssel-Ordner (siehe „Mit allen abgleichen“). Nach dem Versand den Key in der Cevi DB löschen.
 
 ## Datenschutz
 

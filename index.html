@@ -2218,20 +2218,7 @@ function dbView() {
   const tok = manualToken();
   return `${ownerDatalist()}<div class="dbcol">
     <div>
-      <details class="panel" data-dbconn ${!token() || DBUI.open ? 'open' : ''}>
-        <summary class="hd" style="cursor:pointer"><h2>Verbindung zur Cevi DB</h2>
-          <span class="small" style="color:${token() ? 'var(--ok)' : 'var(--warn)'}">${token() ? `✓ Key vorhanden${CLOUD_KEY && !tok ? ' (aus SharePoint)' : ''} · wird beim Öffnen und mit „↻ Aktualisieren“ automatisch geladen` : 'Noch kein Key – bitte einmal eintragen'}</span>
-          ${d.lastRefresh ? `<span class="badge ok right">Stand ${fmtDate(d.lastRefresh)}</span>` : ''}</summary>
-        <div class="bd">
-          <div class="form">
-            <label>Adresse</label>${PROXY ? `<div><b>${esc(PROXY.target)}</b> <span class="badge ok">über start-tool.py</span><div class="small muted">Anfragen werden lokal weitergeleitet – kein CORS-Eintrag nötig.</div></div>` : `<input type="url" id="dbBase" value="${esc(d.baseUrl)}" placeholder="https://db.cevi.ch">`}
-            <label>API-Key (Service-Token)</label><input type="password" id="dbToken" value="${esc(tok)}" placeholder="${CLOUD_KEY ? 'automatisch aus SharePoint geladen ✓' : 'wird in der Cevi DB unter „API-Keys“ erstellt'}" autocomplete="off">
-            <span></span><label class="small"><input type="checkbox" id="dbRemember" ${d.rememberToken ? 'checked' : ''}> Token auf diesem Computer speichern (sonst nur bis zum Schliessen)</label>
-            ${CLOUD_KEY && !tok ? '<span></span><div class="small" style="color:var(--ok)">✓ Key automatisch aus SharePoint geladen – nichts einzutragen.</div>' : ''}
-          </div>
-        </div>
-      </details>
-      <div class="panel" style="margin-top:16px">
+      <div class="panel">
         <div class="hd"><h2>Gruppen automatisch übernehmen</h2></div>
         <div class="bd">
           <div class="small muted" style="margin-bottom:8px">Das Tool liest alle Gruppen von Cevi Schweiz aus der DB, schlägt die passende Kategorie vor und richtet die Untergruppen (z.B. alle Fachgruppen) ein.</div>
@@ -2258,6 +2245,19 @@ function dbView() {
       </div>
       ${keyPanel()}
       <details class="panel" data-dblog style="margin-top:16px" ${DBUI.log ? 'open' : ''}><summary class="hd" style="cursor:pointer"><h3>Protokoll</h3><span class="muted small">nur für die Fehlersuche</span></summary><div class="bd"><div class="log" id="dblog">${esc(dbLog.join('\n')) || 'Noch keine Abfrage.'}</div></div></details>
+      <details class="panel" data-dbconn style="margin-top:16px" ${!token() || DBUI.open ? 'open' : ''}>
+        <summary class="hd" style="cursor:pointer"><h2>Verbindung zur Cevi DB</h2>
+          <span class="small" style="color:${token() ? 'var(--ok)' : 'var(--warn)'}">${token() ? `✓ Key vorhanden${CLOUD_KEY && !tok ? ' (aus SharePoint)' : ''} · wird beim Öffnen und mit „↻ Aktualisieren“ automatisch geladen` : 'Noch kein Key – bitte einmal eintragen'}</span>
+          ${d.lastRefresh ? `<span class="badge ok right">Stand ${fmtDate(d.lastRefresh)}</span>` : ''}</summary>
+        <div class="bd">
+          <div class="form">
+            <label>Adresse</label>${PROXY ? `<div><b>${esc(PROXY.target)}</b> <span class="badge ok">über start-tool.py</span><div class="small muted">Anfragen werden lokal weitergeleitet – kein CORS-Eintrag nötig.</div></div>` : `<input type="url" id="dbBase" value="${esc(d.baseUrl)}" placeholder="https://db.cevi.ch">`}
+            <label>API-Key (Service-Token)</label><input type="password" id="dbToken" value="${esc(tok)}" placeholder="${CLOUD_KEY ? 'automatisch aus SharePoint geladen ✓' : 'wird in der Cevi DB unter „API-Keys“ erstellt'}" autocomplete="off">
+            <span></span><label class="small"><input type="checkbox" id="dbRemember" ${d.rememberToken ? 'checked' : ''}> Token auf diesem Computer speichern (sonst nur bis zum Schliessen)</label>
+            ${CLOUD_KEY && !tok ? '<span></span><div class="small" style="color:var(--ok)">✓ Key automatisch aus SharePoint geladen – nichts einzutragen.</div>' : ''}
+          </div>
+        </div>
+      </details>
     </div>
   </div>`;
 }

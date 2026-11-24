@@ -29,7 +29,13 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
    - Die Reihenfolge der Kategorien (▲▼) bestimmt den Vorschlag, wenn jemand in mehreren Kategorien vorkommt.
 3. **Excel importieren:** Die Adressliste ins Fenster ziehen oder **☰ Menü → „Aus Excel importieren"**.
    - Jedes Blatt bzw. jeder Block (z.B. „CCH › Vorstand") wird automatisch einer Kategorie zugeordnet.
-   - **Spaltentitel:** erkannt werden u.a. Vorname, Nachname, Name, Organisation/Firma, Adresse/Strasse, Nr., PLZ, Ort, E-Mail, Zuständigkeit. Steht der ganze Name in **einer Spalte „Name“** (z.B. Spenderliste aus der Buchhaltung), teilt das Tool ihn selbst in Vor- und Nachname auf: Reihenfolge („Muster Hans“ oder „Hans Muster“) pro Blatt anhand bekannter Vornamen, Paare mit „&“/„und“ bleiben zusammen („Hans & Anna“), „Stiftung …“, „… AG“ usw. werden als Organisation erkannt.
+   - **Fast jede Liste wird gelesen.** Gebraucht werden nur Name, Vorname, Strasse (mit Nr.), PLZ und Ort; alle anderen Spalten werden ignoriert.
+     - Spaltentitel auf Deutsch, Französisch, Italienisch oder Englisch und aus Exporten von hitobito, Abacus, Bexio, Outlook usw., z.B. „Prénom/Nom“, „Nome/Cognome“, „First Name/Last Name“, „Strasse und Nr.“, „Adresszeile 1“, „NPA“, „Localité“, „Name 1/Name 2“.
+     - Zusammengelegte Spalten: „PLZ Ort“ (`3000 Bern`, auch `CH-3000`), „Name, Vorname“ (`Muster, Hans`), ganzer Name in einer Spalte „Name“ (Reihenfolge wird erkannt, Paare mit „&“ bleiben zusammen, „Stiftung …“ = Organisation), ganze Adresse in einer Zelle (`Musterweg 12, 3000 Bern`).
+     - Kopfzeile bis Zeile 30 (Titelzeilen davor sind kein Problem), auch zweizeilige Kopfzeilen.
+     - Ohne Kopfzeile: Spalten werden am Inhalt erkannt (PLZ, Strasse mit Nummer, Vornamen). Etiketten-Listen mit der ganzen Adresse mehrzeilig in einer Zelle gehen auch. Das Tool meldet kurz, wenn es so vorgegangen ist.
+     - Ja/Nein-Spalten, Telefon-, Kunden- und Belegnummern werden nicht mit Hausnummern verwechselt.
+     - Dateiformate: .xlsx, .xls, .xlsm, .ods, .csv/.tsv/.txt (Komma, Semikolon oder Tab; Umlaute aus UTF-8 und aus Excel-CSV unter Windows).
    - Blätter ohne Adressen (z.B. eine reine Zahlungsliste oder „Hinweise“) werden mit einem kurzen Hinweis übergangen.
    - Das Blatt „Überblick" liefert die Hauptzuständigkeiten. Die Sammelliste („Masterliste") wird ignoriert, damit nichts doppelt gezählt wird.
 4. **Unvollständig:** Alles, was noch eine Entscheidung braucht, in einem Reiter. Die Zahl am Reiter zeigt, wie viel noch offen ist.

@@ -379,6 +379,7 @@ function load() {
       s.version = 6;
     }
     s.staff = s.staff || [];
+    s.sources = (s.sources || []).filter(x => !x.demo); // frühere „Demo ohne Verbindung"-Daten
     s.m365 = Object.assign({ tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false }, s.m365 || {});
     if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';
     if (s.db.groupExclude === undefined) s.db.groupExclude = 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025';
@@ -1447,7 +1448,7 @@ function catsView() {
   </div>`;
 }
 
-const KEYUI = { folderUrl: '', ok: false, busy: false };
+const KEYUI = { folderUrl: '', ok: false, busy: false, open: false };
 function keyPanel() {
   const st = Cloud.status === 'ok' ? Cloud.key.state : 'off';
   const when = (t) => { try { return new Date(t).toLocaleDateString('de-CH'); } catch (e) { return ''; } };
@@ -1465,10 +1466,11 @@ function keyPanel() {
         <li><label><input type="checkbox" id="keyConfirm" ${KEYUI.ok ? 'checked' : ''}> Der Zugriff auf den Ordner ist eingeschränkt.</label></li>
         <li><button class="btn small primary" data-action="key-save" ${KEYUI.ok && KEYUI.folderUrl && manualToken() && !KEYUI.busy ? '' : 'disabled'}>🔒 Key im Schlüssel-Ordner speichern</button></li>
       </ol>`;
-  return `<div class="panel" style="margin-top:16px">
-        <div class="hd"><h2>🔒 Key automatisch für Berechtigte</h2></div>
+  const open = KEYUI.open || !!KEYUI.folderUrl || KEYUI.ok;
+  return `<details class="panel" data-keybox style="margin-top:16px" ${open ? 'open' : ''}>
+        <summary class="hd" style="cursor:pointer"><h3>🔒 ${st === 'ok' ? 'Key für Berechtigte (ersetzen oder löschen)' : 'Key für Berechtigte einrichten'}</h3><span class="muted small">${st === 'ok' ? 'hinterlegt ✓' : 'einmalig'}</span></summary>
         <div class="bd">${body}</div>
-      </div>`;
+      </details>`;
 }
 async function keyAction(a) {
   if (Cloud.status !== 'ok') return toast('Bitte zuerst oben mit „↻ Aktualisieren“ bei Microsoft anmelden.');
@@ -1499,15 +1501,13 @@ function dbView() {
             <label>Adresse</label>${PROXY ? `<div><b>${esc(PROXY.target)}</b> <span class="badge ok">über start-tool.py</span><div class="small muted">Anfragen werden lokal weitergeleitet – kein CORS-Eintrag nötig.</div></div>` : `<input type="url" id="dbBase" value="${esc(d.baseUrl)}" placeholder="https://db.cevi.ch">`}
             <label>API-Key (Service-Token)</label><input type="password" id="dbToken" value="${esc(tok)}" placeholder="${CLOUD_KEY ? 'automatisch aus SharePoint geladen ✓' : 'wird in der Cevi DB unter „API-Keys“ erstellt'}" autocomplete="off">
             <span></span><label class="small"><input type="checkbox" id="dbRemember" ${d.rememberToken ? 'checked' : ''}> Token auf diesem Computer speichern (sonst nur bis zum Schliessen)</label>
+            ${CLOUD_KEY && !tok ? '<span></span><div class="small" style="color:var(--ok)">✓ Key automatisch aus SharePoint geladen – nichts einzutragen.</div>' : ''}
           </div>
           <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-            <button class="btn" data-action="db-test">Verbindung testen</button>
             <button class="btn primary" data-action="db-refresh">↻ Jetzt aktualisieren</button>
-            <button class="btn ghost" data-action="db-demo" title="Zeigt mit erfundenen Testpersonen, wie DB-Daten erscheinen">Demo ohne Verbindung</button>
           </div>
         </div>
       </div>
-      ${keyPanel()}
       <div class="panel" style="margin-top:16px">
         <div class="hd"><h2>Gruppen automatisch übernehmen</h2></div>
         <div class="bd">
@@ -1536,6 +1536,7 @@ function dbView() {
         <div class="bd small muted">Die Gruppen-ID steht in der Adresszeile, z.B. <span class="kbd">db.cevi.ch/groups/<b>1234</b>/people</span>. Excel-Listen und DB-Daten werden zusammen ausgewertet. Beim Aktualisieren werden die DB-Daten komplett neu geladen – wer nicht mehr in der Gruppe ist, fällt raus. Mit „ersetzt Excel" wird die alte Excel-Liste derselben Kategorie ausgeschaltet.</div>
       </div>
       <div class="panel" style="margin-top:16px"><div class="hd"><h3>Protokoll</h3></div><div class="bd"><div class="log" id="dblog">${esc(dbLog.join('\n')) || 'Noch keine Abfrage.'}</div></div></div>
+      ${keyPanel()}
     </div>
   </div>`;
 }
@@ -1917,7 +1918,7 @@ function applyMapping() {
   cleanExcluded(); pathFilterPrune();
   DBMAP = null; save();
   toast(`${fresh.length} Gruppen übernommen – Daten werden geladen …`);
-  dbRefresh(false);
+  dbRefresh();
 }
 function dbMapView() {
   if (!DBMAP) return '';
@@ -1940,23 +1941,12 @@ function dbMapView() {
     <div class="bd" style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" data-action="map-cancel">Abbrechen</button><button class="btn primary" data-action="map-apply">✓ Übernehmen und Daten laden</button></div>
   </div>`;
 }
-async function dbTest() {
-  if (!token()) return toast('Bitte zuerst den API-Key eintragen.');
-  try {
-    logDb('Teste Verbindung …');
-    const first = S.db.sources.map(s => parseGroupIds(s.groupIds)[0]).find(Boolean);
-    const json = first ? await apiGet('/api/groups/' + first, {}) : await apiGet('/api/groups', { 'page[size]': 1 });
-    const g = Array.isArray(json.data) ? json.data[0] : json.data;
-    logDb('OK ✓ ' + (g ? `Gruppe ${g.id}: ${g.attributes.name}` : 'Verbindung steht'));
-    toast('Verbindung zur Cevi DB funktioniert ✓');
-  } catch (e) { logDb('Fehler: ' + e.message); toast(e.message); }
-}
 let DB_BUSY = false;
-async function dbRefresh(demo = false, auto = false) {
+async function dbRefresh(auto = false) {
   if (DB_BUSY) return;
-  if (!demo && !token()) { if (auto) return; S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
-  if (!demo && cleanExcluded()) save();
-  const srcs = demo ? demoSources() : S.db.sources.filter(s => parseGroupIds(s.groupIds).length);
+  if (!token()) { if (auto) return; S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
+  if (cleanExcluded()) save();
+  const srcs = S.db.sources.filter(s => parseGroupIds(s.groupIds).length);
   if (!srcs.length && auto) return;
   if (!srcs.length) {
     S.ui.tab = 'db'; render();
@@ -1974,8 +1964,7 @@ async function dbRefresh(demo = false, auto = false) {
   try {
     for (const s of srcs) {
       let pages;
-      if (demo) { pages = demoPages(s); logDb(`Demo: ${s.label} – erfundene Testdaten`); }
-      else if (s.mode === 'orgs') {
+      if (s.mode === 'orgs') {
         const ids = parseGroupIds(s.groupIds); pages = []; ids.forEach(id => live.add(String(id)));
         for (let i = 0; i < ids.length; i += 25) pages.push(...await apiAll('/api/groups', { 'filter[id]': ids.slice(i, i + 25).join(',') }));
       }
@@ -2002,24 +1991,24 @@ async function dbRefresh(demo = false, auto = false) {
       delete s._tree; delete s._roots;
       const det = s.catId ? null : (entries[0] ? { catId: entries[0].catId } : null);
       logDb(`${s.label}: ${entries.length} ${s.mode === 'orgs' ? 'Organisationen' : 'Personen/Rollen'} geladen`);
-      fresh.push({ id: 'db:' + s.id, kind: 'db', file: 'Cevi DB', sheet: '', block: '', label: s.label + (demo ? ' (Demo)' : ''), group: s.label,
+      fresh.push({ id: 'db:' + s.id, kind: 'db', file: 'Cevi DB', sheet: '', block: '', label: s.label, group: s.label,
         catId: s.catId || (det && det.catId) || '', perRow: !s.catId, detectedBy: s.catId ? 'in den DB-Einstellungen gewählt' : 'aus Gruppennamen', confidence: s.catId ? 'manuell' : 'wahrscheinlich',
-        entries, importedAt: now, enabled: true, demo });
+        entries, importedAt: now, enabled: true });
     }
     // Alle bisherigen DB-Daten werden komplett ersetzt – wer nicht mehr in der Gruppe ist, fällt raus.
-    S.sources = S.sources.filter(x => !(x.kind === 'db' && (demo ? x.demo : !x.demo)));
+    S.sources = S.sources.filter(x => x.kind !== 'db');
     S.sources.push(...fresh);
     const disabled = [];
-    if (!demo) for (const s of srcs) if (s.replaceExcel && s.catId) {
+    for (const s of srcs) if (s.replaceExcel && s.catId) {
       S.sources = S.sources.map(x => (x.kind === 'excel' && !x.perRow && x.catId === s.catId && x.enabled !== false)
         ? (disabled.push(x.label), { ...x, enabled: false, disabledBy: 'Cevi DB: ' + s.label }) : x);
     }
     S.db.lastRefresh = now;
-    if (!demo) { const n = pruneDbSubgroups(live) + pathFilterPrune(); if (n) logDb(`${n} Untergruppen entfernt, die nicht mehr geladen werden`); }
-    if (before && before.length) { finishChange('Cevi DB' + (demo ? ' (Demo)' : ''), before, { disabled }); UNDO = prev; }
+    { const n = pruneDbSubgroups(live) + pathFilterPrune(); if (n) logDb(`${n} Untergruppen entfernt, die nicht mehr geladen werden`); }
+    if (before && before.length) { finishChange('Cevi DB', before, { disabled }); UNDO = prev; }
     save(); render();
     const summary = before && before.length ? changeSummary() : '';
-    if (!auto) toast(`Cevi DB${demo ? ' (Demo)' : ''} aktualisiert: ${fresh.reduce((a, s) => a + s.entries.length, 0)} Einträge aus ${fresh.length} Quellen` + (summary ? ' · ' + summary : ''));
+    if (!auto) toast(`Cevi DB aktualisiert: ${fresh.reduce((a, s) => a + s.entries.length, 0)} Einträge aus ${fresh.length} Quellen` + (summary ? ' · ' + summary : ''));
     else if (summary && !/keine Änderungen/.test(summary)) toast('Cevi DB automatisch aktualisiert: ' + summary);
   } catch (e) {
     logDb('Fehler: ' + e.message);
@@ -2036,22 +2025,9 @@ function autoDbRefresh() {
   AUTO_DB_DONE = true;
   const last = S.db.lastRefresh ? Date.parse(S.db.lastRefresh) : 0;
   if (Date.now() - last < 2 * 60 * 1000) return; // gerade erst (von jemandem) aktualisiert
-  dbRefresh(false, true);
+  dbRefresh(true);
 }
 function setDbStatus(t) { const el = $('#subline'); if (!el) return; if (t) { el.dataset.db = t; el.textContent = t; } else { delete el.dataset.db; render(); } }
-function demoSources() { return [{ id: 'demo1', label: 'Fachgruppe Testgruppe', catId: '', owner: 'TSC' }, { id: 'demo2', label: 'Projektgruppe Testlager 26', catId: '', owner: 'NBA' }]; }
-function demoPages(s) {
-  // Erfundene Testpersonen im Format der hitobito JSON:API – zeigt den Ablauf ohne echte Verbindung
-  const ppl = s.id === 'demo1'
-    ? [['901', 'Mia', 'Muster', 'Musterweg', '1', '3000', 'Bern'], ['902', 'Leo', 'Beispiel', 'Testgasse', '12a', '8000', 'Zürich'], ['903', 'Ana', 'Probe', 'Probeplatz', '3', '4000', 'Basel']]
-    : [['902', 'Leo', 'Beispiel', 'Testgasse', '12a', '8000', 'Zürich'], ['904', 'Tim', 'Demo', 'Demostrasse', '7', '6000', 'Luzern']];
-  const gid = s.id === 'demo1' ? '9001' : '9002';
-  return [{
-    data: ppl.map((p, i) => ({ id: 'r' + gid + i, type: 'roles', attributes: { person_id: +p[0], group_id: +gid, name: 'Mitglied' }, relationships: { person: { data: { type: 'people', id: p[0] } }, group: { data: { type: 'groups', id: gid } } } })),
-    included: [...ppl.map(p => ({ id: p[0], type: 'people', attributes: { first_name: p[1], last_name: p[2], street: p[3], housenumber: p[4], zip_code: p[5], town: p[6], email: (p[1] + '.' + p[2] + '@example.org').toLowerCase() } })),
-      { id: gid, type: 'groups', attributes: { name: s.label } }],
-  }];
-}
 
 // ---------------------------------------------------------------- Export
 function rowFor(p) {
@@ -2245,12 +2221,10 @@ document.addEventListener('click', (ev) => {
     S.order.push(id); save(); render(); toast('Kategorie angelegt: ' + name + ' (unten in der Liste, mit ▲ nach oben schieben)');
     const li = document.querySelector(`[data-catli="${id}"]`); if (li) { li.scrollIntoView({ block: 'center', behavior: 'smooth' }); li.classList.add('flash'); }
   }
-  else if (a === 'db-test') dbTest();
   else if (a === 'db-read-groups') dbReadGroups();
   else if (a === 'map-apply') applyMapping();
   else if (a === 'map-cancel') { DBMAP = null; render(); }
-  else if (a === 'db-refresh') dbRefresh(false);
-  else if (a === 'db-demo') dbRefresh(true);
+  else if (a === 'db-refresh') dbRefresh();
   else if (a === 'db-add') { S.db.sources.push({ id: uid(), label: 'Neue Gruppe', groupIds: '', catId: '', owner: '', subgroups: false }); save(); render(); }
 });
 document.addEventListener('change', (ev) => {
@@ -2349,7 +2323,7 @@ document.addEventListener('input', (ev) => {
   if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
 });
 // Auf-/Zuklappen der Untergruppen merken („toggle" bubbelt nicht → capture)
-document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } }, true);
+document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } if (d && d.dataset && d.dataset.keybox !== undefined) KEYUI.open = d.open; }, true);
 function readCloudFields() {
   const v = (id) => { const el = $(id); return el && !el.disabled ? el.value.trim() : undefined; };
   const t = v('#m365Tenant'), c = v('#m365Client'), s2 = v('#m365Site');

@@ -45,12 +45,13 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
    - **Mehrfach gelistet:** Für Personen in mehreren Listen wählt man per Klick die Hauptverantwortung. Die anderen unterschreiben automatisch mit.
    - **Automatisch zusammengeführt** (aufklappbar): Alle Personen, die das Tool selbst zusammengeführt hat. Bei einem Fehler „Trennen".
 5. **Pro Zuständige\*r:** Jede Person sieht ihre Briefe und wo sie mitunterschreibt. Hier gibt es Erledigt-Häkchen, Drucken und den Export.
+   - Ganz oben in der Liste links steht **📋 Masterliste**: alle Empfänger\*innen mit Suche, Filtern und dem Gesamt-Export (früher ein eigener Reiter).
    - **🏷 Etiketten:** Alle Adressen der gewählten Person auf A4-Etikettenbögen drucken.
      - Bögen: Avery Zweckform 3475, 3474, 3422, L7160, L7163 oder eigene Masse.
      - Sortiert nach Name oder PLZ, optional nur nicht erledigte.
      - Startposition für angebrauchte Bögen, Probedruck mit Rahmen, Vorschau.
      - Im Druckfenster Skalierung 100 % und Ränder „Keine" wählen.
-6. **Excel exportieren** (Reiter Masterliste, oben rechts): Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
+6. **Excel exportieren** (Pro Zuständige\*r → 📋 Masterliste, oben rechts): Masterliste, ein Blatt pro zuständiger Person und eine Duplikat-Übersicht. Geeignet als Quelle für einen Serienbrief in Word.
 
 **Oben rechts:**
 - **↻ Aktualisieren:** gleicht sofort mit allen ab und lädt die Cevi DB neu, falls ein Key da ist. Beim ersten Mal öffnet er die Microsoft-Anmeldung.

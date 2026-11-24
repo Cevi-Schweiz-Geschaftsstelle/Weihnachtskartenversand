@@ -132,4 +132,31 @@ assert.strictEqual(WB.makeCode('Tim', 'de Graaf'), 'TDE');
 assert.strictEqual(WB.makeCode('Tim', ''), '');
 assert.deepStrictEqual(WB.codeVariants('Anna', 'Bern').slice(0, 3), ['ABE', 'ABR', 'ABN']);
 
+// Spalte „Name" (ganzer Name in einer Spalte, z.B. Spenderliste aus der Buchhaltung) – erfundene Daten
+{
+  const sheets = [{ name: 'Spender ab 400', rows: [
+    ['Kunden-Nr', 'Name', 'Adresse', 'PLZ', 'Ort', 'E-Mail'],
+    [1, 'Beispiel Anna', 'Musterweg 12', '3000', 'Bern', ''],
+    [2, 'Probe-Muster Hans & Lea', 'Testgasse 3a', '8000', 'Zürich', ''],
+    [3, 'Stiftung Sonnenschein', 'Hauptstrasse 1', '4000', 'Basel', ''],
+    [4, 'Familie Demo', 'Seeweg 7', '6000', 'Luzern', ''],
+  ] }, { name: 'Einzelspenden', rows: [['Datum', 'Beleg-Nr', 'Kunden-Nr', 'Kurzname', 'Spende (CHF)'], ['2026-01-05', 11, 1, 'BEISPIEL', 50]] }];
+  const r = WB.parseWorkbookRows(sheets, 'Spender.xlsx', WB.DEFAULT_CATEGORIES);
+  assert.strictEqual(r.sources.length, 1, 'nur das Blatt mit Adressen');
+  assert.ok(r.notes.some(n => /Einzelspenden/.test(n) && /keine Adressliste/.test(n)));
+  const e = r.sources[0].entries;
+  assert.strictEqual(e.length, 4);
+  assert.deepStrictEqual([e[0].first, e[0].last, e[0].street, e[0].nr], ['Anna', 'Beispiel', 'Musterweg', '12']);
+  assert.deepStrictEqual([e[1].first, e[1].last], ['Hans & Lea', 'Probe-Muster']);
+  assert.strictEqual(e[2].org, 'Stiftung Sonnenschein');
+  assert.deepStrictEqual([e[3].first, e[3].last], ['Familie', 'Demo']);
+  // Reihenfolge „Vorname Nachname" wird erkannt
+  const k = new Set(['anna', 'hans', 'lea']);
+  assert.strictEqual(WB.guessNameOrder(['Anna Beispiel', 'Hans Probe', 'Lea Test'], k), 'firstLast');
+  assert.deepStrictEqual(WB.splitFullName('Peter van der Berg', 'firstLast', k), { first: 'Peter', last: 'van der Berg' });
+  // „Vorname" + „Name" → „Name" ist der Nachname
+  const r2 = WB.parseWorkbookRows([{ name: 'Liste', rows: [['Vorname', 'Name', 'PLZ', 'Ort'], ['Anna', 'Beispiel', '3000', 'Bern']] }], 'x.xlsx', WB.DEFAULT_CATEGORIES);
+  assert.deepStrictEqual([r2.sources[0].entries[0].first, r2.sources[0].entries[0].last], ['Anna', 'Beispiel']);
+}
+
 console.log('OK – alle Tests bestanden');

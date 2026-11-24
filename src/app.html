@@ -1590,7 +1590,7 @@ async function importFiles(files) {
       const buf = await f.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array', cellDates: false });
       const sheets = wb.SheetNames.map(n => ({ name: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null, blankrows: true }) }));
-      const res = WB.parseWorkbookRows(sheets, f.name, S.cats);
+      const res = WB.parseWorkbookRows(sheets, f.name, S.cats, { knownFirst: R.entries.map(e => String(e.first || '').split(' ')[0]).filter(Boolean) });
       if (res.overview) {
         const updated = WB.applyOverview(S.cats, res.overview);
         S.cats = updated;

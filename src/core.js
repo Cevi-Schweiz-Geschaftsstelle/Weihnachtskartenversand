@@ -27,8 +27,6 @@
       exact: [], strong: ['fachgruppe'], weak: [] },
     { id: 'projektgruppen', name: 'Projektgruppen', source: 'DB', persons: [], info: 'jeder seine',
       exact: [], strong: ['projektgruppe', 'projektteam', 'kernteam'], weak: ['conveniat', 'lager', 'konekta'] },
-    { id: 'anlaesse', name: 'Anlässe des Jahres', source: 'DB (Absprache GL)', persons: [], info: 'Anlass-Organisatoren, z.B. TN Fundraising Day',
-      exact: [], strong: ['anlass', 'anlasse', 'fundraising day', 'delegiertenkonferenz'], weak: [] },
     { id: 'kommissionen', name: 'Kommissionen', source: 'DB', persons: ['GL'], info: 'DLK-Kommission',
       exact: [], strong: ['kommission'], weak: ['dlk'] },
     { id: 'kindeswohl', name: 'PSA', source: 'DB', persons: [], info: 'nur TN Cevi Schweiz',
@@ -40,7 +38,7 @@
     { id: 'ehren', name: 'Ehren- und Fördermitglieder', source: 'DB', persons: ['GL'], info: '',
       exact: [], strong: ['ehrenmitglied', 'fordermitglied', 'fordermitgleid', 'ehren- und forder', 'ehren und forder'], weak: [] },
     { id: 'diverse', name: 'Diverse', source: 'Alle', persons: [], info: 'Marketing, Stiftungen, Partner',
-      exact: [], strong: ['diverse', 'stiftung', 'marketing'], weak: ['partner'] },
+      exact: [], strong: ['diverse', 'stiftung', 'marketing', 'anlass', 'anlasse', 'fundraising day', 'delegiertenkonferenz'], weak: ['partner'] }, // „Anlässe des Jahres" ist eine Untergruppe von „Diverse"
   ];
 
   // Labels in „Hauptzuständigkeit", die keine echte Person sind

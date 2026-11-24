@@ -19,6 +19,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
    - Personen den Kategorien zuordnen, auch mehrere pro Kategorie. **★** versendet, alle weiteren unterschreiben mit.
    - **Hellgrün** sind die Kategorien, deren Adressen aus der Cevi DB kommen (Etikett „● Cevi DB", bzw. „● Cevi DB + Excel", wenn zusätzlich Excel-Listen dazugehören).
    - **Person anlegen und zuweisen** (oben im Reiter): für Empfänger*innen, die in keiner Liste und nicht in der Cevi DB stehen. Vorname, Nachname, Strasse und Nr., PLZ, Ort eintragen, Kategorie und allenfalls Untergruppe wählen (oder direkt neu anlegen) und wählen, wer zuständig ist → „＋ Person anlegen“ (oder Enter). Die gewählte Zuständigkeit gilt fest, auch vor Untergruppe und Kategorie. Von Hand erfasste Personen stehen in der Masterliste (mit „✎“ bei der Kategorie) und lassen sich dort hinten mit „🗑 löschen“ wieder entfernen.
+   - „Anlässe des Jahres“ ist keine eigene Kategorie mehr, sondern eine Untergruppe von **Diverse**. Heisst ein Excel-Blatt wie eine bestehende Untergruppe, landen seine Einträge dort.
    - **Jede Kategorie ist ein aufklappbares Menü:** Zugeklappt steht nur der Name, und falls noch jemand fehlt, dahinter in Orange „noch niemand zugeordnet“ bzw. „3 noch niemand“. Ein Klick zeigt alles andere: Personen zuordnen, Untergruppen, Herkunft (Cevi DB/Excel), Umbenennen. Bei Kategorien mit Untergruppen (z.B. Fachgruppen) wird pro Untergruppe festgelegt, wer zuständig ist. Der Zustand (auf/zu) wird gemerkt.
    - **Untergruppen** (z.B. Fachgruppen › Informatik, Projektgruppen › Konekta 26) haben eigene Zuständige.
      - Die Untergruppen erscheinen nach dem Excel-Import bzw. dem Laden aus der Cevi DB automatisch. Eigene Untergruppen: Kategorie aufklappen → **„＋ Untergruppe erstellen“** (geht bei jeder Kategorie, auch bei solchen ohne Untergruppen).
@@ -119,7 +120,7 @@ Einrichten:
    - Das Tool liest alle Gruppen dieser Ebene und schlägt pro Gruppe die Kategorie vor. Grundlage sind Gruppentyp (Vorstand, Geschäftsstelle, Spender …) und Name.
    - Gruppen mit Untergruppen (z.B. Fachgruppen) werden als Untergruppen der Kategorie eingerichtet.
    - Vorschlag prüfen, dann **„Übernehmen und Daten laden"**.
-   - **„Nur diese Gruppen übernehmen":** eine Liste, eine Gruppe pro Zeile. Vorgabe: Geschäftsstelle, Ausschüsse, Fachgruppen, Projektgruppen, Kommissionen, Krisenmanagement › Cevi CH, Ehrenmitglieder, PSA, Mitgliederorganisationen (MIO).
+   - **„Nur diese Gruppen übernehmen":** eine Liste, eine Gruppe pro Zeile. Vorgabe: Geschäftsstelle, Ausschüsse, Fachgruppen, Projektgruppen, Kommissionen, Krisenmanagement › Cevi CH, Ehrenmitglieder, PSA.
      - Alle anderen Gruppen werden ignoriert und im Vorschlag nur aufgelistet.
      - Leichte Namensabweichungen werden erkannt (z.B. „Krisenteam" für Krisenmanagement, „PSA Cevi Schweiz" für PSA).
      - **Nur eine Untergruppe:** `Gruppe › Untergruppe`, z.B. `Krisenmanagement › Cevi CH`. Dann wird nur diese Untergruppe geladen, ohne die Obergruppe und ohne die übrigen Untergruppen. „CH" findet auch „Schweiz". Statt `›` geht auch `>` oder `/`. Früher übernommene andere Untergruppen (z.B. Basel, Bern) verschwinden beim nächsten Aktualisieren.
@@ -130,7 +131,8 @@ Einrichten:
      - Leerzeichen spielen keine Rolle, und 2025 = 25: „Norwegen Lager 2025" trifft auch „Norwegenlager 25".
      - Bereits übernommene werden beim nächsten Aktualisieren entfernt.
      - Einzelne Untergruppen lassen sich auch direkt im Reiter Kategorien mit „✕ entfernen" ausschliessen.
-   - **Mitgliederorganisationen (MIO)** sind eigene Ebenen mit vielen Mitgliedern. Übernommen wird darum nur die **Adresse der Organisation** (ein Brief pro Organisation), nicht deren Mitglieder. Stimmen Organisation und PLZ mit genau einem Excel-Eintrag überein, ist das ein Brief.
+   - **Mitgliederorganisationen (MIO)** werden nicht aus der Cevi DB geladen. Die Kategorie MIO bleibt: für die MIO-Listen aus Excel und für von Hand erfasste Personen. Nach neuen Mitgliederorganisationen in der DB wird nicht gefragt.
+   - **PSA** wird nur auf der obersten Ebene geladen (ohne RV AG, Basel, Bern usw.). Ebenso **Conveniat** bei den Projektgruppen: nur die Projektgruppe selbst, ihre Untergruppen stehen unter „Entfernt“. Bei anderen Untergruppen mit eigenen Untergruppen geht das im Reiter Kategorien mit **„nur diese Ebene“**; neue Untergruppen darunter werden dann nicht mehr gefragt. Rückgängig: einzelne Untergruppe mit ↺ zurückholen.
 5. Danach aktualisiert das Tool die DB-Daten **bei jedem Öffnen oder Neuladen automatisch**, sofern ein API-Key da ist (von Hand gemerkt oder automatisch aus dem Schlüssel-Ordner). Hat jemand in den letzten 2 Minuten aktualisiert, wird nicht nochmals geladen. Sofort geht es mit **„↻ Aktualisieren“** oben rechts: Der Knopf gleicht den gemeinsamen Stand ab und lädt die Cevi DB. Ist ein Key da, ist der Kasten „Verbindung zur Cevi DB“ zugeklappt. Aufklappen braucht es nur, um den Key zu ändern.
 6. **Neue Gruppen in der DB:** Beim Übernehmen merkt sich das Tool alle Gruppen. Taucht beim Aktualisieren eine neue Gruppe oder Untergruppe auf, fragt es in einem Fenster nach:
    - als Untergruppe der bisherigen Kategorie (z.B. neue Fachgruppe → Fachgruppen),

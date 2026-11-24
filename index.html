@@ -367,8 +367,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       exact: [], strong: ['fachgruppe'], weak: [] },
     { id: 'projektgruppen', name: 'Projektgruppen', source: 'DB', persons: [], info: 'jeder seine',
       exact: [], strong: ['projektgruppe', 'projektteam', 'kernteam'], weak: ['conveniat', 'lager', 'konekta'] },
-    { id: 'anlaesse', name: 'Anlässe des Jahres', source: 'DB (Absprache GL)', persons: [], info: 'Anlass-Organisatoren, z.B. TN Fundraising Day',
-      exact: [], strong: ['anlass', 'anlasse', 'fundraising day', 'delegiertenkonferenz'], weak: [] },
     { id: 'kommissionen', name: 'Kommissionen', source: 'DB', persons: ['GL'], info: 'DLK-Kommission',
       exact: [], strong: ['kommission'], weak: ['dlk'] },
     { id: 'kindeswohl', name: 'PSA', source: 'DB', persons: [], info: 'nur TN Cevi Schweiz',
@@ -380,7 +378,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     { id: 'ehren', name: 'Ehren- und Fördermitglieder', source: 'DB', persons: ['GL'], info: '',
       exact: [], strong: ['ehrenmitglied', 'fordermitglied', 'fordermitgleid', 'ehren- und forder', 'ehren und forder'], weak: [] },
     { id: 'diverse', name: 'Diverse', source: 'Alle', persons: [], info: 'Marketing, Stiftungen, Partner',
-      exact: [], strong: ['diverse', 'stiftung', 'marketing'], weak: ['partner'] },
+      exact: [], strong: ['diverse', 'stiftung', 'marketing', 'anlass', 'anlasse', 'fundraising day', 'delegiertenkonferenz'], weak: ['partner'] }, // „Anlässe des Jahres" ist eine Untergruppe von „Diverse"
   ];
 
   // Labels in „Hauptzuständigkeit", die keine echte Person sind
@@ -1224,9 +1222,9 @@ function defaultState() {
     cats: WB.DEFAULT_CATEGORIES.map(c => ({ ...c })),
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
-    aliasText: '', autoAliases: true, version: 6,
+    aliasText: '', autoAliases: true, version: 8,
     decisions: {}, overrides: {}, done: {}, hidden: {}, importDone: true,
-    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
+    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
     ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', owner: '', only: '' }, assignFilter: 'open' },
@@ -1288,17 +1286,65 @@ function load() {
       s._pruneV6 = true;
       s.version = 6;
     }
+    if (s.version < 7) {
+      // Version 7: MIO nicht mehr aus der Cevi DB (Kategorie bleibt für Excel und von Hand); PSA nur oberste Ebene
+      if (s.db && typeof s.db.groupFilter === 'string') s.db.groupFilter = s.db.groupFilter.split('\n').filter(l => !/mitgliederorganisation|\bmio\b/i.test(l)).join('\n');
+      if (s.db && Array.isArray(s.db.sources)) {
+        const orgIds = s.db.sources.filter(x => x.mode === 'orgs').map(x => 'db:' + x.id);
+        s.db.sources = s.db.sources.filter(x => x.mode !== 'orgs');
+        s.sources = (s.sources || []).filter(x => !orgIds.includes(x.id));
+        for (const x of s.db.sources) if (x.catId === 'kindeswohl' || /\bpsa\b/i.test(x.label || '')) {
+          x.subgroups = false; x.noSubs = true;
+          const roots = String(x.groupIds || '').split(/[\s,;]+/).filter(Boolean);
+          const loaded = (s.sources || []).find(y => y.id === 'db:' + x.id);
+          if (loaded) loaded.entries = loaded.entries.filter(e => !e.groupId || roots.includes(String(e.groupId)));
+        }
+      }
+      const psa = (s.cats || []).find(c => c.id === 'kindeswohl');
+      if (psa && psa.groups) for (const [gk, g] of Object.entries(psa.groups)) if (g.fromDb && !g.manual && !(g.persons || []).length) delete psa.groups[gk];
+      s.version = 7;
+    }
+    if (s.version < 8) {
+      // Version 8: „Anlässe des Jahres" ist eine Untergruppe von „Diverse"; Conveniat nur oberste Ebene
+      const old = (s.cats || []).find(c => c.id === 'anlaesse'), div = (s.cats || []).find(c => c.id === 'diverse');
+      if (old && div) {
+        const GN = 'Anlässe des Jahres', gk = WB.groupKey(div.name, GN);
+        div.groups = div.groups || {};
+        const g = div.groups[gk] || (div.groups[gk] = { name: GN, persons: [], manual: true });
+        if (!(g.persons || []).length && (old.persons || []).length) g.persons = old.persons.slice();
+        for (const src of s.sources || []) {
+          if (src.catId === 'anlaesse') { src.catId = 'diverse'; for (const e of src.entries || []) { e.catId = 'diverse'; e.group = GN; } }
+          else if (src.perRow) for (const e of src.entries || []) if (e.catId === 'anlaesse') { e.catId = 'diverse'; e.group = GN; }
+        }
+        for (const x of (s.db && s.db.sources) || []) if (x.catId === 'anlaesse') x.catId = 'diverse';
+      }
+      s.cats = (s.cats || []).filter(c => c.id !== 'anlaesse'); s.order = (s.order || []).filter(id => id !== 'anlaesse');
+      const pg = (s.cats || []).find(c => c.id === 'projektgruppen'), conv = /conv[eéi]niat/i;
+      if (pg && pg.groups) for (const [gk, g] of Object.entries(pg.groups)) {
+        const par = g.parentGk && pg.groups[g.parentGk];
+        if (g.fromDb && conv.test(g.name || '') && !(par && conv.test(par.name || ''))) markLeaf(pg, gk);
+      }
+      s.version = 8;
+    }
     s.staff = s.staff || [];
     s.sources = (s.sources || []).filter(x => !x.demo); // frühere „Demo ohne Verbindung"-Daten
     s.notes = []; // Import-Hinweise werden nur noch kurz angezeigt
     s.m365 = Object.assign({ tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false }, s.m365 || {});
-    if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)';
+    if (s.db.groupFilter === undefined) s.db.groupFilter = 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA';
     if (s.db.groupExclude === undefined) s.db.groupExclude = 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025';
     // alter, nie ausgefüllter Beispiel-Eintrag
     s.db.sources = (s.db.sources || []).filter(x => !(x.label === 'Fachgruppen' && !String(x.groupIds || '').trim() && !x.auto));
     for (const st of s.staff) if (st.first === undefined && st.last === undefined) Object.assign(st, splitName(st.name));
     return s;
   } catch (e) { console.warn(e); return defaultState(); }
+}
+/** Untergruppe „nur diese Ebene": alle ihre Untergruppen entfernen (Liste „Entfernt") und künftig nicht mehr laden */
+function markLeaf(c, gk) {
+  const G = c.groups || {}; if (!G[gk]) return 0;
+  G[gk].leaf = true;
+  const isDesc = (x) => { let cur = G[x] && G[x].parentGk, k = 0; while (cur && k++ < 30) { if (cur === gk) return true; cur = G[cur] && G[cur].parentGk; } return false; };
+  let n = 0; for (const x of Object.keys(G)) if (x !== gk && isDesc(x) && !G[x].removed) { G[x].removed = true; n++; }
+  return n;
 }
 function save(fromSync) {
   const copy = { ...S, db: { ...S.db } };
@@ -2258,6 +2304,7 @@ function subsBlock(c) {
           ${ownerHtml(k)}<button class="lnk x" data-sub-remove="${ref}" data-key="${esc(k)}" title="Aus Untergruppe entfernen">✕</button></span>`).join('')}
         <select class="inline" data-sub-add="${ref}" data-name="${esc(g.name)}"><option value="">＋ Person …</option>${avail.map(st => `<option value="${esc(staffKey(st))}">${esc([st.code, st.name].filter(Boolean).join(' · '))}</option>`).join('')}<option value="__new">＋ neue Person erfassen …</option></select>
         ${inh ? `<span class="small muted" title="Solange hier niemand eingetragen ist, gilt die Zuständigkeit der Obergruppe">erbt von ${esc(inh.name)}: ${inh.keys.map(k => `<span title="${esc(ownerName(k))}">${esc(k)}</span>`).join(', ')}</span>` : now}${!inh && !keys.length && top.length ? `<button class="lnk" data-sub-adopt="${ref}" data-name="${esc(g.name)}" data-val="${esc(top[0][0])}" title="${esc(ownerName(top[0][0]))} fest als Zuständige*n dieser Untergruppe eintragen">übernehmen</button>` : ''}
+        ${(c.groups || {})[g.gk] && c.groups[g.gk].leaf ? '<span class="small muted" title="Untergruppen davon werden nicht geladen">nur diese Ebene</span>' : Object.values(c.groups || {}).some(x => x.parentGk === g.gk && !x.removed) ? `<button class="lnk" data-sub-leaf="${ref}" data-name="${esc(g.name)}" title="Alle Untergruppen davon entfernen und künftig nur die Personen direkt in dieser Gruppe laden">nur diese Ebene</button>` : ''}
         <button class="lnk x sub-x" data-sub-hide="${ref}" data-name="${esc(g.name)}" title="Untergruppe entfernen – wird auch bei künftigen Importen ignoriert">✕ entfernen</button>
       </div></td></tr>`;
   };
@@ -2616,6 +2663,12 @@ async function importFiles(files) {
       lists.replaced += replacedHere;
       S.sources = S.sources.filter(o => !remove.has(o.id));
       const now = new Date().toISOString();
+      // Heisst das Blatt wie eine bestehende Untergruppe der Kategorie (z.B. „Anlässe des Jahres" in „Diverse"), gehören die Einträge dorthin
+      for (const src of res.sources) {
+        const c = S.cats.find(x => x.id === src.catId), gk = c && src.sheet ? WB.groupKey(c.name, src.sheet) : '';
+        const g = gk && c.groups && c.groups[gk];
+        if (g && !g.removed) { src.group = g.name; for (const e of src.entries) e.group = g.name; }
+      }
       for (const src of res.sources) S.sources.push({ ...src, importedAt: now, enabled: true });
       notesNow.push(...res.notes);
       const n = res.sources.reduce((a, x) => a + x.entries.length, 0);
@@ -2668,9 +2721,10 @@ async function apiAll(path, params, size = 100) {
   }
   return pages;
 }
+function leafDbIds() { const ids = new Set(); for (const c of S.cats) for (const g of Object.values(c.groups || {})) if (g.leaf && g.fromDb) ids.add(String(g.fromDb)); return ids; }
 async function expandSubgroups(ids) {
   const all = new Set(ids), parent = new Map(), name = new Map(); let frontier = ids.slice();
-  const removed = removedDbIds();
+  const removed = removedDbIds(), leaves = leafDbIds();
   for (const x of heldGroupIds()) removed.add(x); // neue (noch offen), nicht übernommene oder in eine andere Kategorie verschobene Gruppen
   for (let depth = 0; depth < 6 && frontier.length; depth++) {
     const next = [];
@@ -2679,7 +2733,7 @@ async function expandSubgroups(ids) {
       for (const p of pages) for (const g of p.data || []) {
         if (isExcluded(g.attributes.display_name || g.attributes.name) || removed.has(String(g.id))) continue; // z.B. „Ehemalige Fachgruppen" samt Untergruppen
         parent.set(String(g.id), String(g.attributes.parent_id)); name.set(String(g.id), g.attributes.display_name || g.attributes.name);
-        if (!all.has(String(g.id))) { all.add(String(g.id)); next.push(String(g.id)); }
+        if (!all.has(String(g.id))) { all.add(String(g.id)); if (!leaves.has(String(g.id))) next.push(String(g.id)); }
       }
     }
     frontier = next;
@@ -2913,8 +2967,9 @@ function applyMapping() {
   for (const u of DBMAP.units) {
     if (u.header || !u.include || !u.catId) continue;
     if (u.mode === 'orgs') { fresh.push({ id: 'auto-orgs', label: u.name, groupIds: u.orgIds.join(','), catId: u.catId, owner: '', subgroups: false, mode: 'orgs', auto: true }); continue; }
-    fresh.push({ id: 'auto-' + u.id, label: u.subName && u.subName !== u.name ? u.name : u.name, groupIds: u.id, catId: u.catId, owner: '', subgroups: u.container, auto: true });
-    const c = S.cats.find(x => x.id === u.catId); if (!c) continue;
+    const topOnly = u.catId === 'kindeswohl'; // PSA: nur die oberste Ebene, keine Untergruppen
+    fresh.push({ id: 'auto-' + u.id, label: u.subName && u.subName !== u.name ? u.name : u.name, groupIds: u.id, catId: u.catId, owner: '', subgroups: u.container && !topOnly, auto: true, ...(topOnly ? { noSubs: true } : {}) });
+    const c = S.cats.find(x => x.id === u.catId); if (!c || topOnly) continue;
     const addSub = (name, dbId) => {
       const gk = WB.groupKey(c.name, name); if (!gk) return;
       c.groups = c.groups || {};
@@ -2925,6 +2980,8 @@ function applyMapping() {
     else if (u.container) for (const ch of u.children) addSub(ch.name, ch.id);
     else addSub(u.subName || u.name, u.id);
   }
+  // „nur oberste Ebene" (z.B. PSA) bleibt beim erneuten Übernehmen erhalten
+  for (const f of fresh) { const old = S.db.sources.find(x => x.noSubs && parseGroupIds(x.groupIds).join() === parseGroupIds(f.groupIds).join()); if (old) { f.subgroups = false; f.noSubs = true; } }
   const covered = new Set(fresh.flatMap(x => parseGroupIds(x.groupIds)));
   const keep = S.db.sources.filter(x => !x.auto && parseGroupIds(x.groupIds).length && !parseGroupIds(x.groupIds).every(id => covered.has(id)));
   S.db.sources = [...fresh, ...keep];
@@ -2959,6 +3016,7 @@ async function dbRefresh(auto = false) {
   if (DB_BUSY) return;
   if (!token()) { if (auto) return; S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
   if (cleanExcluded()) save();
+  if (S.db.sources.some(x => x.mode === 'orgs')) S.db.sources = S.db.sources.filter(x => x.mode !== 'orgs'); // MIO kommen nicht aus der DB
   const srcs = S.db.sources.filter(s => parseGroupIds(s.groupIds).length);
   if (!srcs.length && auto) return;
   if (!srcs.length) {
@@ -3065,6 +3123,8 @@ async function scanNewGroups() {
   for (const g of fresh) {
     if (hidden(g)) { S.db.knownGroups.push(g.id); continue; } // ausgeschlossen (z.B. „Ehemalige …") → nie fragen
     if (underNew(g)) continue;                                  // kommt mit der neuen Obergruppe
+    if (isOrgType(g)) { S.db.knownGroups.push(g.id); continue; } // Mitgliederorganisationen werden nicht aus der DB geladen
+    { const leaves = leafDbIds(); let cur = byId.get(g.parent_id), k = 0, top = false; while (cur && k++ < 30) { const sx = srcOf(cur.id); if ((sx && sx.noSubs) || leaves.has(cur.id)) { top = true; break; } cur = byId.get(cur.parent_id); } if (top) { S.db.knownGroups.push(g.id); continue; } }
     const path = []; let cur = byId.get(g.parent_id), n = 0;
     while (cur && cur.id !== layer && n++ < 20) { path.unshift(cur.name); cur = byId.get(cur.parent_id); }
     let src = null; cur = byId.get(g.parent_id); n = 0;
@@ -3196,7 +3256,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-manual-del],[data-hide],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-manual-del],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3252,8 +3312,15 @@ document.addEventListener('click', (ev) => {
     g.removed = true; if (!g.name) g.name = name;
     save(); render(); toast(`„${name}" entfernt`); return;
   }
+  if (t.dataset.subLeaf) {
+    const { c, gk } = subRef(t.dataset.subLeaf); if (!c) return;
+    const name = t.dataset.name || gk;
+    if (!confirm(`Bei „${name}" nur diese Ebene laden?\n\nAlle Untergruppen davon werden entfernt (Liste „Entfernt") und auch bei künftigen Importen ignoriert. Geladen werden nur noch die Personen direkt in „${name}".`)) return;
+    const n = markLeaf(c, gk); save(); render(); toast(`„${name}": ${n} Untergruppe${n === 1 ? '' : 'n'} entfernt – nur noch diese Ebene.`); return;
+  }
   if (t.dataset.subUnhide) {
     const [cid, ...rest] = t.dataset.subUnhide.split('|'); const c = S.cats.find(x => x.id === cid); const gk = rest.join('|');
+    { let cur = c && c.groups && c.groups[gk] && c.groups[gk].parentGk, k = 0; while (cur && k++ < 30 && c.groups[cur]) { delete c.groups[cur].leaf; cur = c.groups[cur].parentGk; } } // zurückgeholt → Obergruppe wieder mit Untergruppen laden
     if (c && c.groups && c.groups[gk]) { delete c.groups[gk].removed; if (!c.groups[gk].fromDb && !c.groups[gk].manual && !(c.groups[gk].persons || []).length) delete c.groups[gk]; save(); render(); toast('Untergruppe wiederhergestellt – beim nächsten Aktualisieren aus der Cevi DB werden ihre Adressen wieder geladen'); }
     return;
   }
@@ -3436,7 +3503,7 @@ document.addEventListener('change', (ev) => {
   if (t.dataset.catName) { const c = S.cats.find(x => x.id === t.dataset.catName); const v = t.value.trim(); if (v) { c.name = v; save(); } render(); return; }
   if (t.dataset.catOwner) { const c = S.cats.find(x => x.id === t.dataset.catOwner); c.owner = resolveOwner(t.value); c.ownerManual = true; save(); render(); return; }
   if (t.dataset.catInfo) { const c = S.cats.find(x => x.id === t.dataset.catInfo); c.info = t.value; save(); return; }
-  if (t.dataset.dbs) { const s = S.db.sources.find(x => x.id === t.dataset.dbs); const k = t.dataset.k; s[k] = t.type === 'checkbox' ? t.checked : t.value.trim(); save(); if (k === 'catId') render(); return; }
+  if (t.dataset.dbs) { const s = S.db.sources.find(x => x.id === t.dataset.dbs); const k = t.dataset.k; s[k] = t.type === 'checkbox' ? t.checked : t.value.trim(); if (k === 'subgroups') { if (t.checked) delete s.noSubs; else s.noSubs = true; } save(); if (k === 'catId') render(); return; }
   if (t.id === 'aliasText') { S.aliasText = t.value; save(); render(); return; }
   if (t.id === 'autoAliases') { S.autoAliases = t.checked; save(); render(); return; }
   if (t.id === 'dbRoot') { S.db.rootGroup = t.value.trim(); save(); return; }

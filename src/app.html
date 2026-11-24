@@ -1516,7 +1516,7 @@ function listsView() {
 }
 
 // ---------------------------------------------------------------- Empfänger*innen von Hand erfassen
-const MF = { first: '', last: '', street: '', zip: '', town: '', cat: '', catNew: '', sub: '', subNew: '', owner: '', listOpen: false };
+const MF = { org: '', first: '', last: '', street: '', zip: '', town: '', cat: '', catNew: '', sub: '', subNew: '', owner: '', listOpen: false };
 const manualEntries = () => (S.sources.find(x => x.id === 'manual') || { entries: [] }).entries;
 function manualSource() {
   let s = S.sources.find(x => x.id === 'manual');
@@ -1534,6 +1534,7 @@ function manualPanel() {
     <div class="hd"><h2>Person anlegen und zuweisen</h2><span class="muted small">für Empfänger*innen, die in keiner Liste und nicht in der Cevi DB stehen</span></div>
     <div class="bd">
       <div class="mform">
+        <input data-mf="org" placeholder="Organisation" title="Nur ausfüllen, wenn die Karte an eine Organisation geht (Vor- und Nachname dann leer lassen oder als Kontaktperson eintragen)" value="${esc(MF.org)}" autocomplete="off">
         <input data-mf="first" placeholder="Vorname" value="${esc(MF.first)}" autocomplete="off">
         <input data-mf="last" placeholder="Nachname" value="${esc(MF.last)}" autocomplete="off">
         <input data-mf="street" placeholder="Strasse und Nr." value="${esc(MF.street)}" class="w2" autocomplete="off">
@@ -1554,7 +1555,7 @@ function manualPanel() {
 }
 function manualAdd() {
   const v = (k) => String(MF[k] || '').trim();
-  if (!v('first') && !v('last')) return toast('Bitte Vor- oder Nachname eintragen.');
+  if (!v('org') && !v('first') && !v('last')) return toast('Bitte eine Organisation oder Vor- bzw. Nachname eintragen.');
   if (!v('street') || !v('zip') || !v('town')) return toast('Bitte Strasse, PLZ und Ort eintragen – sonst kann keine Karte verschickt werden.');
   if (!MF.cat) return toast('Bitte eine Kategorie wählen.');
   if (!MF.owner) return toast('Bitte wählen, wer zuständig ist.');
@@ -1574,19 +1575,19 @@ function manualAdd() {
   } else if (MF.sub) { const g = subgroupsOf(c).find(x => x.gk === MF.sub); group = g ? g.name : ''; }
   let street = v('street'), nr = ''; const m = street.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/); if (m) { street = m[1].trim(); nr = m[2]; }
   const src = manualSource();
-  src.entries.push({ mid: uid(), org: '', first: v('first'), last: v('last'), nick: '', email: '', street, nr, careOf: '', zip: v('zip'), town: v('town'), country: '',
+  src.entries.push({ mid: uid(), org: v('org'), first: v('first'), last: v('last'), nick: '', email: '', street, nr, careOf: '', zip: v('zip'), town: v('town'), country: '',
     owner: MF.owner, fixedOwner: true, extra: '', done: false, group, catId: c.id, rowNo: src.entries.length + 1, createdAt: new Date().toISOString() });
-  const who = [v('first'), v('last')].filter(Boolean).join(' ');
+  const who = [v('first'), v('last')].filter(Boolean).join(' ') || v('org');
   // Kategorie, Untergruppe und Zuständig bleiben für die nächste Person stehen
-  Object.assign(MF, { first: '', last: '', street: '', zip: '', town: '', catNew: '', subNew: '', cat: c.id, sub: group ? WB.groupKey(c.name, group) : '' });
+  Object.assign(MF, { org: '', first: '', last: '', street: '', zip: '', town: '', catNew: '', subNew: '', cat: c.id, sub: group ? WB.groupKey(c.name, group) : '' });
   save(); render();
   toast(`${who} angelegt – ${c.name}${group ? ' › ' + group : ''}, zuständig: ${ownerName(MF.owner)}`);
-  const f = document.querySelector('[data-mf="first"]'); if (f) f.focus();
+  const f = document.querySelector('[data-mf="org"]'); if (f) f.focus();
 }
 function manualDelete(mid) {
   const src = S.sources.find(x => x.id === 'manual'); if (!src) return;
   const e = src.entries.find(x => x.mid === mid); if (!e) return;
-  if (!confirm(`${[e.first, e.last].filter(Boolean).join(' ')} wieder löschen?`)) return;
+  if (!confirm(`${[e.first, e.last].filter(Boolean).join(' ') || e.org} wieder löschen?`)) return;
   src.entries = src.entries.filter(x => x.mid !== mid);
   if (!src.entries.length) S.sources = S.sources.filter(x => x.id !== 'manual');
   save(); render();

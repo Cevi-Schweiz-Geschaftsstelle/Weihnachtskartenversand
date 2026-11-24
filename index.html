@@ -62,6 +62,14 @@ main{flex:1;padding:18px 22px 40px}
 .muted{color:var(--muted)} .small{font-size:12.5px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .catcol{max-width:1180px}
+button.chip{border:0;font:inherit;font-size:12px;cursor:pointer}
+button.chip.cat:hover{box-shadow:inset 0 0 0 1.5px #9db6e0}
+button.pname{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+button.pname:hover{color:var(--accent);text-decoration:underline}
+.gmrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--line2)}
+.gmrow:first-of-type{border-top:0}
+.gmrow .nm{font-weight:600;min-width:140px}
+.gmrow select,.gmrow input{flex:1 1 220px;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:13.5px}
 .stafftbl td.stoggle{cursor:pointer;user-select:none}
 .stafftbl tr.staffrow:hover td{background:#f7f9fb}
 .stafftbl tr.staffrow.open td{background:#f4f7fb;border-bottom-color:transparent}
@@ -321,6 +329,7 @@ body.print-labels #labelsPrint{display:block}
 <div id="labelsPrint" aria-hidden="true"></div>
 <div class="modal-back" id="cloudModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cloudTitle"></div></div>
 <div class="modal-back" id="ngModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="ngTitle"></div></div>
+<div class="modal-back" id="grpModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="grpModalTitle"></div></div>
 <div class="modal-back" id="catModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="catModalTitle"></div></div>
 
 <script>/* SheetJS Community Edition 0.18.5 – Apache-2.0 – https://sheetjs.com */
@@ -847,7 +856,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           for (const [t, c] of Object.entries(map)) if (colType(row[c]) === t) headerLike++;
           if (headerLike >= 2) continue;
           if (!e.nr && e.street) { const m = e.street.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/); if (m) { e.street = m[1].trim(); e.nr = m[2]; } }
-          if (e.email && !isEmail(e.email)) e.email = '';
+          if (e.email && !isEmail(e.email)) {
+            // Text ohne @ in der E-Mail-Spalte ist meist ein Adresszusatz („Haus des Sports“) → als Zusatzzeile behalten
+            const z = get('email');
+            if (!e.careOf && /[a-zäöüéèà]{3,}/i.test(z) && !/^(keine?|nein|ja|n\.?\s?a\.?|unbekannt|fehlt|-+)$/i.test(z) && !/www\.|https?:/i.test(z)) e.careOf = z;
+            e.email = '';
+          }
           if (isFlat) {
             const rowCat = get('category'), rowGroup = get('group'), roles = get('roles');
             if (rowGroup) e.group = rowGroup;
@@ -1236,7 +1250,7 @@ function defaultState() {
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
     aliasText: '', autoAliases: true, version: 9,
-    decisions: {}, overrides: {}, done: {}, hidden: {}, importDone: true,
+    decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
@@ -1406,6 +1420,8 @@ function parseAliasText() {
   }
   return { map, names };
 }
+/** Schlüssel für eine von Hand gewählte Untergruppe: Person (Name, PLZ, E-Mail) + Kategorie */
+function groupSetKey(e, catId) { return WB.identity(e) + '@' + catId; }
 function recompute() {
   const entries = [];
   let n = 0;
@@ -1414,8 +1430,11 @@ function recompute() {
     if (src.enabled === false) continue;
     for (const e of src.entries) {
       const catId = src.perRow ? (e.catId || src.catId) : src.catId;
-      if (hidden(catId, e.group)) continue;
-      entries.push({ ...e, catId, uid: ++n, sourceId: src.id,
+      // von Hand gewählte Untergruppe (Klick auf die Person) hat Vorrang vor der Gruppe aus der Liste
+      const gsKey = groupSetKey(e, catId), gs = S.groupSet && S.groupSet[gsKey];
+      const group = gs !== undefined ? gs : e.group;
+      if (hidden(catId, group)) continue;
+      entries.push({ ...e, group, groupOrig: e.group, gsKey, catId, uid: ++n, sourceId: src.id,
         sourceLabel: (src.kind === 'db' ? 'Cevi DB: ' : '') + src.label, origin: src.kind === 'db' ? 'db' : src.kind === 'manual' ? 'manual' : 'excel' });
     }
   }
@@ -1583,7 +1602,7 @@ function personAddr(p) {
   return [l1, l2, l3].filter(Boolean).map(esc).join('<br>') || '<span class="note bad">keine Adresse</span>';
 }
 function membershipChips(p, highlightPrimary = true) {
-  return p.memberships.map((m, i) => `<span class="chip cat ${highlightPrimary && i === 0 && m.catId === p.primaryCatId ? 'prim' : ''}" title="${esc(m.source + (m.roles ? ' · ' + m.roles : '') + ' · zuständig: ' + (m.owner || 'offen'))}">${m.origin === 'db' ? '● ' : m.origin === 'manual' ? '<span title="von Hand erfasst">✎ </span>' : ''}${esc(m.cat)}${m.group && m.group !== m.cat ? ' › ' + esc(m.group) : ''}</span>`).join('');
+  return p.memberships.map((m, i) => `<button class="chip cat ${highlightPrimary && i === 0 && m.catId === p.primaryCatId ? 'prim' : ''}" data-pgroup="${esc(p.key)}" title="${esc(m.source + (m.roles ? ' · ' + m.roles : '') + ' · zuständig: ' + (m.owner || 'offen') + '\nKlicken: Untergruppe zuweisen')}">${m.origin === 'db' ? '● ' : m.origin === 'manual' ? '<span title="von Hand erfasst">✎ </span>' : ''}${esc(m.cat)}${m.group && m.group !== m.cat ? ' › ' + esc(m.group) : ''}</button>`).join('');
 }
 function coChips(p) {
   return p.coSigners.length ? p.coSigners.map(c => `<span class="chip co" title="${esc(c.via.join('\n'))}">✍ ${esc(c.owner)}${R.aliases.codeNames[c.owner] && R.aliases.codeNames[c.owner] !== c.owner ? ' · ' + esc(R.aliases.codeNames[c.owner].split(' ')[0]) : ''}</span>`).join('') : '<span class="muted small">–</span>';
@@ -1603,7 +1622,7 @@ function ownerSelect(p) {
 function personRow(p, opts = {}) {
   return `<tr class="${p.done ? 'done' : ''} ${p.hidden ? 'hiddenrow' : ''}">
     <td class="chk"><input type="checkbox" data-done="${esc(p.key)}" ${p.done ? 'checked' : ''} title="Brief erledigt"></td>
-    <td><div class="name">${esc(p.displayName)}${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.memberships.length + ' Listen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.memberships.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
+    <td><div class="name"><button class="pname" data-pgroup="${esc(p.key)}" title="Untergruppe zuweisen">${esc(p.displayName)}</button>${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.memberships.length + ' Listen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.memberships.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
       ${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}${p.email ? `<div class="org">${esc(p.email)}</div>` : ''}${notesHtml(p)}</td>
     <td class="addr">${personAddr(p)}</td>
     <td>${membershipChips(p)}</td>
@@ -1992,7 +2011,7 @@ function printLabels() {
 const M365_DEFAULTS = { tenantId: '29537223-9280-4035-b685-49ec81dd6aea', clientId: 'fad64339-d256-4c02-9ab5-38894757993a', siteUrl: 'https://cevischweiz.sharepoint.com/sites/VSGS' };
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
-const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'importDone', 'notes', 'ignoredSugg', 'version'];
+const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'importDone', 'notes', 'ignoredSugg', 'version'];
 const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh', 'layerId', 'knownGroups', 'pendingGroups', 'ignoredGroups', 'detachedGroups'];
 const J = WB.J;
 /** Was alle teilen (ohne Ansicht, ohne API-Key, ohne Microsoft-Einstellungen) */
@@ -2293,6 +2312,69 @@ function saveCatDialog() {
   }
   save(); closeCatDialog(true); render();
   toast(added.length || removed.length ? `${key}: ${[added.length ? '+ ' + added.join(', ') : '', removed.length ? '− ' + removed.join(', ') : ''].filter(Boolean).join(' · ')}` : `${key}: keine Kategorien geändert`);
+}
+
+// ---------------------------------------------------------------- Untergruppe einer Person zuweisen (Klick auf Name oder Kategorie)
+let GM = null; // { key, rows: [{ catId, group, uids }] }
+function openGroupDialog(key) {
+  const p = R.people.find(x => x.key === key); if (!p) return;
+  const es = R.entries.filter(e => p.entryUids.includes(e.uid));
+  const rows = [];
+  for (const e of es) {
+    const g = WB.key(e.group) === WB.key(catName(e.catId)) ? '' : (e.group || '');
+    let r = rows.find(x => x.catId === e.catId && x.group === g);
+    if (!r) rows.push(r = { catId: e.catId, group: g, uids: [] });
+    r.uids.push(e.uid);
+  }
+  GM = { key, rows };
+  const body = rows.map((r, i) => {
+    const c = S.cats.find(x => x.id === r.catId);
+    if (!c) return `<div class="gmrow"><span class="nm">ohne Kategorie</span><span class="small muted">zuerst im Reiter Importierte Listen eine Kategorie wählen</span></div>`;
+    const subs = subgroupsOf(c);
+    const cur = r.group ? WB.groupKey(c.name, r.group) : '';
+    const opts = `<option value="">– keine Untergruppe (ganze Kategorie) –</option>` + subs.map(g => `<option value="${esc(g.gk)}" ${g.gk === cur ? 'selected' : ''}>${'\u00a0\u00a0'.repeat(g.depth || 0)}${esc(g.name)}</option>`).join('') + (cur && !subs.some(g => g.gk === cur) ? `<option value="${esc(cur)}" selected>${esc(r.group)}</option>` : '') + `<option value="__new">＋ Neue Untergruppe …</option>`;
+    return `<div class="gmrow"><span class="nm">${esc(c.name)}</span><select data-gm="${i}">${opts}</select><input data-gm-new="${i}" placeholder="Name der neuen Untergruppe" hidden autocomplete="off"></div>`;
+  }).join('');
+  const fixed = es.some(e => e.fixedOwner && e.owner);
+  const m = $('#grpModal');
+  m.querySelector('.modal').innerHTML = `
+    <div class="hd"><h3 id="grpModalTitle">${esc(p.displayName)}</h3>${p.org && p.org !== p.displayName ? `<div class="small muted">${esc(p.org)}</div>` : ''}</div>
+    <div class="bd"><div style="margin-bottom:10px"><b>Untergruppe zuweisen</b> <span class="small muted">Wer zuständig ist, richtet sich danach nach der Untergruppe (sonst nach der Kategorie).</span></div>
+      ${body}
+      ${fixed ? '<div class="small muted" style="margin-top:8px">Hinweis: Beim Anlegen wurde eine feste Zuständigkeit gewählt – sie gilt weiterhin.</div>' : ''}
+      ${p.overridden ? `<div class="small muted" style="margin-top:8px">Hinweis: Die Hauptzuständigkeit wurde in der Masterliste von Hand festgelegt (${esc(ownerName(p.owner))}) – sie gilt weiterhin.</div>` : ''}</div>
+    <div class="ft"><button class="btn ghost" data-action="gm-close">Abbrechen</button><button class="btn primary" data-action="gm-save">Speichern</button></div>`;
+  m.hidden = false;
+  const f = m.querySelector('select'); if (f) f.focus();
+}
+function closeGroupDialog() { $('#grpModal').hidden = true; GM = null; }
+function saveGroupDialog() {
+  if (!GM) return closeGroupDialog();
+  S.groupSet = S.groupSet || {};
+  const changed = [];
+  for (const sel of document.querySelectorAll('#grpModal [data-gm]')) {
+    const r = GM.rows[+sel.dataset.gm]; const c = S.cats.find(x => x.id === r.catId); if (!c) continue;
+    let name = '';
+    if (sel.value === '__new') {
+      name = String((document.querySelector(`#grpModal [data-gm-new="${sel.dataset.gm}"]`) || {}).value || '').trim();
+      if (!name) { toast('Bitte einen Namen für die neue Untergruppe eintragen.'); return; }
+      const gk = WB.groupKey(c.name, name); if (!gk) { toast('Bitte einen anderen Namen für die Untergruppe wählen.'); return; }
+      if (!(c.groups && c.groups[gk])) { setGrp(c, gk, name, []); c.groups[gk].manual = true; }
+      if (c.groups[gk].removed) delete c.groups[gk].removed;
+      name = c.groups[gk].name || name;
+    } else if (sel.value) { const g = subgroupsOf(c).find(x => x.gk === sel.value); name = g ? g.name : ((c.groups || {})[sel.value] || {}).name || r.group; }
+    if (WB.key(name) === WB.key(r.group)) continue;
+    for (const e of R.entries.filter(x => r.uids.includes(x.uid))) {
+      const orig = WB.key(e.groupOrig) === WB.key(c.name) ? '' : (e.groupOrig || '');
+      if (WB.key(orig) === WB.key(name)) delete S.groupSet[e.gsKey]; else S.groupSet[e.gsKey] = name;
+    }
+    changed.push(c.name + (name ? ' › ' + name : ''));
+  }
+  const who = (R.people.find(x => x.key === GM.key) || {}).displayName || '';
+  closeGroupDialog();
+  if (!changed.length) return;
+  save(); render();
+  toast(`${who}: ${changed.join(', ')}`);
 }
 
 /** Herkunft der Daten pro Kategorie: { db: Set, excel: Set } (Cevi DB eingerichtet oder geladen / Excel geladen) */
@@ -3321,7 +3403,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-manual-del],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-manual-del],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3391,6 +3473,7 @@ document.addEventListener('click', (ev) => {
   }
   if (t.dataset.catDialog) { openCatDialog(t.dataset.catDialog, false); return; }
   if (t.dataset.suggHide) { S.ignoredSugg = [...new Set([...(S.ignoredSugg || []), t.dataset.suggHide])]; save(); render(); return; }
+  if (t.dataset.pgroup) { openGroupDialog(t.dataset.pgroup); return; }
   if (t.dataset.staffToggle) { const id = t.dataset.staffToggle; STAFF_OPEN.has(id) ? STAFF_OPEN.delete(id) : STAFF_OPEN.add(id); render(); return; }
   if (t.dataset.staffDel) {
     const st = S.staff.find(x => x.id === t.dataset.staffDel); if (!st) return;
@@ -3473,6 +3556,8 @@ document.addEventListener('click', (ev) => {
   else if (a === 'cloud-off') { if (confirm('Vom gemeinsamen Stand trennen? Der aktuelle Stand bleibt auf diesem Computer, wird aber nicht mehr abgeglichen.')) { S.m365.declined = true; Cloud.disconnect(); cloudDialog(); } }
   else if (a === 'cloud-close') $('#cloudModal').hidden = true;
   else if (a === 'modal-save') saveCatDialog();
+  else if (a === 'gm-save') saveGroupDialog();
+  else if (a === 'gm-close') closeGroupDialog();
   else if (a === 'modal-close') closeCatDialog(true);
   else if (a === 'staff-add') {
     const first = $('#newFirst').value, last = $('#newLast').value, codeIn = $('#newCode');
@@ -3506,6 +3591,7 @@ document.addEventListener('click', (ev) => {
 });
 document.addEventListener('change', (ev) => {
   const t = ev.target;
+  if (t.dataset && t.dataset.gm !== undefined) { const inp = document.querySelector(`#grpModal [data-gm-new="${t.dataset.gm}"]`); if (inp) { inp.hidden = t.value !== '__new'; if (!inp.hidden) inp.focus(); } return; }
   if (t.dataset && t.dataset.mf !== undefined) {
     MF[t.dataset.mf] = t.value;
     if (t.tagName === 'SELECT') {
@@ -3588,6 +3674,11 @@ document.addEventListener('keydown', (ev) => {
   if (!$('#cloudModal').hidden && ev.key === 'Escape') { $('#cloudModal').hidden = true; return; }
   if (!$('#ngModal').hidden && ev.key === 'Escape') { NG_LATER = true; $('#ngModal').hidden = true; return; }
   if (!$('#labelModal').hidden && ev.key === 'Escape') { $('#labelModal').hidden = true; return; }
+  if (!$('#grpModal').hidden) {
+    if (ev.key === 'Escape') { ev.preventDefault(); closeGroupDialog(); }
+    if (ev.key === 'Enter' && !(ev.target && ev.target.tagName === 'BUTTON')) { ev.preventDefault(); saveGroupDialog(); }
+    return;
+  }
   if (!$('#catModal').hidden) {
     if (ev.key === 'Escape') { ev.preventDefault(); closeCatDialog(true); }
     if (ev.key === 'Enter' && !(ev.target && ev.target.tagName === 'BUTTON')) { ev.preventDefault(); saveCatDialog(); }

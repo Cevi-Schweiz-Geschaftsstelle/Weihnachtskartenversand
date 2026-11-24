@@ -494,7 +494,12 @@
           for (const [t, c] of Object.entries(map)) if (colType(row[c]) === t) headerLike++;
           if (headerLike >= 2) continue;
           if (!e.nr && e.street) { const m = e.street.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/); if (m) { e.street = m[1].trim(); e.nr = m[2]; } }
-          if (e.email && !isEmail(e.email)) e.email = '';
+          if (e.email && !isEmail(e.email)) {
+            // Text ohne @ in der E-Mail-Spalte ist meist ein Adresszusatz („Haus des Sports“) → als Zusatzzeile behalten
+            const z = get('email');
+            if (!e.careOf && /[a-zäöüéèà]{3,}/i.test(z) && !/^(keine?|nein|ja|n\.?\s?a\.?|unbekannt|fehlt|-+)$/i.test(z) && !/www\.|https?:/i.test(z)) e.careOf = z;
+            e.email = '';
+          }
           if (isFlat) {
             const rowCat = get('category'), rowGroup = get('group'), roles = get('roles');
             if (rowGroup) e.group = rowGroup;

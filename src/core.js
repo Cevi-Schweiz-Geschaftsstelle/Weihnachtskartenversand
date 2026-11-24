@@ -313,6 +313,17 @@
   // PLZ/Ort und Adressen aus einer Zelle lösen
   const ZIP_RX = /^\s*(?:(?:CH|D|DE|A|AT|FL|LI|F|I)\s*[- ]\s*)?(\d{4,5})(?:\.0)?(?:\s+(.*?))?\s*$/i;
   function splitZipTown(v) { const m = ZIP_RX.exec(str(v)); return m ? { zip: m[1], town: (m[2] || '').replace(/^[,\s]+/, '').trim() } : null; }
+  // Länderkürzel vor PLZ/Ort (Post-Schreibweise „D-58313 Herdecke“) und Ländernamen am Ende des Orts
+  const CC = { d: 'Deutschland', de: 'Deutschland', a: 'Österreich', at: 'Österreich', f: 'Frankreich', fr: 'Frankreich', i: 'Italien', it: 'Italien', fl: 'Liechtenstein', li: 'Liechtenstein' };
+  const CC_RX = /^\s*(CH|D|DE|A|AT|FL|LI|F|FR|I|IT)\s*-\s*(?=\S)/i;
+  const COUNTRY_RX = /,\s*(deutschland|germany|allemagne|österreich|austria|autriche|frankreich|france|italien|italia|italy|liechtenstein|belgien|belgium|belgique|niederlande|netherlands|nederland|luxemburg|luxembourg|spanien|spain|españa|grossbritannien|united kingdom|uk|usa|kanada|canada)\s*$/i;
+  function countryOf(v) { const m = CC_RX.exec(str(v)); return m ? (CC[m[1].toLowerCase()] || '') : ''; }
+  function stripCountry(town) {
+    let t = str(town), country = '';
+    const m = CC_RX.exec(t); if (m) { country = CC[m[1].toLowerCase()] || ''; t = t.slice(m[0].length); }
+    const n = COUNTRY_RX.exec(t); if (n) { country = country || n[1]; t = t.slice(0, n.index).trim(); }
+    return { town: t, country };
+  }
   /** „Musterweg 12, 3000 Bern" oder mehrzeilig „Hans Muster / Musterweg 12 / 3000 Bern" → { name, street, zip, town } */
   function splitAddress(v) {
     const parts = String(v || '').split(/\r?\n|,|;/).map(x => str(x)).filter(Boolean);
@@ -482,6 +493,9 @@
           if (e.zip && !e.town) { const z = splitZipTown(e.zip); if (z && z.town) { e.zip = z.zip; e.town = z.town; } }
           if (!e.zip && e.town) { const z = splitZipTown(e.town); if (z && z.town) { e.zip = z.zip; e.town = z.town; } }
           if (e.zip) { const z = splitZipTown(e.zip); if (z) e.zip = z.zip; }
+          // Ausland: „D-58313“, „D-Herdecke“ oder „Bruxelles, BELGIUM“ → Land separat (kommt als letzte Zeile auf die Etikette)
+          if (!e.country) e.country = countryOf(get('zip') || zt) || countryOf(get('town'));
+          if (e.town) { const t = stripCountry(e.town); if (t.country && !e.country) e.country = t.country; e.town = t.town; }
           const raw = (t) => (map[t] === undefined || row[map[t]] == null ? '' : String(row[map[t]]));
           if (e.street && !e.zip) { const a = splitAddress(raw('street')); if (a) { e.street = a.street || e.street; e.zip = a.zip; e.town = e.town || a.town; } }
           if (map.name !== undefined && !e.street && !e.zip && /\n/.test(raw('name'))) { const a = splitAddress(String(row[map.name])); if (a) { e.street = a.street; e.zip = a.zip; e.town = a.town; row = [...row]; row[map.name] = a.name; } }

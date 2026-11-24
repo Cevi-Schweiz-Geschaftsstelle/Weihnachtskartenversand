@@ -199,6 +199,11 @@ assert.deepStrictEqual(WB.codeVariants('Anna', 'Bern').slice(0, 3), ['ABE', 'ABR
   assert.ok(t.notes.some(n => /keine Kopfzeile/.test(n)));
   // Telefon-/Kunden-Nr. werden nicht zur Hausnummer
   assert.strictEqual(pick(one([['Kunden-Nr', 'Vorname', 'Nachname', 'Strasse', 'Tel. Nr.', 'PLZ', 'Ort'], [7, 'Anna', 'Beispiel', 'Musterweg 12', '031 000 00 00', '3000', 'Bern']]).e[0]), want, 'Nr.-Spalten');
+
+  // Ausland: Länderkürzel vor PLZ oder Ort, Ländername am Ende des Orts
+  t = one([['Vorname', 'Nachname', 'Strasse', 'Nr.', 'PLZ', 'Ort'], ['Anna', 'Beispiel', 'Musterweg', 4, 58300, 'D-Musterstadt'], ['Ben', 'Probe', 'Testweg', 2, 'A-1010', 'Wien'], ['Cleo', 'Test', 'Rue Exemple', 10, 1000, 'Bruxelles, BELGIUM'], ['Dan', 'Demo', 'Seeweg', 7, 3000, 'Bern']]);
+  assert.deepStrictEqual(t.e.map(e => [e.zip, e.town, e.country]), [['58300', 'Musterstadt', 'Deutschland'], ['1010', 'Wien', 'Österreich'], ['1000', 'Bruxelles', 'BELGIUM'], ['3000', 'Bern', '']], 'Ausland');
+
 }
 
 console.log('OK – alle Tests bestanden');

@@ -144,6 +144,11 @@ details.grp[open]>summary::before{content:'▾'}
 details.grp>summary .ttl{font-weight:650;font-size:14px}
 details.grp>summary:hover .ttl{color:var(--accent)}
 details.grp>summary .miss{color:var(--warn);font-weight:500}
+.mform{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.mform input,.mform select{flex:1 1 150px;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:13.5px}
+.mform .w2{flex:2 1 220px} .mform .wzip{flex:0 0 90px}
+.mform .btn{flex:0 0 auto}
+details.mlist{margin-top:12px} details.mlist>summary{cursor:pointer;padding:4px 0}
 .catmeta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
 .catlist .mv{opacity:.35} .catlist li:hover .mv,.catlist .mv:focus-within{opacity:1}
 details.grp .grpbody{margin-top:8px;border:1px solid var(--line2);border-radius:10px;padding:6px 12px 8px;background:#fbfcfd}
@@ -1047,11 +1052,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const pkeys = es.map(e => e.email || (personNameKey(e) + '#' + key(e.zip))).sort();
       const pKey = pkeys[0];
       const best = es.slice().sort((a, b) => completeness(b) - completeness(a))[0];
-      const effOwner = (e) => groupPersons(e)[0] || aliasOf(e.owner) || catPersons(e.catId)[0] || '';
+      // von Hand festgelegte Zuständigkeit (Person von Hand angelegt) gilt vor Untergruppe und Kategorie
+      const effOwner = (e) => (e.fixedOwner && aliasOf(e.owner)) || groupPersons(e)[0] || aliasOf(e.owner) || catPersons(e.catId)[0] || '';
       const extraOwners = (e) => { const gp = groupPersons(e); if (gp.length) return { list: gp.slice(1), via: ' (Untergruppe)' }; return aliasOf(e.owner) ? { list: [], via: '' } : { list: catPersons(e.catId).slice(1), via: ' (Kategorie)' }; };
       const selfName = isPersonal(best) ? fold(best.first.split(' ')[0] + ' ' + best.last) : '';
       const isSelf = (o) => !!(o && selfName && codeNames[o] && fold(codeNames[o]) === selfName);
-      const ranked = es.slice().sort((a, b) => (isSelf(effOwner(a)) - isSelf(effOwner(b))) || ((effOwner(a) ? 0 : 1) - (effOwner(b) ? 0 : 1)) || (prio(a.catId) - prio(b.catId)) || ((b.owner ? 1 : 0) - (a.owner ? 1 : 0)));
+      const ranked = es.slice().sort((a, b) => (isSelf(effOwner(a)) - isSelf(effOwner(b))) || ((b.fixedOwner ? 1 : 0) - (a.fixedOwner ? 1 : 0)) || ((effOwner(a) ? 0 : 1) - (effOwner(b) ? 0 : 1)) || (prio(a.catId) - prio(b.catId)) || ((b.owner ? 1 : 0) - (a.owner ? 1 : 0)));
       let primary = ranked[0];
       let owner = effOwner(primary);
       const suggested = owner;
@@ -1333,7 +1339,7 @@ function recompute() {
       const catId = src.perRow ? (e.catId || src.catId) : src.catId;
       if (hidden(catId, e.group)) continue;
       entries.push({ ...e, catId, uid: ++n, sourceId: src.id,
-        sourceLabel: (src.kind === 'db' ? 'Cevi DB: ' : '') + src.label, origin: src.kind === 'db' ? 'db' : 'excel' });
+        sourceLabel: (src.kind === 'db' ? 'Cevi DB: ' : '') + src.label, origin: src.kind === 'db' ? 'db' : src.kind === 'manual' ? 'manual' : 'excel' });
     }
   }
   const cats = S.cats;
@@ -2202,7 +2208,7 @@ function catOrigins() {
   const db = new Set(), excel = new Set();
   for (const s of S.db.sources || []) if (s.catId && parseGroupIds(s.groupIds).length) db.add(s.catId);
   for (const s of S.sources) {
-    if (s.enabled === false) continue;
+    if (s.enabled === false || s.kind === 'manual') continue;
     const set = s.kind === 'db' ? db : excel;
     if (s.perRow) { for (const e of s.entries) if (e.catId) set.add(e.catId); } else if (s.catId) set.add(s.catId);
   }
@@ -2296,6 +2302,90 @@ function settingsView() {
   </div>`;
 }
 
+// ---------------------------------------------------------------- Empfänger*innen von Hand erfassen
+const MF = { first: '', last: '', street: '', zip: '', town: '', cat: '', catNew: '', sub: '', subNew: '', owner: '', listOpen: false };
+const manualEntries = () => (S.sources.find(x => x.id === 'manual') || { entries: [] }).entries;
+function manualSource() {
+  let s = S.sources.find(x => x.id === 'manual');
+  if (!s) { s = { id: 'manual', kind: 'manual', file: 'Von Hand erfasst', sheet: '', block: '', label: 'Von Hand erfasst', group: '', catId: '', perRow: true, detectedBy: 'im Reiter Kategorien erfasst', confidence: 'manuell', entries: [], importedAt: new Date().toISOString(), enabled: true }; S.sources.push(s); }
+  return s;
+}
+function manualPanel() {
+  const c = S.cats.find(x => x.id === MF.cat);
+  const subs = c ? subgroupsOf(c) : [];
+  const list = manualEntries();
+  const opt = (v, l, cur) => `<option value="${esc(v)}" ${cur === v ? 'selected' : ''}>${esc(l)}</option>`;
+  const catOpts = opt('', 'Kategorie wählen …', MF.cat) + S.order.map(id => S.cats.find(x => x.id === id)).filter(Boolean).map(x => opt(x.id, x.name, MF.cat)).join('') + opt('__new', '＋ Neue Kategorie …', MF.cat);
+  const subOpts = opt('', subs.length ? '– keine Untergruppe –' : 'keine Untergruppe', MF.sub) + subs.map(g => opt(g.gk, g.name, MF.sub)).join('') + opt('__new', '＋ Neue Untergruppe …', MF.sub);
+  const ownOpts = opt('', 'Zuständig …', MF.owner) + S.staff.map(st => opt(staffKey(st), [st.code, st.name].filter(Boolean).join(' · '), MF.owner)).join('');
+  const catOf = (e) => ((S.cats.find(x => x.id === e.catId) || {}).name || '–') + (e.group ? ' › ' + e.group : '');
+  return `<div class="panel" style="margin-bottom:16px">
+    <div class="hd"><h2>Person anlegen und zuweisen</h2><span class="muted small">für Empfänger*innen, die in keiner Liste und nicht in der Cevi DB stehen</span></div>
+    <div class="bd">
+      <div class="mform">
+        <input data-mf="first" placeholder="Vorname" value="${esc(MF.first)}" autocomplete="off">
+        <input data-mf="last" placeholder="Nachname" value="${esc(MF.last)}" autocomplete="off">
+        <input data-mf="street" placeholder="Strasse und Nr." value="${esc(MF.street)}" class="w2" autocomplete="off">
+        <input data-mf="zip" placeholder="PLZ" value="${esc(MF.zip)}" class="wzip" inputmode="numeric" autocomplete="off">
+        <input data-mf="town" placeholder="Ort" value="${esc(MF.town)}" autocomplete="off">
+      </div>
+      <div class="mform" style="margin-top:8px">
+        <select data-mf="cat" title="Kategorie">${catOpts}</select>
+        ${MF.cat === '__new' ? `<input data-mf="catNew" placeholder="Name der neuen Kategorie" value="${esc(MF.catNew)}" autocomplete="off">` : ''}
+        ${MF.cat ? `<select data-mf="sub" title="Untergruppe">${subOpts}</select>` : ''}
+        ${MF.sub === '__new' ? `<input data-mf="subNew" placeholder="Name der neuen Untergruppe" value="${esc(MF.subNew)}" autocomplete="off">` : ''}
+        <select data-mf="owner" title="Wer verschickt die Karte?">${ownOpts}</select>
+        <button class="btn primary" data-action="manual-add">＋ Person anlegen</button>
+      </div>
+      ${!S.staff.length ? '<div class="small" style="color:var(--warn);margin-top:6px">Zuerst im Reiter Zuständigkeit die zuständigen Personen erfassen.</div>' : ''}
+      ${list.length ? `<details class="mlist" data-mlist ${MF.listOpen ? 'open' : ''}><summary class="small"><b>Von Hand erfasst (${list.length})</b></summary>
+        <table class="subtab"><tbody>${list.map(e => `<tr><td><b>${esc([e.first, e.last].filter(Boolean).join(' '))}</b></td>
+          <td class="small">${esc([[e.street, e.nr].filter(Boolean).join(' '), [e.zip, e.town].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</td>
+          <td class="small">${esc(catOf(e))}</td><td class="small">${ownerHtml(e.owner)}</td>
+          <td style="text-align:right"><button class="lnk x" data-manual-del="${esc(e.mid)}" title="Person wieder löschen">✕ löschen</button></td></tr>`).join('')}</tbody></table></details>` : ''}
+    </div>
+  </div>`;
+}
+function manualAdd() {
+  const v = (k) => String(MF[k] || '').trim();
+  if (!v('first') && !v('last')) return toast('Bitte Vor- oder Nachname eintragen.');
+  if (!v('street') || !v('zip') || !v('town')) return toast('Bitte Strasse, PLZ und Ort eintragen – sonst kann keine Karte verschickt werden.');
+  if (!MF.cat) return toast('Bitte eine Kategorie wählen.');
+  if (!MF.owner) return toast('Bitte wählen, wer zuständig ist.');
+  let c;
+  if (MF.cat === '__new') {
+    const name = v('catNew'); if (!name) return toast('Bitte einen Namen für die neue Kategorie eintragen.');
+    c = S.cats.find(x => WB.fold(x.name) === WB.fold(name));
+    if (!c) { c = { id: 'cat-' + uid(), name, source: '', persons: [], personsManual: true, info: '', exact: [], strong: [WB.fold(name)], weak: [], custom: true }; S.cats.push(c); S.order.push(c.id); }
+  } else c = S.cats.find(x => x.id === MF.cat);
+  if (!c) return toast('Bitte eine Kategorie wählen.');
+  let group = '';
+  if (MF.sub === '__new') {
+    const name = v('subNew'); if (!name) return toast('Bitte einen Namen für die neue Untergruppe eintragen.');
+    const gk = WB.groupKey(c.name, name); if (!gk) return toast('Bitte einen anderen Namen für die Untergruppe wählen.');
+    if (!(c.groups && c.groups[gk])) { setGrp(c, gk, name, []); c.groups[gk].manual = true; }
+    group = c.groups[gk].name || name;
+  } else if (MF.sub) { const g = subgroupsOf(c).find(x => x.gk === MF.sub); group = g ? g.name : ''; }
+  let street = v('street'), nr = ''; const m = street.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/); if (m) { street = m[1].trim(); nr = m[2]; }
+  const src = manualSource();
+  src.entries.push({ mid: uid(), org: '', first: v('first'), last: v('last'), nick: '', email: '', street, nr, careOf: '', zip: v('zip'), town: v('town'), country: '',
+    owner: MF.owner, fixedOwner: true, extra: '', done: false, group, catId: c.id, rowNo: src.entries.length + 1, createdAt: new Date().toISOString() });
+  const who = [v('first'), v('last')].filter(Boolean).join(' ');
+  // Kategorie, Untergruppe und Zuständig bleiben für die nächste Person stehen
+  Object.assign(MF, { first: '', last: '', street: '', zip: '', town: '', catNew: '', subNew: '', cat: c.id, sub: group ? WB.groupKey(c.name, group) : '', listOpen: true });
+  save(); render();
+  toast(`${who} angelegt – ${c.name}${group ? ' › ' + group : ''}, zuständig: ${ownerName(MF.owner)}`);
+  const f = document.querySelector('[data-mf="first"]'); if (f) f.focus();
+}
+function manualDelete(mid) {
+  const src = S.sources.find(x => x.id === 'manual'); if (!src) return;
+  const e = src.entries.find(x => x.mid === mid); if (!e) return;
+  if (!confirm(`${[e.first, e.last].filter(Boolean).join(' ')} wieder löschen?`)) return;
+  src.entries = src.entries.filter(x => x.mid !== mid);
+  if (!src.entries.length) S.sources = S.sources.filter(x => x.id !== 'manual');
+  save(); render();
+}
+
 function catsView() {
   const origins = catOrigins();
   const catRows = S.order.map((id, i) => {
@@ -2330,6 +2420,7 @@ function catsView() {
     </li>`;
   }).join('');
   return `<div class="catcol">
+      ${manualPanel()}
       <div class="panel">
         <div class="hd"><h2>Kategorien</h2><span class="muted small">Zuständige Personen zuordnen – auch mehrere pro Kategorie und pro Untergruppe</span></div>
         <div class="bd">
@@ -3094,7 +3185,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-del],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-del],[data-manual-del],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3120,6 +3211,7 @@ document.addEventListener('click', (ev) => {
     if (c.groups && c.groups[gk]) { toast('Diese Untergruppe gibt es schon.'); return; }
     setGrp(c, gk, name, []); c.groups[gk].manual = true; S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [c.id]: true }; save(); render(); return;
   }
+  if (t.dataset.manualDel) { manualDelete(t.dataset.manualDel); return; }
   if (t.dataset.subDel) { const { c, gk } = subRef(t.dataset.subDel); if (c && c.groups) { delete c.groups[gk]; save(); render(); } return; }
   if (t.dataset.subHide) {
     const { c, gk } = subRef(t.dataset.subHide); if (!c) return;
@@ -3195,6 +3287,7 @@ document.addEventListener('click', (ev) => {
   else if (a === 'labels-print') { $('#labelModal').hidden = true; printLabels(); }
   else if (a === 'export-owner') exportExcel(S.ui.owner || '');
   else if (a === 'export-all') exportExcel();
+  else if (a === 'manual-add') manualAdd();
   else if (a === 'import') $('#fileInput').click();
   else if (a === 'reset-done') { if (confirm('Alle Erledigt-Häkchen entfernen?')) { S.done = {}; for (const p of R.people) if (p.doneFromFile) S.done[p.key] = false; save(); render(); } }
   else if (a === 'reset-manual') { if (confirm('Manuelle Zuteilungen und Duplikat-Entscheide zurücksetzen?')) { S.overrides = {}; S.decisions = {}; save(); render(); } }
@@ -3251,6 +3344,15 @@ document.addEventListener('click', (ev) => {
 });
 document.addEventListener('change', (ev) => {
   const t = ev.target;
+  if (t.dataset && t.dataset.mf !== undefined) {
+    MF[t.dataset.mf] = t.value;
+    if (t.tagName === 'SELECT') {
+      if (t.dataset.mf === 'cat') MF.sub = '';
+      render();
+      const nf = t.value === '__new' ? document.querySelector(`[data-mf="${t.dataset.mf === 'cat' ? 'catNew' : 'subNew'}"]`) : null; if (nf) nf.focus();
+    }
+    return;
+  }
   if (t.dataset.done) { S.done[t.dataset.done] = t.checked; save(); render(); return; }
   if (t.dataset.override) {
     let v = t.value;
@@ -3330,6 +3432,7 @@ document.addEventListener('keydown', (ev) => {
     return;
   }
   if (ev.key !== 'Enter') return;
+  if (ev.target && ev.target.dataset && ev.target.dataset.mf !== undefined && ev.target.tagName === 'INPUT') { ev.preventDefault(); MF[ev.target.dataset.mf] = ev.target.value; manualAdd(); return; }
   const id = ev.target && ev.target.id;
   if (id === 'newCode' || id === 'newFirst' || id === 'newLast') { ev.preventDefault(); document.querySelector('[data-action="staff-add"]').click(); }
   if (id === 'dbRoot') { ev.preventDefault(); S.db.rootGroup = ev.target.value.trim(); save(); dbReadGroups(); return; }
@@ -3339,6 +3442,7 @@ document.addEventListener('keydown', (ev) => {
 let qT;
 document.addEventListener('input', (ev) => {
   const t = ev.target;
+  if (t.dataset && t.dataset.mf !== undefined && t.tagName === 'INPUT') { MF[t.dataset.mf] = t.value; return; }
   if (t.id === 'q') { clearTimeout(qT); qT = setTimeout(() => { S.ui.filter.q = t.value; const pos = t.selectionStart; render(); const q = $('#q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }, 180); }
   if (t.id === 'newFirst' || t.id === 'newLast') { const c = $('#newCode'); if (c && c.dataset.manual !== '1') c.value = autoCode($('#newFirst').value, $('#newLast').value); }
   if (t.id === 'newCode') t.dataset.manual = t.value.trim() ? '1' : '';
@@ -3346,7 +3450,7 @@ document.addEventListener('input', (ev) => {
   if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
 });
 // Auf-/Zuklappen der Untergruppen merken („toggle" bubbelt nicht → capture)
-document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } if (d && d.dataset && d.dataset.keybox !== undefined) KEYUI.open = d.open; if (d && d.dataset && d.dataset.dbconn !== undefined) DBUI.open = d.open; if (d && d.dataset && d.dataset.dblog !== undefined) DBUI.log = d.open; }, true);
+document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } if (d && d.dataset && d.dataset.keybox !== undefined) KEYUI.open = d.open; if (d && d.dataset && d.dataset.mlist !== undefined) MF.listOpen = d.open; if (d && d.dataset && d.dataset.dbconn !== undefined) DBUI.open = d.open; if (d && d.dataset && d.dataset.dblog !== undefined) DBUI.log = d.open; }, true);
 function readCloudFields() {
   const v = (id) => { const el = $(id); return el && !el.disabled ? el.value.trim() : undefined; };
   const t = v('#m365Tenant'), c = v('#m365Client'), s2 = v('#m365Site');

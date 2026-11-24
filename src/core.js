@@ -716,11 +716,12 @@
       const pkeys = es.map(e => e.email || (personNameKey(e) + '#' + key(e.zip))).sort();
       const pKey = pkeys[0];
       const best = es.slice().sort((a, b) => completeness(b) - completeness(a))[0];
-      const effOwner = (e) => groupPersons(e)[0] || aliasOf(e.owner) || catPersons(e.catId)[0] || '';
+      // von Hand festgelegte Zuständigkeit (Person von Hand angelegt) gilt vor Untergruppe und Kategorie
+      const effOwner = (e) => (e.fixedOwner && aliasOf(e.owner)) || groupPersons(e)[0] || aliasOf(e.owner) || catPersons(e.catId)[0] || '';
       const extraOwners = (e) => { const gp = groupPersons(e); if (gp.length) return { list: gp.slice(1), via: ' (Untergruppe)' }; return aliasOf(e.owner) ? { list: [], via: '' } : { list: catPersons(e.catId).slice(1), via: ' (Kategorie)' }; };
       const selfName = isPersonal(best) ? fold(best.first.split(' ')[0] + ' ' + best.last) : '';
       const isSelf = (o) => !!(o && selfName && codeNames[o] && fold(codeNames[o]) === selfName);
-      const ranked = es.slice().sort((a, b) => (isSelf(effOwner(a)) - isSelf(effOwner(b))) || ((effOwner(a) ? 0 : 1) - (effOwner(b) ? 0 : 1)) || (prio(a.catId) - prio(b.catId)) || ((b.owner ? 1 : 0) - (a.owner ? 1 : 0)));
+      const ranked = es.slice().sort((a, b) => (isSelf(effOwner(a)) - isSelf(effOwner(b))) || ((b.fixedOwner ? 1 : 0) - (a.fixedOwner ? 1 : 0)) || ((effOwner(a) ? 0 : 1) - (effOwner(b) ? 0 : 1)) || (prio(a.catId) - prio(b.catId)) || ((b.owner ? 1 : 0) - (a.owner ? 1 : 0)));
       let primary = ranked[0];
       let owner = effOwner(primary);
       const suggested = owner;

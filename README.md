@@ -45,6 +45,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
    - **Mehrfach gelistet:** Für Personen in mehreren Listen wählt man per Klick die Hauptverantwortung. Die anderen unterschreiben automatisch mit.
    - **Automatisch zusammengeführt** (aufklappbar): Alle Personen, die das Tool selbst zusammengeführt hat. Bei einem Fehler „Trennen".
 5. **Pro Zuständige\*r:** Jede Person sieht ihre Briefe und wo sie mitunterschreibt. Hier gibt es Erledigt-Häkchen, Drucken und den Export.
+   - **Adresse ausblenden:** Hinten in jeder Zeile (in der Masterliste und bei jeder Person) steht „✕ ausblenden“. Eine ausgeblendete Adresse wird nicht verschickt: kein Brief, keine Etikette, kein Export, keine offene Entscheidung. Sie bleibt grau in der Masterliste (Filter „Nur ausgeblendete“) und bei der Person unter „Ausgeblendet“ und lässt sich mit „↺ einblenden“ zurückholen. Das gilt auch nach neuen Importen – z.B. wenn zu viele Adressen importiert wurden.
    - Ganz oben in der Liste links steht **📋 Masterliste**: alle Empfänger\*innen mit Suche, Filtern und dem Gesamt-Export (früher ein eigener Reiter).
    - **🏷 Etiketten:** Alle Adressen der gewählten Person auf A4-Etikettenbögen drucken.
      - Bögen: Avery Zweckform 3475, 3474, 3422, L7160, L7163 oder eigene Masse.

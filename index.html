@@ -75,6 +75,9 @@ main{flex:1;padding:18px 22px 40px}
 .owner:hover{background:#f7f8fa}
 .owner.on{background:var(--accent-soft)}
 .owner.all{border-bottom:2px solid var(--line)}
+tr.hiddenrow td{opacity:.45} tr.hiddenrow td.hidecol{opacity:1}
+tr.hiddenrow .name{text-decoration:line-through}
+td.hidecol{white-space:nowrap;text-align:right;width:1%}
 .owner .n{font-weight:600;display:flex;gap:6px;align-items:baseline}
 .owner .n .code{font-variant:all-small-caps;letter-spacing:.04em;color:var(--accent-ink)}
 .owner .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;margin-top:2px}
@@ -1221,7 +1224,7 @@ function defaultState() {
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
     aliasText: '', autoAliases: true, version: 6,
-    decisions: {}, overrides: {}, done: {}, importDone: true,
+    decisions: {}, overrides: {}, done: {}, hidden: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA\nMitgliederorganisationen (MIO)',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
@@ -1230,7 +1233,7 @@ function defaultState() {
 }
 let S = load();
 let sessionToken = '';
-let R = { people: [], review: [], entries: [], aliases: { codeNames: {}, labelToCode: {} }, byOwner: new Map(), coByOwner: new Map() };
+let R = { people: [], review: [], entries: [], aliases: { codeNames: {}, labelToCode: {} }, byOwner: new Map(), coByOwner: new Map(), hiddenByOwner: new Map(), active: [] };
 
 function load() {
   try {
@@ -1359,15 +1362,17 @@ function recompute() {
     codeNames[k] = st.name || '';
   }
   const { people, review } = WB.buildPeople(entries, { cats, order: S.order, aliases, codeNames, decisions: S.decisions, overrides: S.overrides });
-  const byOwner = new Map(), coByOwner = new Map();
+  const byOwner = new Map(), coByOwner = new Map(), hiddenByOwner = new Map();
   for (const p of people) {
     p.done = S.done[p.key] !== undefined ? S.done[p.key] : !!p.doneFromFile; // „Erledigt" aus Excel wird immer übernommen
+    p.hidden = !!(S.hidden && S.hidden[p.key]); // ausgeblendet: kein Versand, keine Etikette, kein Export
     const o = p.owner || '';
+    if (p.hidden) { if (!hiddenByOwner.has(o)) hiddenByOwner.set(o, []); hiddenByOwner.get(o).push(p); continue; }
     if (!byOwner.has(o)) byOwner.set(o, []);
     byOwner.get(o).push(p);
     for (const c of p.coSigners) { if (!coByOwner.has(c.owner)) coByOwner.set(c.owner, []); coByOwner.get(c.owner).push({ p, via: c.via }); }
   }
-  R = { people, review, entries, aliases: { codeNames, labelToCode: Object.fromEntries(aliases), auto }, byOwner, coByOwner };
+  R = { people, review, entries, aliases: { codeNames, labelToCode: Object.fromEntries(aliases), auto }, byOwner, coByOwner, hiddenByOwner, active: people.filter(p => !p.hidden) };
 }
 const catName = (id) => (S.cats.find(c => c.id === id) || {}).name || 'ohne Kategorie';
 function ownerName(o) { if (!o) return 'Ohne Zuständigkeit'; const n = R.aliases.codeNames[o]; return n ? n : o; }
@@ -1461,14 +1466,14 @@ function renderNow() {
 let NEW_KEYS = new Set();
 const isNew = (p) => NEW_KEYS.has(diffKey(p) + '#' + WB.key(p.zip));
 function renderKpis() {
-  const P = R.people;
+  const P = R.active, nHidden = R.people.length - P.length;
   const done = P.filter(p => p.done).length;
   const dup = P.filter(p => p.isDuplicate).length;
   const open = R.byOwner.get('') ? R.byOwner.get('').length : 0;
   const pct = P.length ? Math.round(done / P.length * 100) : 0;
   $('#kpis').innerHTML = !S.sources.length ? '' : `
     <div class="kpi"><div class="v">${R.entries.length}</div><div class="l">Einträge in allen Listen</div></div>
-    <div class="kpi"><div class="v">${P.length}</div><div class="l">Briefe (eindeutige Empfänger)</div></div>
+    <div class="kpi"><div class="v">${P.length}</div><div class="l">Briefe (eindeutige Empfänger)${nHidden ? ` · ${nHidden} ausgeblendet` : ''}</div></div>
     <div class="kpi"><div class="v">${dup}</div><div class="l">Personen in mehreren Listen</div></div>
     <div class="kpi ${R.review.length ? 'warn' : ''}"><div class="v">${R.review.length}</div><div class="l">mögliche Duplikate prüfen</div></div>
     <div class="kpi ${open ? 'warn' : ''}"><div class="v">${open}</div><div class="l">ohne Zuständigkeit</div></div>
@@ -1477,7 +1482,7 @@ function renderKpis() {
 const openCount = () => openDecisions().length + R.review.length + (S.db.pendingGroups || []).length;
 function renderTabs() {
   const tabs = [
-    ['settings', 'Zuständigkeit', S.staff.length], ['cats', 'Kategorien', S.cats.length], ['assign', 'Unvollständig', openCount(), openCount() ? 'warn' : ''], ['owners', 'Pro Zuständige*r', R.people.length],
+    ['settings', 'Zuständigkeit', S.staff.length], ['cats', 'Kategorien', S.cats.length], ['assign', 'Unvollständig', openCount(), openCount() ? 'warn' : ''], ['owners', 'Pro Zuständige*r', R.active.length],
     ['db', 'Cevi DB'],
   ];
   $('#tabs').innerHTML = tabs.map(([id, l, c, cls]) => `<button data-tab="${id}" class="${S.ui.tab === id ? 'on' : ''}">${l}${c !== undefined ? `<span class="count ${cls || ''}">${c}</span>` : ''}</button>`).join('');
@@ -1521,7 +1526,7 @@ function ownerSelect(p) {
   </select>`;
 }
 function personRow(p, opts = {}) {
-  return `<tr class="${p.done ? 'done' : ''}">
+  return `<tr class="${p.done ? 'done' : ''} ${p.hidden ? 'hiddenrow' : ''}">
     <td class="chk"><input type="checkbox" data-done="${esc(p.key)}" ${p.done ? 'checked' : ''} title="Brief erledigt"></td>
     <td><div class="name">${esc(p.displayName)}${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.memberships.length + ' Listen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.memberships.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
       ${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}${p.email ? `<div class="org">${esc(p.email)}</div>` : ''}${notesHtml(p)}</td>
@@ -1529,6 +1534,7 @@ function personRow(p, opts = {}) {
     <td>${membershipChips(p)}</td>
     ${opts.showOwner ? `<td>${ownerSelect(p)}${p.overridden ? '<div class="small muted">manuell</div>' : ''}</td>` : ''}
     <td>${coChips(p)}</td>
+    <td class="hidecol noprint">${p.hidden ? `<button class="lnk" data-hide="${esc(p.key)}" title="Wieder für den Versand berücksichtigen">↺ einblenden</button><div class="small muted">kein Versand</div>` : `<button class="lnk x" data-hide="${esc(p.key)}" title="Für den Versand nicht berücksichtigen – keine Etikette, kein Export">✕ ausblenden</button>`}</td>
   </tr>`;
 }
 
@@ -1536,13 +1542,13 @@ function ownersView() {
   const owners = [...R.byOwner.keys()];
   const coOnly = [...R.coByOwner.keys()].filter(o => !R.byOwner.has(o));
   let sel = S.ui.owner;
-  if (sel !== '__all' && (sel === null || (!R.byOwner.has(sel) && !R.coByOwner.has(sel)))) sel = owners.filter(Boolean).sort((a, b) => R.byOwner.get(b).length - R.byOwner.get(a).length)[0] ?? '';
+  if (sel !== '__all' && (sel === null || (!R.byOwner.has(sel) && !R.coByOwner.has(sel) && !R.hiddenByOwner.has(sel)))) sel = owners.filter(Boolean).sort((a, b) => R.byOwner.get(b).length - R.byOwner.get(a).length)[0] ?? '';
   S.ui.owner = sel;
-  const allDone = R.people.filter(p => p.done).length;
+  const allDone = R.active.filter(p => p.done).length;
   const masterBtn = `<button class="owner all ${sel === '__all' ? 'on' : ''}" data-owner="__all" title="Alle Empfänger*innen mit Suche, Filtern und Export">
       <div class="n">📋 Masterliste</div>
-      <div class="meta"><span>alle ${R.people.length} Briefe</span>${R.people.length ? `<span class="right">${allDone}/${R.people.length}</span>` : ''}</div>
-      ${R.people.length ? `<div class="prog"><i style="width:${Math.round(allDone / R.people.length * 100)}%"></i></div>` : ''}
+      <div class="meta"><span>alle ${R.active.length} Briefe</span>${R.active.length ? `<span class="right">${allDone}/${R.active.length}</span>` : ''}</div>
+      ${R.active.length ? `<div class="prog"><i style="width:${Math.round(allDone / R.active.length * 100)}%"></i></div>` : ''}
     </button>`;
   const item = (o) => {
     const send = R.byOwner.get(o) || [], co = R.coByOwner.get(o) || [];
@@ -1583,7 +1589,7 @@ function ownersView() {
         </div>
         ${!sel ? `<div class="bd"><div class="callout warn">Diese Empfänger haben weder in der Liste noch in der Kategorie eine Zuständigkeit. Im Tab <a href="#" data-tab="assign">Unvollständig</a> frei eine Person eintragen – oder im Tab <a href="#" data-tab="cats">Kategorien</a> eine Zuständigkeit pro Kategorie setzen.</div></div>` : ''}
         ${send.length ? `<div class="tablewrap"><table>
-          <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th>${!sel ? '<th>Zuständig</th>' : ''}<th>Unterschreiben auch</th></tr></thead>
+          <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th>${!sel ? '<th>Zuständig</th>' : ''}<th>Unterschreiben auch</th><th class="noprint"></th></tr></thead>
           <tbody>${send.map(p => personRow(p, { showOwner: !sel })).join('')}</tbody></table></div>` : '<div class="empty">Keine eigenen Briefe.</div>'}
       </div>
       ${co.length ? `<div class="section-title"><h3>✍ Hier unterschreibt ${sel ? esc(ownerName(sel).split(' ')[0]) : ''} zusätzlich mit</h3><span class="muted small">Brief wird von jemand anderem versendet</span></div>
@@ -1592,7 +1598,9 @@ function ownersView() {
         <tbody>${co.map(({ p, via }) => `<tr class="${p.done ? 'done' : ''}"><td class="chk">${p.done ? '✓' : ''}</td>
           <td><div class="name">${esc(p.displayName)}</div>${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}</td>
           <td><a href="#" data-owner="${esc(p.owner)}">${ownerHtml(p.owner)}</a></td>
-          <td class="small">${via.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`}
+          <td class="small">${via.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+      ${(R.hiddenByOwner.get(sel) || []).length ? `<div class="section-title noprint"><h3>Ausgeblendet – kein Versand (${R.hiddenByOwner.get(sel).length})</h3><span class="muted small">Keine Etikette, kein Export · mit „↺ einblenden“ wieder aufnehmen</span></div>
+      <div class="panel noprint"><div class="tablewrap"><table><tbody>${R.hiddenByOwner.get(sel).map(p => personRow(p, { showOwner: !sel })).join('')}</tbody></table></div></div>` : ''}`}
     </div>
   </div>`;
 }
@@ -1606,6 +1614,7 @@ function filteredPeople() {
     if (f.only === 'dup' && !p.isDuplicate) return false;
     if (f.only === 'open' && p.done) return false;
     if (f.only === 'notes' && !p.notes.length) return false;
+    if (f.only === 'hidden' && !p.hidden) return false;
     if (q) {
       const hay = WB.fold([p.displayName, p.org, p.email, p.street, p.zip, p.town, ...p.memberships.map(m => m.cat + ' ' + m.group)].join(' '));
       if (!q.split(/\s+/).every(w => hay.includes(w))) return false;
@@ -1622,12 +1631,12 @@ function allView() {
       <input type="search" id="q" placeholder="Suchen (Name, Ort, Gruppe…)" value="${esc(f.q)}">
       <select id="fcat"><option value="">Alle Kategorien</option>${usedCats.map(id => `<option value="${id}" ${f.cat === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select>
       <select id="fowner"><option value="">Alle Zuständigen</option><option value="__none" ${f.owner === '__none' ? 'selected' : ''}>⚠ ohne Zuständigkeit</option>${allOwners().map(o => `<option value="${esc(o)}" ${f.owner === o ? 'selected' : ''}>${esc(o)}${R.aliases.codeNames[o] && R.aliases.codeNames[o] !== o ? ' · ' + esc(R.aliases.codeNames[o]) : ''}</option>`).join('')}</select>
-      <select id="fonly"><option value="">Alle</option><option value="dup" ${f.only === 'dup' ? 'selected' : ''}>Nur mehrfach gelistete</option><option value="open" ${f.only === 'open' ? 'selected' : ''}>Nur nicht erledigte</option><option value="notes" ${f.only === 'notes' ? 'selected' : ''}>Nur mit Hinweisen ⚠</option></select>
+      <select id="fonly"><option value="">Alle</option><option value="dup" ${f.only === 'dup' ? 'selected' : ''}>Nur mehrfach gelistete</option><option value="open" ${f.only === 'open' ? 'selected' : ''}>Nur nicht erledigte</option><option value="notes" ${f.only === 'notes' ? 'selected' : ''}>Nur mit Hinweisen ⚠</option><option value="hidden" ${f.only === 'hidden' ? 'selected' : ''}>Nur ausgeblendete</option></select>
       <span class="muted small right">${list.length} von ${R.people.length}</span>
       <button class="btn small" data-action="export-all" title="Masterliste, ein Blatt pro zuständiger Person und die Duplikate als Excel herunterladen">⇩ Excel exportieren</button>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th><th>Hauptzuständig (versendet)</th><th>Unterschreiben auch</th></tr></thead>
+      <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th><th>Hauptzuständig (versendet)</th><th>Unterschreiben auch</th><th class="noprint"></th></tr></thead>
       <tbody>${list.slice(0, 600).map(p => personRow(p, { showOwner: true })).join('')}</tbody>
     </table>${list.length > 600 ? `<div class="empty">… ${list.length - 600} weitere – bitte Filter verwenden.</div>` : ''}${!list.length ? '<div class="empty">Keine Treffer.</div>' : ''}</div>
   </div>`;
@@ -1636,7 +1645,7 @@ function allView() {
 // ---------------------------------------------------------------- Zuteilen
 const needsChoice = (p) => p.isDuplicate && p.candidates.filter(c => !c.self).length > 1;
 const noOwnerAuto = (p) => !p.suggested;
-function openDecisions() { return R.people.filter(p => !p.overridden && (needsChoice(p) || noOwnerAuto(p))); }
+function openDecisions() { return R.active.filter(p => !p.overridden && (needsChoice(p) || noOwnerAuto(p))); }
 function resolveOwner(input) {
   const v = String(input || '').trim();
   if (!v) return '';
@@ -1667,8 +1676,8 @@ function statusCell(p) {
 }
 function assignView() {
   const f = S.ui.assignFilter || 'open';
-  const without = R.people.filter(noOwnerAuto);
-  const dups = R.people.filter(p => p.isDuplicate && !noOwnerAuto(p));
+  const without = R.active.filter(noOwnerAuto);
+  const dups = R.active.filter(p => p.isDuplicate && !noOwnerAuto(p));
   const decided = dups.filter(p => p.overridden || !needsChoice(p)).length;
   const showDup = dups.filter(p => f === 'all' ? true : f === 'done' ? (p.overridden || !needsChoice(p)) : (!p.overridden && needsChoice(p)));
   const showWithout = without.filter(p => f === 'all' ? true : f === 'done' ? p.overridden : !p.overridden);
@@ -1908,7 +1917,7 @@ function printLabels() {
 const M365_DEFAULTS = { tenantId: '29537223-9280-4035-b685-49ec81dd6aea', clientId: 'fad64339-d256-4c02-9ab5-38894757993a', siteUrl: 'https://cevischweiz.sharepoint.com/sites/VSGS' };
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
-const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'importDone', 'notes', 'ignoredSugg', 'version'];
+const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'importDone', 'notes', 'ignoredSugg', 'version'];
 const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh', 'layerId', 'knownGroups', 'pendingGroups', 'ignoredGroups', 'detachedGroups'];
 const J = WB.J;
 /** Was alle teilen (ohne Ansicht, ohne API-Key, ohne Microsoft-Einstellungen) */
@@ -3170,7 +3179,7 @@ function exportExcel(onlyOwner) {
   const wb = XLSX.utils.book_new(); const used = new Set();
   const owners = onlyOwner !== undefined ? [onlyOwner] : [...R.byOwner.keys()].sort((a, b) => (!a) - (!b) || a.localeCompare(b));
   if (onlyOwner === undefined) {
-    XLSX.utils.book_append_sheet(wb, sheetFrom(R.people.map(rowFor), W), safeSheetName('Masterliste', used));
+    XLSX.utils.book_append_sheet(wb, sheetFrom(R.active.map(rowFor), W), safeSheetName('Masterliste', used));
   }
   for (const o of owners) {
     const rows = (R.byOwner.get(o) || []).map(rowFor);
@@ -3193,7 +3202,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-del],[data-manual-del],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-del],[data-manual-del],[data-hide],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3220,6 +3229,13 @@ document.addEventListener('click', (ev) => {
     setGrp(c, gk, name, []); c.groups[gk].manual = true; S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [c.id]: true }; save(); render(); return;
   }
   if (t.dataset.manualDel) { manualDelete(t.dataset.manualDel); return; }
+  if (t.dataset.hide) {
+    const k = t.dataset.hide, y = window.scrollY, p = R.people.find(x => x.key === k);
+    S.hidden = S.hidden || {}; if (S.hidden[k]) delete S.hidden[k]; else S.hidden[k] = true;
+    save(); render(); window.scrollTo(0, y);
+    toast(S.hidden[k] ? `${p ? p.displayName : 'Adresse'} ausgeblendet – kein Versand, keine Etikette` : `${p ? p.displayName : 'Adresse'} wieder eingeblendet`);
+    return;
+  }
   if (t.dataset.subDel) { const { c, gk } = subRef(t.dataset.subDel); if (c && c.groups) { delete c.groups[gk]; save(); render(); } return; }
   if (t.dataset.subHide) {
     const { c, gk } = subRef(t.dataset.subHide); if (!c) return;

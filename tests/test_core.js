@@ -159,4 +159,41 @@ assert.deepStrictEqual(WB.codeVariants('Anna', 'Bern').slice(0, 3), ['ABE', 'ABR
   assert.deepStrictEqual([r2.sources[0].entries[0].first, r2.sources[0].entries[0].last], ['Anna', 'Beispiel']);
 }
 
+// Viele Excel-Formate – nur Name, Vorname, Strasse, PLZ, Ort zählen (erfundene Daten)
+{
+  const one = (rows, name = 'Liste') => { const r = WB.parseWorkbookRows([{ name, rows }], 'Format.xlsx', WB.DEFAULT_CATEGORIES); return { e: (r.sources[0] || { entries: [] }).entries, notes: r.notes }; };
+  const pick = (e) => [e.first, e.last, e.org, e.street, e.nr, e.zip, e.town].map(x => x || '').join('|');
+  const want = 'Anna|Beispiel||Musterweg|12|3000|Bern';
+  // hitobito-Export (Vorname links von „Firmenname"; „Firma" = ja/nein)
+  let t = one([['Vorname', 'Nachname', 'Übername', 'Firmenname', 'Firma', 'Haupt-E-Mail', 'Adresse', 'PLZ', 'Ort', 'Land'], ['Anna', 'Beispiel', 'Ani', '', 'nein', 'anna@example.org', 'Musterweg 12', '3000', 'Bern', 'CH']]);
+  assert.strictEqual(pick(t.e[0]), want, 'hitobito');
+  // Abacus: Name 1 / Name 2 / PLZ/Ort
+  t = one([['Name 1', 'Name 2', 'Strasse', 'PLZ/Ort'], ['Beispiel Anna', 'z.Hd. Buchhaltung', 'Musterweg 12', '3000 Bern']]);
+  assert.strictEqual(pick(t.e[0]), want, 'Abacus'); assert.strictEqual(t.e[0].careOf, 'z.Hd. Buchhaltung');
+  // Outlook (englisch)
+  t = one([['Title', 'First Name', 'Last Name', 'Home Street', 'Home City', 'Home Postal Code', 'Mobile Phone'], ['', 'Anna', 'Beispiel', 'Musterweg 12', 'Bern', '3000', '079 000 00 00']]);
+  assert.strictEqual(pick(t.e[0]), want, 'Outlook');
+  // französisch / italienisch
+  assert.strictEqual(pick(one([['Prénom', 'Nom', 'Rue', 'NPA', 'Localité'], ['Anna', 'Beispiel', 'Musterweg 12', 3000, 'Bern']]).e[0]), want, 'französisch');
+  assert.strictEqual(pick(one([['Nome', 'Cognome', 'Via', 'CAP', 'Località'], ['Anna', 'Beispiel', 'Musterweg 12', '3000', 'Bern']]).e[0]), want, 'italienisch');
+  // Kopfzeile erst weiter unten, Titelzeilen davor
+  const titled = [['Adressliste Weihnachten'], ['Stand 2026'], ...Array(15).fill([]), ['Nachname', 'Vorname', 'Strasse und Hausnummer', 'PLZ', 'Ort'], ['Beispiel', 'Anna', 'Musterweg 12', '3000', 'Bern']];
+  assert.strictEqual(pick(one(titled).e[0]), want, 'Kopfzeile in Zeile 18');
+  // zweizeilige Kopfzeile
+  assert.strictEqual(pick(one([['Name', 'Vorname', 'Adresse', null, null], [null, null, 'Strasse', 'PLZ', 'Ort'], ['Beispiel', 'Anna', 'Musterweg 12', '3000', 'Bern']]).e[0]), want, 'zweizeilig');
+  // „Name, Vorname" mit Komma, „PLZ Ort" zusammen, Länderkürzel
+  assert.strictEqual(pick(one([['Name', 'Strasse', 'PLZ Ort'], ['Beispiel, Anna', 'Musterweg 12', 'CH-3000 Bern']]).e[0]), want, 'Komma + PLZ Ort');
+  // ganze Adresse in der Spalte „Adresse"
+  assert.strictEqual(pick(one([['Name', 'Adresse'], ['Anna Beispiel', 'Musterweg 12, 3000 Bern']]).e[0]), want, 'Adresse in einer Zelle');
+  // Etiketten-Liste: alles mehrzeilig in einer Zelle
+  t = one([['Empfänger'], ['Anna Beispiel\nMusterweg 12\n3000 Bern'], ['Hans Probe\nTestgasse 3\n8000 Zürich']]);
+  assert.strictEqual(pick(t.e[0]), want, 'Etikett'); assert.strictEqual(t.e.length, 2);
+  // ganz ohne Kopfzeile: Spalten am Inhalt erkannt
+  t = one([['Anna', 'Beispiel', 'Musterweg 12', '3000', 'Bern'], ['Hans', 'Probe', 'Testgasse 3', '8000', 'Zürich'], ['Lea', 'Demo', 'Seeweg 7', '6000', 'Luzern']]);
+  assert.strictEqual(pick(t.e[0]), want, 'ohne Kopfzeile'); assert.strictEqual(t.e.length, 3);
+  assert.ok(t.notes.some(n => /keine Kopfzeile/.test(n)));
+  // Telefon-/Kunden-Nr. werden nicht zur Hausnummer
+  assert.strictEqual(pick(one([['Kunden-Nr', 'Vorname', 'Nachname', 'Strasse', 'Tel. Nr.', 'PLZ', 'Ort'], [7, 'Anna', 'Beispiel', 'Musterweg 12', '031 000 00 00', '3000', 'Bern']]).e[0]), want, 'Nr.-Spalten');
+}
+
 console.log('OK – alle Tests bestanden');

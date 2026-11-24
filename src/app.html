@@ -290,7 +290,7 @@ body.print-labels #labelsPrint{display:block}
           <button class="mi danger" data-action="wipe">🗑 Alle Daten auf diesem Computer löschen</button>
         </div>
       </div>
-      <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv" multiple hidden>
+      <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv,.ods,.tsv,.txt" multiple hidden>
     </div>
     <div class="kpis" id="kpis"></div>
     <nav class="tabs" id="tabs"></nav>
@@ -1592,7 +1592,12 @@ async function importFiles(files) {
   for (const f of files) {
     try {
       const buf = await f.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+      // CSV/Text: Umlaute richtig lesen (UTF-8, sonst Windows-Zeichensatz wie bei Excel-CSV)
+      let wb;
+      if (/\.(csv|tsv|txt)$/i.test(f.name)) {
+        let text; try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { text = new TextDecoder('windows-1252').decode(buf); }
+        wb = XLSX.read(text.replace(/^\uFEFF/, ''), { type: 'string', cellDates: false });
+      } else wb = XLSX.read(buf, { type: 'array', cellDates: false });
       const sheets = wb.SheetNames.map(n => ({ name: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null, blankrows: true }) }));
       const res = WB.parseWorkbookRows(sheets, f.name, S.cats, { knownFirst: R.entries.map(e => String(e.first || '').split(' ')[0]).filter(Boolean) });
       if (res.overview) {

@@ -290,7 +290,7 @@ body.print-labels #labelsPrint{display:block}
           <button class="mi danger" data-action="wipe">🗑 Alle Daten auf diesem Computer löschen</button>
         </div>
       </div>
-      <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv" multiple hidden>
+      <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv,.ods,.tsv,.txt" multiple hidden>
     </div>
     <div class="kpis" id="kpis"></div>
     <nav class="tabs" id="tabs"></nav>
@@ -542,10 +542,35 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     group: ['gruppe', 'gruppen', 'hauptgruppe', 'primary group'],
     roles: ['rollen', 'rolle', 'roles'],
   };
+  // Spaltentitel tolerant erkennen: zuerst genaue Namen, dann Muster (de/fr/it/en, Exporte aus hitobito, Abacus, Outlook …)
+  function hnorm(h) { return fold(h).replace(/[_\-./()*:#,;|\\[\]]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+  const ID_RX = /\b(kunden|kunde nr|beleg|mitglied nr|mitgliedernummer|mitgliednummer|tel|telefon|telephone|phone|mobile|mobil|natel|handy|fax|konto|iban|ahv|id|referenz|rechnung|personal|adress nr|adressnummer|vertrag|datum|date|geburtstag|geburtsdatum|betrag|spende|chf|anzahl)\b/;
+  const FULLNAME_RX = /^(name|namen|name 1|name1|voller name|vollstandiger name|name vorname|vorname name|nachname vorname|vorname nachname|name und vorname|empfanger|empfangerin|empfanger in|adressat|adressatin|kunde|kundin|kundenname|spender|spenderin|spender in|mitglied|person|kontakt|kontaktperson|teilnehmer|teilnehmerin|teilnehmende|anzeigename|display name|full name|nom et prenom|nom prenom|prenom nom|nome e cognome|contact)$/;
+  const COL_RULES = [
+    ['email', /\b(e ?mail|mail|courriel)\b/],
+    ['salutation', /\b(anrede|briefanrede|civilite|titel|title|anredeform|grussformel)\b/],
+    ['careOf', /^name ?2$|\b(adresszusatz|zusatz|c o|z hd|zhd|zuhanden|adresse 2|adresszeile 2|address line 2|address 2|postfach|case postale)\b/],
+    ['zipTown', /\b(plz|npa|cap|postleitzahl|zip|postal code|postcode)\b.*\b(ort|ville|localite|localita|city|town|wohnort)\b|\b(ort|localite)\b.*\b(plz|npa)\b/],
+    ['zip', /\b(plz|npa|cap|postleitzahl|zip|zip code|postal code|postcode)\b/],
+    ['town', /\b(ort|wohnort|stadt|ville|localite|localita|city|town|ortschaft|domicile|domicilio)\b/],
+    ['street', /\b(strasse|str|street|rue|ru|via|adresse|address|anschrift)\b.*\b(nr|nummer|no|hausnummer|numero)\b/],
+    ['nr', /\b(hausnummer|haus nr|hausnr|nr|no|numero|nummer|house number|housenumber)\b/],
+    ['street', /\b(strasse|str|street|rue|ru|via|adresse|address|adresszeile|address line|anschrift|wohnadresse|postadresse|indirizzo|domizil)\b/],
+    ['first', /\b(vorname|vornamen|first name|firstname|given name|prenom|nome)\b/],
+    ['last', /\b(nachname|familienname|last name|lastname|surname|family name|cognome|nom de famille)\b/],
+    ['org', /\b(organisation|organization|firma|firmenname|institution|company|unternehmen|raison sociale|societe)\b/],
+    ['country', /\b(land|country|pays|paese)\b/],
+  ];
   function colType(header) {
     const h = fold(header).replace(/\s+/g, ' ').trim();
     if (!h) return null;
     for (const [type, names] of Object.entries(COLS)) if (names.includes(h)) return type;
+    const n = hnorm(header);
+    if (!n || n.length > 60) return null;
+    for (const [type, names] of Object.entries(COLS)) if (names.includes(n)) return type;
+    if (FULLNAME_RX.test(n)) return 'name';
+    if (ID_RX.test(n) && !/\b(strasse|street|rue|adresse|address|plz|ort|name|vorname)\b/.test(n.replace(ID_RX, ''))) return null;
+    for (const [type, rx] of COL_RULES) if (rx.test(n)) return type;
     return null;
   }
 
@@ -580,6 +605,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function splitFullName(s, order, known) {
     const t0 = str(s); if (!t0) return {};
     if (ORG_RX.test(t0)) return { org: t0 };
+    if (/,/.test(t0)) { const [l, ...f] = t0.split(','); if (str(l) && str(f.join(' '))) return { last: str(l), first: str(f.join(' ')) }; }
     const fam = /^(familie|fam\.)\s+/i.test(t0);
     const tok = nameTokens(t0); if (!tok.length) return {};
     if (fam) return { first: 'Familie', last: tok.join(' ') };
@@ -600,15 +626,85 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return { first: tok.slice(0, k).join(' '), last: tok.slice(k).join(' ') };
   }
 
-  function findHeaderRow(rows) {
-    for (let r = 0; r < Math.min(rows.length, 15); r++) {
-      const types = (rows[r] || []).map(colType);
-      const n = new Set(types.filter(Boolean)).size;
-      if (types.includes('first') || types.includes('last')) { if (n >= 2) return r; }
-      else if ((types.includes('name') || types.includes('org')) && (types.includes('street') || types.includes('zip') || types.includes('town'))) return r;
-    }
-    return -1;
+  function headerOk(types) {
+    const t = new Set(types.filter(Boolean));
+    if ((t.has('first') || t.has('last')) && t.size >= 2) return true;
+    return (t.has('name') || t.has('org')) && (t.has('street') || t.has('zip') || t.has('zipTown') || t.has('town'));
   }
+  /** Kopfzeile in den ersten 30 Zeilen; auch zweizeilig (z.B. „Name | Vorname | Adresse" über „ | | Strasse | PLZ | Ort") */
+  function findHeaderRow(rows) {
+    for (let r = 0; r < Math.min(rows.length, 30); r++) {
+      const row = rows[r] || [], types = row.map(colType);
+      const next = rows[r + 1] || [];
+      const len = Math.max(row.length, next.length);
+      const merged = Array.from({ length: len }, (_, c) => (colType(next[c]) ? next[c] : colType(row[c]) ? row[c] : null));
+      // zweizeilig: die nächste Zeile bringt weitere Spaltentitel (z.B. „Adresse" → „Strasse | PLZ | Ort")
+      const adds = next.filter((v, c) => colType(v) && !types[c]).length;
+      if (types.some(Boolean) && adds >= 2 && headerOk(merged.map(colType))) return { row: r + 1, header: merged };
+      if (headerOk(types)) return { row: r, header: row };
+      if (types.some(Boolean) && next.some(v => colType(v)) && headerOk(merged.map(colType))) return { row: r + 1, header: merged };
+    }
+    return null;
+  }
+
+  // PLZ/Ort und Adressen aus einer Zelle lösen
+  const ZIP_RX = /^\s*(?:(?:CH|D|DE|A|AT|FL|LI|F|I)\s*[- ]\s*)?(\d{4,5})(?:\.0)?(?:\s+(.*?))?\s*$/i;
+  function splitZipTown(v) { const m = ZIP_RX.exec(str(v)); return m ? { zip: m[1], town: (m[2] || '').replace(/^[,\s]+/, '').trim() } : null; }
+  /** „Musterweg 12, 3000 Bern" oder mehrzeilig „Hans Muster / Musterweg 12 / 3000 Bern" → { name, street, zip, town } */
+  function splitAddress(v) {
+    const parts = String(v || '').split(/\r?\n|,|;/).map(x => str(x)).filter(Boolean);
+    let i = -1; for (let k = parts.length - 1; k >= 0; k--) { const z = splitZipTown(parts[k]); if (z && z.town) { i = k; break; } }
+    if (i < 0) return null;
+    const z = splitZipTown(parts[i]);
+    return { zip: z.zip, town: z.town, street: i >= 1 ? parts[i - 1] : '', name: i >= 2 ? parts.slice(0, i - 1).join(' ') : '' };
+  }
+  /** Liste ohne Kopfzeile: Spalten am Inhalt erkennen (PLZ, Strasse mit Nummer, Namen) */
+  function inferColumns(rows, known) {
+    const sample = rows.slice(0, 300).filter(r => r && r.some(v => str(v)));
+    if (sample.length < 2) return null;
+    // Etiketten-Liste: ganze Adresse mehrzeilig in einer Zelle („Anna Beispiel / Musterweg 12 / 3000 Bern")
+    const isBlock = (v) => v != null && /\n/.test(String(v)) && !!splitAddress(String(v));
+    const w0 = Math.max(...sample.map(r => r.length));
+    for (let c = 0; c < w0; c++) {
+      const vals = sample.map(r => r[c]).filter(v => str(v));
+      if (vals.length >= 2 && vals.filter(isBlock).length / vals.length >= 0.6) {
+        const start = rows.findIndex(r => r && isBlock(r[c]));
+        const header = Array(w0).fill(null); header[c] = 'Name';
+        return { row: start - 1, header, inferred: true };
+      }
+    }
+    const width = Math.max(...sample.map(r => r.length));
+    const ratio = (c, f) => { let n = 0, k = 0; for (const r of sample) { const v = str(r[c]); if (!v) continue; n++; if (f(v)) k++; } return n >= 2 ? k / n : 0; };
+    const filled = (c) => sample.filter(r => str(r[c])).length / sample.length;
+    const isZip = v => /^(?:[A-Z]{1,2}[- ])?\d{4,5}(\.0)?$/i.test(v);
+    const isZipTown = v => /^(?:[A-Z]{1,2}[- ])?\d{4,5}\s+\D/i.test(v);
+    const isStreet = v => /^\D.*\s\d+\s?[a-zA-Z]?$/.test(v) || /^(postfach|case postale)\b/i.test(v);
+    const isWordy = v => /^[^\d@]{2,60}$/.test(v);
+    const types = Array(width).fill(null);
+    for (let c = 0; c < width; c++) {
+      if (filled(c) < 0.3) continue;
+      if (ratio(c, isZipTown) >= 0.6) types[c] = 'zipTown';
+      else if (ratio(c, isZip) >= 0.6) types[c] = 'zip';
+      else if (ratio(c, v => v.includes('@')) >= 0.6) types[c] = 'email';
+      else if (ratio(c, isStreet) >= 0.5) types[c] = 'street';
+    }
+    const zc = types.findIndex(t => t === 'zip' || t === 'zipTown'); if (zc < 0) return null;
+    if (types[zc] === 'zip' && zc + 1 < width && !types[zc + 1] && ratio(zc + 1, isWordy) >= 0.6) types[zc + 1] = 'town';
+    const sc = types.indexOf('street'), limit = sc >= 0 ? sc : zc;
+    const textCols = []; for (let c = 0; c < limit; c++) if (!types[c] && filled(c) >= 0.3 && ratio(c, isWordy) >= 0.7) textCols.push(c);
+    if (!textCols.length) return null;
+    const nameCols = textCols.slice(-2);
+    if (nameCols.length === 2) {
+      const kf = (c) => ratio(c, v => known.has(firstKey(v.split(' ')[0])));
+      const [a, b] = nameCols;
+      if (kf(b) > kf(a)) { types[a] = 'last'; types[b] = 'first'; } else { types[a] = 'first'; types[b] = 'last'; }
+      if (textCols.length >= 3) types[textCols[textCols.length - 3]] = 'org';
+    } else types[nameCols[0]] = 'name';
+    const label = { first: 'Vorname', last: 'Nachname', name: 'Name', org: 'Organisation', street: 'Strasse', zip: 'PLZ', zipTown: 'PLZ Ort', town: 'Ort', email: 'E-Mail' };
+    const start = rows.findIndex(r => r && (types[zc] === 'zip' ? isZip(str(r[zc])) : isZipTown(str(r[zc]))));
+    return start < 0 ? null : { row: start - 1, header: types.map(t => (t ? label[t] : null)), inferred: true };
+  }
+  const BOOL_RX = /^(ja|nein|yes|no|true|false|wahr|falsch|x|1|0|oui|non|si)$/i;
 
   function isOverviewSheet(rows) {
     for (let r = 0; r < Math.min(rows.length, 5); r++) {
@@ -664,15 +760,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const rows = sh.rows || [];
       const ov = isOverviewSheet(rows);
       if (ov >= 0) { result.overview = parseOverview(rows, ov, cats); continue; }
-      const hr = findHeaderRow(rows);
-      if (hr < 0) { if (rows.some(r => r && r.some(v => str(v)))) result.notes.push(`Blatt „${sh.name}": keine Adressliste (es fehlen Spalten wie Name, Adresse/Strasse, PLZ, Ort) – nicht verwendet.`); continue; }
-      const header = rows[hr];
+      const found = findHeaderRow(rows) || inferColumns(rows, known);
+      if (!found) { if (rows.some(r => r && r.some(v => str(v)))) result.notes.push(`Blatt „${sh.name}": keine Adressliste (es fehlen Spalten wie Name, Adresse/Strasse, PLZ, Ort) – nicht verwendet.`); continue; }
+      if (found.inferred) result.notes.push(`Blatt „${sh.name}": keine Kopfzeile – Spalten anhand des Inhalts erkannt, bitte kurz prüfen.`);
+      const hr = found.row, header = found.header;
       const types = header.map(colType);
+      // Ja/Nein-Spalten (z.B. hitobito „Firma") sind keine Namen/Organisationen
+      const boolCol = (c) => { let n = 0; for (let r = hr + 1; r < Math.min(rows.length, hr + 60); r++) { const v = str((rows[r] || [])[c]); if (v) { n++; if (!BOOL_RX.test(v)) return false; } } return n > 0; };
+      types.forEach((t, c) => { if (['org', 'name', 'careOf', 'first', 'last'].includes(t) && boolCol(c)) types[c] = null; });
       const isFlat = types.includes('category') || types.includes('roles');
       // Blöcke: jede Wiederholung von "Organisation" (bzw. "Vorname") startet einen neuen Block
       const anchorType = types.includes('org') ? 'org' : types.includes('first') ? 'first' : types.includes('name') ? 'name' : 'last';
       const starts = types.map((t, i) => (t === anchorType ? i : -1)).filter(i => i >= 0);
-      const blocks = starts.map((s, k) => ({ start: s, end: k + 1 < starts.length ? starts[k + 1] : header.length }));
+      const blocks = starts.map((s, k) => ({ start: k === 0 ? 0 : s, end: k + 1 < starts.length ? starts[k + 1] : header.length }));
       parsed.push({ sh, rows, hr, header, types, isFlat, blocks });
     }
 
@@ -704,7 +804,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         const fullOnly = map.name !== undefined && map.first === undefined && map.last === undefined;
         const nameOrder = fullOnly ? guessNameOrder(rows.slice(hr + 1).map(row => str((row || [])[map.name])), known) : '';
         for (let r = hr + 1; r < rows.length; r++) {
-          const row = rows[r] || [];
+          let row = rows[r] || [];
           const get = (t) => (map[t] === undefined ? '' : str(row[map[t]]));
           const e = {
             org: get('org'), first: get('first'), last: get('last'), nick: get('nick'), email: get('email').toLowerCase(),
@@ -713,6 +813,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             done: map.done !== undefined && row[map.done] === true,
             group: src.group, catId: src.catId, rowNo: r + 1,
           };
+          // PLZ und Ort in einer Zelle, Länderkürzel, ganze Adresse in der Strassenspalte
+          const zt = get('zipTown');
+          if (zt && !e.zip) { const z = splitZipTown(zt); if (z) { e.zip = z.zip; if (!e.town) e.town = z.town; } else if (!e.town) e.town = zt; }
+          if (e.zip && !e.town) { const z = splitZipTown(e.zip); if (z && z.town) { e.zip = z.zip; e.town = z.town; } }
+          if (!e.zip && e.town) { const z = splitZipTown(e.town); if (z && z.town) { e.zip = z.zip; e.town = z.town; } }
+          if (e.zip) { const z = splitZipTown(e.zip); if (z) e.zip = z.zip; }
+          const raw = (t) => (map[t] === undefined || row[map[t]] == null ? '' : String(row[map[t]]));
+          if (e.street && !e.zip) { const a = splitAddress(raw('street')); if (a) { e.street = a.street || e.street; e.zip = a.zip; e.town = e.town || a.town; } }
+          if (map.name !== undefined && !e.street && !e.zip && /\n/.test(raw('name'))) { const a = splitAddress(String(row[map.name])); if (a) { e.street = a.street; e.zip = a.zip; e.town = a.town; row = [...row]; row[map.name] = a.name; } }
           if (map.name !== undefined) {
             if (fullOnly) { const n = splitFullName(get('name'), nameOrder, known); if (n.org && !e.org) e.org = n.org; if (n.first) e.first = n.first; if (n.last) e.last = n.last; }
             else if (!e.last && map.last === undefined) e.last = get('name'); // „Vorname" + „Name" = Nachname
@@ -2378,7 +2487,12 @@ async function importFiles(files) {
   for (const f of files) {
     try {
       const buf = await f.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+      // CSV/Text: Umlaute richtig lesen (UTF-8, sonst Windows-Zeichensatz wie bei Excel-CSV)
+      let wb;
+      if (/\.(csv|tsv|txt)$/i.test(f.name)) {
+        let text; try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { text = new TextDecoder('windows-1252').decode(buf); }
+        wb = XLSX.read(text.replace(/^\uFEFF/, ''), { type: 'string', cellDates: false });
+      } else wb = XLSX.read(buf, { type: 'array', cellDates: false });
       const sheets = wb.SheetNames.map(n => ({ name: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null, blankrows: true }) }));
       const res = WB.parseWorkbookRows(sheets, f.name, S.cats, { knownFirst: R.entries.map(e => String(e.first || '').split(' ')[0]).filter(Boolean) });
       if (res.overview) {

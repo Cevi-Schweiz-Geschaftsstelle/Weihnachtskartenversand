@@ -1388,6 +1388,7 @@ function subgroupsOf(c) {
   const m = new Map();
   for (const e of R.entries) {
     if (e.catId !== c.id) continue;
+    if (WB.key(e.group) === WB.key(c.name)) continue; // Blatt/Gruppe heisst wie die Kategorie → keine Untergruppe
     const gk = WB.groupKey(c.name, e.group); if (!gk) continue;
     let g = m.get(gk);
     if (!g) { g = { gk, name: (c.groups && c.groups[gk] && c.groups[gk].name) || e.group, count: 0, codes: new Map() }; m.set(gk, g); }
@@ -2260,11 +2261,10 @@ function subsBlock(c) {
       </div></td></tr>`;
   };
   const missing = subs.filter(g => !grpKeys(c, g.gk).length && !inheritedFrom(c, g.gk) && !g.codes.size && !catKeys(c).length).length;
-  const stat = `${subs.length} Untergruppen · ${assigned} mit Zuständigkeit${catKeys(c).length ? ` · <span title="Gilt für Untergruppen ohne eigenen Eintrag – ändern im Reiter Zuständigkeit (✎ Kategorien)">sonst ${catKeys(c).map(k => `<span title="${esc(ownerName(k))}">${esc(k)}</span>`).join(', ')}</span>` : ''}`;
+  const stat = `${subs.length} Untergruppe${subs.length === 1 ? '' : 'n'} · ${assigned} mit Zuständigkeit${catKeys(c).length ? ` · <span title="Gilt für Untergruppen ohne eigenen Eintrag – ändern im Reiter Zuständigkeit (✎ Kategorien)">sonst ${catKeys(c).map(k => `<span title="${esc(ownerName(k))}">${esc(k)}</span>`).join(', ')}</span>` : ''}`;
   const body = `${adoptable ? `<div style="margin-bottom:4px"><button class="btn small ghost" data-sub-adopt-all="${c.id}" title="Bei allen Untergruppen ohne Zuständigkeit die häufigste aus der Excel übernehmen">Alle aus Excel übernehmen (${adoptable})</button></div>` : ''}
-      ${subs.length ? `<table class="subtab"><tbody>${subs.map(row).join('')}</tbody></table>` : '<div class="small muted" style="padding:6px 0">Noch keine Untergruppen – erscheinen nach dem Excel-Import oder hier von Hand anlegen.</div>'}
-      ${removedOf(c).length ? `<div class="small muted" style="padding:6px 0">Entfernt (wird beim Import ignoriert): ${removedOf(c).map(([gk, g]) => `${esc(g.name || gk)} <button class="lnk" data-sub-unhide="${c.id}|${esc(gk)}" title="Wiederherstellen">↺</button>`).join(' · ')}</div>` : ''}
-      <div class="free"><input data-sub-newname="${c.id}" placeholder="Neue Untergruppe, z.B. Informatik" style="min-width:0;flex:1"><button class="btn small" data-sub-new="${c.id}">＋ Untergruppe</button></div>`;
+      ${subs.length ? `<table class="subtab"><tbody>${subs.map(row).join('')}</tbody></table>` : '<div class="small muted" style="padding:6px 0">Noch keine Untergruppen – erscheinen nach dem Excel-Import oder oben mit „＋ Untergruppe erstellen“.</div>'}
+      ${removedOf(c).length ? `<div class="small muted" style="padding:6px 0">Entfernt (wird beim Import ignoriert): ${removedOf(c).map(([gk, g]) => `${esc(g.name || gk)} <button class="lnk" data-sub-unhide="${c.id}|${esc(gk)}" title="Wiederherstellen">↺</button>`).join(' · ')}</div>` : ''}`;
   return { missing, stat, body };
 }
 
@@ -2426,7 +2426,7 @@ function catsView() {
         </div>`;
     }
     const meta = `<div class="catmeta">${srcBadge(c, origins)}${stat ? `<span class="small muted">${stat}</span>` : ''}
-        <span class="right" style="display:flex;gap:4px"><button class="btn small ghost" data-cat-rename="${id}" title="Kategorie umbenennen">✎ Umbenennen</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕ Löschen</button>` : ''}</span></div>`;
+        <span class="right" style="display:flex;gap:4px"><button class="btn small" data-sub-create="${id}" title="Neue Untergruppe in dieser Kategorie erstellen">＋ Untergruppe erstellen</button><button class="btn small ghost" data-cat-rename="${id}" title="Kategorie umbenennen">✎ Umbenennen</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕ Löschen</button>` : ''}</span></div>`;
     return `<li class="grpcat${origins.db.has(id) ? ' fromdb' : ''}" data-catli="${id}">
       <span class="rank">${i + 1}.</span>
       <details class="grp" data-subs="${id}" ${open ? 'open' : ''}>
@@ -3202,7 +3202,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-del],[data-manual-del],[data-hide],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-manual-del],[data-hide],[data-sub-hide],[data-sub-unhide],[data-staff-del],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3220,6 +3220,17 @@ document.addEventListener('click', (ev) => {
     const c = S.cats.find(x => x.id === t.dataset.subAdoptAll); let n = 0;
     for (const g of subgroupsOf(c)) if (!grpKeys(c, g.gk).length && g.codes.size) { setGrp(c, g.gk, g.name, [[...g.codes].sort((a, b) => b[1] - a[1])[0][0]]); n++; }
     save(); render(); toast(`${n} Untergruppen übernommen – bei Bedarf anpassen`); return;
+  }
+  if (t.dataset.subCreate) {
+    const c = S.cats.find(x => x.id === t.dataset.subCreate); if (!c) return;
+    const name = (prompt(`Name der neuen Untergruppe in „${c.name}“:`) || '').trim(); if (!name) return;
+    const gk = WB.groupKey(c.name, name); if (!gk || WB.key(name) === WB.key(c.name)) { toast('Bitte einen anderen Namen wählen (nicht den Namen der Kategorie).'); return; }
+    const ex = c.groups && c.groups[gk];
+    if (ex && ex.removed) delete ex.removed;                                     // früher entfernt → zurückholen
+    else if (ex || subgroupsOf(c).some(g => g.gk === gk)) { toast(`Die Untergruppe „${name}“ gibt es schon.`); return; }
+    else { setGrp(c, gk, name, []); c.groups[gk].manual = true; }
+    S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [c.id]: true }; save(); render();
+    toast(`Untergruppe „${name}“ erstellt – jetzt bei „＋ Person …“ wählen, wer zuständig ist.`); return;
   }
   if (t.dataset.subNew) {
     const c = S.cats.find(x => x.id === t.dataset.subNew), inp = document.querySelector(`[data-sub-newname="${c.id}"]`), name = (inp && inp.value || '').trim();

@@ -1408,7 +1408,6 @@ function catsView() {
     const keys = catKeys(c);
     const avail = S.staff.filter(st => !keys.includes(staffKey(st)));
     const open = !!(S.ui.subsOpen && S.ui.subsOpen[id]);
-    const info = [c.source && !/\bDB\b/i.test(c.source) ? 'zu finden in: ' + c.source : '', c.info].filter(Boolean).join(' · ');
     let missing, stat = '', body;
     if (showSubs(c)) {
       const g = subsBlock(c); missing = g.missing ? `${g.missing} noch niemand` : ''; stat = g.stat; body = g.body;
@@ -1424,7 +1423,7 @@ function catsView() {
           ${!keys.length ? `<span class="small" style="color:var(--warn)">${missing ? 'Für einen Teil der Adressen ist niemand zuständig.' : 'Zuständigkeit kommt aus der Liste (Spalte „Zuständigkeit“).'}</span>` : ''}
         </div>`;
     }
-    const meta = `<div class="catmeta">${srcBadge(c, origins)}${info ? `<span class="small muted">${esc(info)}</span>` : ''}${stat ? `<span class="small muted">${stat}</span>` : ''}
+    const meta = `<div class="catmeta">${srcBadge(c, origins)}${stat ? `<span class="small muted">${stat}</span>` : ''}
         <span class="right" style="display:flex;gap:4px"><button class="btn small ghost" data-cat-rename="${id}" title="Kategorie umbenennen">✎ Umbenennen</button>${c.custom ? `<button class="btn small ghost danger" data-cat-del="${id}" title="Kategorie löschen">✕ Löschen</button>` : ''}</span></div>`;
     return `<li class="grpcat${origins.db.has(id) ? ' fromdb' : ''}" data-catli="${id}">
       <span class="rank">${i + 1}.</span>

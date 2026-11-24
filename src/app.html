@@ -327,7 +327,7 @@ function defaultState() {
     cats: WB.DEFAULT_CATEGORIES.map(c => ({ ...c })),
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
-    aliasText: '', autoAliases: true, version: 8,
+    aliasText: '', autoAliases: true, version: 9,
     decisions: {}, overrides: {}, done: {}, hidden: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
@@ -430,6 +430,19 @@ function load() {
         if (g.fromDb && conv.test(g.name || '') && !(par && conv.test(par.name || ''))) markLeaf(pg, gk);
       }
       s.version = 8;
+    }
+    if (s.version < 9) {
+      // Version 9: „Cevi Schweiz" entfällt als Ebene – die Geschäftsstelle ist die Kategorie
+      const c = (s.cats || []).find(x => x.id === 'cevi-schweiz');
+      if (c) {
+        if (/^cevi schweiz$/i.test(String(c.name || '').trim())) c.name = 'Geschäftsstelle';
+        const k = WB.key(c.name);
+        for (const [gk, g] of Object.entries(c.groups || {})) if (gk === k || WB.key(g.name || '') === k) {
+          c.persons = [...new Set([...(g.persons || []), ...(c.persons || [])])]; // Zuständige der Untergruppe zuerst
+          delete c.groups[gk];
+        }
+      }
+      s.version = 9;
     }
     s.staff = s.staff || [];
     s.sources = (s.sources || []).filter(x => !x.demo); // frühere „Demo ohne Verbindung"-Daten

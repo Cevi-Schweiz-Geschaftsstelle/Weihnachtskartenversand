@@ -74,6 +74,7 @@ main{flex:1;padding:18px 22px 40px}
 .owner{display:block;width:100%;text-align:left;border:0;background:transparent;padding:9px 12px;border-top:1px solid var(--line2);cursor:pointer}
 .owner:hover{background:#f7f8fa}
 .owner.on{background:var(--accent-soft)}
+.owner.all{border-bottom:2px solid var(--line)}
 .owner .n{font-weight:600;display:flex;gap:6px;align-items:baseline}
 .owner .n .code{font-variant:all-small-caps;letter-spacing:.04em;color:var(--accent-ink)}
 .owner .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;margin-top:2px}
@@ -1437,6 +1438,7 @@ function render() {
 }
 function renderNow() {
   if (S.ui.tab === 'dups') S.ui.tab = 'assign'; // früherer Reiter „Duplikate" ist jetzt Teil von „Unvollständig"
+  if (S.ui.tab === 'all') { S.ui.tab = 'owners'; S.ui.owner = '__all'; } // Masterliste ist jetzt in „Pro Zuständige*r"
   recompute();
   renderKpis();
   renderTabs();
@@ -1447,7 +1449,6 @@ function renderNow() {
   const top = '';
   if (t === 'owners') main.innerHTML = top + ownersView();
   else if (t === 'assign') main.innerHTML = assignView();
-  else if (t === 'all') main.innerHTML = top + allView();
   else if (t === 'settings') main.innerHTML = top + settingsView();
   else if (t === 'cats') main.innerHTML = catsView();
   else if (t === 'db') main.innerHTML = top + dbView();
@@ -1476,7 +1477,7 @@ function renderKpis() {
 const openCount = () => openDecisions().length + R.review.length + (S.db.pendingGroups || []).length;
 function renderTabs() {
   const tabs = [
-    ['settings', 'Zuständigkeit', S.staff.length], ['cats', 'Kategorien', S.cats.length], ['assign', 'Unvollständig', openCount(), openCount() ? 'warn' : ''], ['owners', 'Pro Zuständige*r'], ['all', 'Masterliste', R.people.length],
+    ['settings', 'Zuständigkeit', S.staff.length], ['cats', 'Kategorien', S.cats.length], ['assign', 'Unvollständig', openCount(), openCount() ? 'warn' : ''], ['owners', 'Pro Zuständige*r', R.people.length],
     ['db', 'Cevi DB'],
   ];
   $('#tabs').innerHTML = tabs.map(([id, l, c, cls]) => `<button data-tab="${id}" class="${S.ui.tab === id ? 'on' : ''}">${l}${c !== undefined ? `<span class="count ${cls || ''}">${c}</span>` : ''}</button>`).join('');
@@ -1535,8 +1536,14 @@ function ownersView() {
   const owners = [...R.byOwner.keys()];
   const coOnly = [...R.coByOwner.keys()].filter(o => !R.byOwner.has(o));
   let sel = S.ui.owner;
-  if (sel === null || (!R.byOwner.has(sel) && !R.coByOwner.has(sel))) sel = owners.filter(Boolean).sort((a, b) => R.byOwner.get(b).length - R.byOwner.get(a).length)[0] ?? '';
+  if (sel !== '__all' && (sel === null || (!R.byOwner.has(sel) && !R.coByOwner.has(sel)))) sel = owners.filter(Boolean).sort((a, b) => R.byOwner.get(b).length - R.byOwner.get(a).length)[0] ?? '';
   S.ui.owner = sel;
+  const allDone = R.people.filter(p => p.done).length;
+  const masterBtn = `<button class="owner all ${sel === '__all' ? 'on' : ''}" data-owner="__all" title="Alle Empfänger*innen mit Suche, Filtern und Export">
+      <div class="n">📋 Masterliste</div>
+      <div class="meta"><span>alle ${R.people.length} Briefe</span>${R.people.length ? `<span class="right">${allDone}/${R.people.length}</span>` : ''}</div>
+      ${R.people.length ? `<div class="prog"><i style="width:${Math.round(allDone / R.people.length * 100)}%"></i></div>` : ''}
+    </button>`;
   const item = (o) => {
     const send = R.byOwner.get(o) || [], co = R.coByOwner.get(o) || [];
     const d = send.filter(p => p.done).length;
@@ -1555,11 +1562,12 @@ function ownersView() {
   return `<div class="split">
     <div class="panel owners noprint">
       <div class="search"><input type="search" id="ownerSearch" placeholder="Person / Kürzel suchen…"></div>
+      ${masterBtn}
       ${R.byOwner.has('') ? item('') : ''}
       ${sorted.map(item).join('')}
       ${coOnly.length ? `<div class="sep">Nur Mitunterschrift</div>${coOnly.sort().map(item).join('')}` : ''}
     </div>
-    <div>
+    <div>${sel === '__all' ? allView() : `
       <div class="panel">
         <div class="hd">
           <div>
@@ -1584,7 +1592,7 @@ function ownersView() {
         <tbody>${co.map(({ p, via }) => `<tr class="${p.done ? 'done' : ''}"><td class="chk">${p.done ? '✓' : ''}</td>
           <td><div class="name">${esc(p.displayName)}</div>${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}</td>
           <td><a href="#" data-owner="${esc(p.owner)}">${ownerHtml(p.owner)}</a></td>
-          <td class="small">${via.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+          <td class="small">${via.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`}
     </div>
   </div>`;
 }
@@ -3446,7 +3454,7 @@ document.addEventListener('input', (ev) => {
   if (t.id === 'q') { clearTimeout(qT); qT = setTimeout(() => { S.ui.filter.q = t.value; const pos = t.selectionStart; render(); const q = $('#q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }, 180); }
   if (t.id === 'newFirst' || t.id === 'newLast') { const c = $('#newCode'); if (c && c.dataset.manual !== '1') c.value = autoCode($('#newFirst').value, $('#newLast').value); }
   if (t.id === 'newCode') t.dataset.manual = t.value.trim() ? '1' : '';
-  if (t.id === 'ownerSearch') { const q = WB.fold(t.value); document.querySelectorAll('.owner').forEach(b => { b.classList.toggle('hide', !!q && !WB.fold(b.textContent).includes(q)); }); }
+  if (t.id === 'ownerSearch') { const q = WB.fold(t.value); document.querySelectorAll('.owner:not(.all)').forEach(b => { b.classList.toggle('hide', !!q && !WB.fold(b.textContent).includes(q)); }); }
   if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
 });
 // Auf-/Zuklappen der Untergruppen merken („toggle" bubbelt nicht → capture)

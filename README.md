@@ -18,7 +18,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
    - **„＋ Neue Kategorie"** steht zuoberst. Neue Kategorien kommen ans Ende der Liste und lassen sich mit ▲ nach oben schieben.
    - Personen den Kategorien zuordnen, auch mehrere pro Kategorie. **★** versendet, alle weiteren unterschreiben mit.
    - **Hellgrün** sind die Kategorien, deren Adressen aus der Cevi DB kommen (Etikett „● Cevi DB", bzw. „● Cevi DB + Excel", wenn zusätzlich Excel-Listen dazugehören).
-   - **Kategorien mit Untergruppen** (z.B. Fachgruppen, Projektgruppen) sind ein **aufklappbares Menü**: Klick auf den Namen zeigt die Untergruppen, und dort wird pro Untergruppe festgelegt, wer zuständig ist. Zugeklappt zeigt die Zeile, wie viele Untergruppen schon jemanden haben. Umbenennen mit ✎.
+   - **Jede Kategorie ist ein aufklappbares Menü:** Zugeklappt steht nur der Name, und falls noch jemand fehlt, dahinter in Orange „noch niemand zugeordnet“ bzw. „3 noch niemand“. Ein Klick zeigt alles andere: Personen zuordnen, Untergruppen, Herkunft (Cevi DB/Excel), Umbenennen. Bei Kategorien mit Untergruppen (z.B. Fachgruppen) wird pro Untergruppe festgelegt, wer zuständig ist. Der Zustand (auf/zu) wird gemerkt.
    - **Untergruppen** (z.B. Fachgruppen › Informatik, Projektgruppen › Konekta 26) haben eigene Zuständige.
      - Die Untergruppen erscheinen nach dem Excel-Import bzw. dem Laden aus der Cevi DB automatisch und lassen sich auch von Hand anlegen.
      - Was bei einer Untergruppe eingetragen ist, gilt vor der Spalte „Zuständigkeit" in der Excel. Diese gilt vor der Kategorie.

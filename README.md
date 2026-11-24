@@ -13,7 +13,6 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
    - Vorname und Nachname eintragen. Das **Kürzel entsteht automatisch** aus dem 1. Buchstaben des Vornamens und dem 1. und 2. Buchstaben des Nachnamens (z.B. Anna Beispiel → ABE). Ist es schon vergeben, nimmt das Tool die nächste Variante. Von Hand überschreiben ist möglich.
    - Nach dem Excel-Import schlägt das Tool die Personen vor, die es in den Listen findet. Mit ✕ lässt sich ein Vorschlag ausblenden.
    - Nach **„Erfassen"** öffnet sich ein Fenster: die Kategorien und Untergruppen anhaken, zu denen die Person gehört, dann **„Fertig"**. Später lässt sich das in der Personen-Tabelle über **„✎ Kategorien"** ändern.
-   - Rechts: die importierten Listen.
 2. **Kategorien** (eigener Reiter neben Zuständigkeit):
    - **„＋ Neue Kategorie"** steht zuoberst. Neue Kategorien kommen ans Ende der Liste und lassen sich mit ▲ nach oben schieben.
    - Personen den Kategorien zuordnen, auch mehrere pro Kategorie. **★** versendet, alle weiteren unterschreiben mit.
@@ -30,7 +29,7 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
      - **Jede Ebene wird einzeln ausgewiesen**, z.B. Ausschüsse › Partner & Politik › ↳ SAJV. Ist bei einer tieferen Untergruppe niemand eingetragen, **erbt** sie die Zuständigkeit der Obergruppe.
      - **„✕ entfernen"** nimmt eine Untergruppe heraus, die nicht mehr gebraucht wird (z.B. ein vergangenes Lager). Ihre Adressen fallen weg, sofern sie nicht noch in einer anderen Liste stehen. Bei jedem weiteren Import aus der Cevi DB oder aus Excel wird sie ignoriert. Zurückholen: Reiter Cevi DB → **„Ausgeschlossene Gruppen“** → ↺.
    - Die Reihenfolge der Kategorien (▲▼) bestimmt den Vorschlag, wenn jemand in mehreren Kategorien vorkommt.
-3. **Excel importieren:** Die Adressliste ins Fenster ziehen oder im Reiter Zuständigkeit unter „Importierte Listen“ auf **„＋ Excel hinzufügen“**.
+3. **Excel importieren:** Die Adressliste ins Fenster ziehen oder im Reiter **Importierte Listen** (ganz hinten) auf **„＋ Excel hinzufügen“**. Dort stehen auch alle eingelesenen Listen: einzeln ein-/ausschalten, Kategorie ändern, entfernen.
    - Jedes Blatt bzw. jeder Block (z.B. „CCH › Vorstand") wird automatisch einer Kategorie zugeordnet.
    - **Fast jede Liste wird gelesen.** Gebraucht werden nur Name, Vorname, Strasse (mit Nr.), PLZ und Ort; alle anderen Spalten werden ignoriert.
      - Spaltentitel auf Deutsch, Französisch, Italienisch oder Englisch und aus Exporten von hitobito, Abacus, Bexio, Outlook usw., z.B. „Prénom/Nom“, „Nome/Cognome“, „First Name/Last Name“, „Strasse und Nr.“, „Adresszeile 1“, „NPA“, „Localité“, „Name 1/Name 2“.

@@ -9,6 +9,12 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
 
 ## Ablauf
 
+Oben stehen vier Kacheln, die sich anklicken lassen:
+- **Briefe (eindeutige Empfänger)** öffnet die Masterliste mit allen Briefen.
+- **mögliche Duplikate prüfen** öffnet den Reiter Unvollständig beim Abschnitt mit den Duplikaten.
+- **ohne Zuständigkeit** öffnet die Liste „⚠ Ohne Zuständigkeit“, wo man die Zuständigkeit direkt wählen kann.
+- **erledigt** öffnet die Masterliste mit dem Filter „Nur nicht erledigte“.
+
 1. **Zuständigkeit:** Hier werden die zuständigen Personen erfasst.
    - Vorname und Nachname eintragen. Das **Kürzel entsteht automatisch** aus dem 1. Buchstaben des Vornamens und dem 1. und 2. Buchstaben des Nachnamens (z.B. Anna Beispiel → ABE). Ist es schon vergeben, nimmt das Tool die nächste Variante. Von Hand überschreiben ist möglich.
    - Nach dem Excel-Import schlägt das Tool die Personen vor, die es in den Listen findet. Mit ✕ lässt sich ein Vorschlag ausblenden.

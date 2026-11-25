@@ -34,7 +34,7 @@ Oben stehen vier Kacheln, die sich anklicken lassen:
      - Mit „übernehmen" bzw. „Alle aus Excel übernehmen" wird die Zuständigkeit aus der Excel fest eingetragen.
      - Untergruppen aus Excel und Cevi DB werden zusammengeführt („Informatik" = „Fachgruppe Informatik").
      - **Jede Ebene wird einzeln ausgewiesen**, z.B. Ausschüsse › Partner & Politik › ↳ SAJV. Ist bei einer tieferen Untergruppe niemand eingetragen, **erbt** sie die Zuständigkeit der Obergruppe.
-     - **„✕ entfernen"** nimmt eine Untergruppe heraus, die nicht mehr gebraucht wird (z.B. ein vergangenes Lager). Ihre Adressen fallen weg, sofern sie nicht noch in einer anderen Liste stehen. Bei jedem weiteren Import aus der Cevi DB oder aus Excel wird sie ignoriert. Zurückholen: Reiter Cevi DB → **„Ausgeschlossene Gruppen“** → ↺.
+     - **„✕ entfernen"** nimmt eine Untergruppe heraus, die nicht mehr gebraucht wird (z.B. ein vergangenes Lager). Ihre Adressen fallen weg, sofern sie nicht noch in einer anderen Liste stehen. Bei jedem weiteren Import aus der Cevi DB oder aus Excel wird sie ignoriert. Zurückholen (DB-Untergruppen): Reiter Cevi DB → bei der Gruppe **„Untergruppen wählen“** → Häkchen setzen.
    - Die Reihenfolge der Kategorien (▲▼) bestimmt den Vorschlag, wenn jemand in mehreren Kategorien vorkommt.
 3. **Excel importieren:** Die Adressliste ins Fenster ziehen oder im Reiter **Importierte Listen** (ganz hinten) auf **„＋ Excel hinzufügen“**. Dort stehen auch alle eingelesenen Listen: einzeln ein-/ausschalten, Kategorie ändern, entfernen.
    - **Liste im Tool bearbeiten (✎ bearbeiten):** öffnet die Einträge einer Excel-Liste (oder „Von Hand erfasst“) als Tabelle direkt im Tool.
@@ -131,7 +131,7 @@ Die Cevi DB läuft auf [hitobito](https://github.com/hitobito/hitobito). Das Too
 |---|---|
 | `GET /api/roles?filter[group_id]=…&include=person,group` | Mitglieder einer Gruppe inkl. Adresse |
 | `GET /api/groups?filter[parent_id]=…` | Untergruppen |
-| `GET /api/groups/:id` | Gruppe Cevi Schweiz lesen (Gruppen automatisch übernehmen) |
+| `GET /api/groups/:id` | Gruppe Cevi Schweiz lesen (Gruppenliste im Reiter Cevi DB) |
 
 Einrichten:
 1. In der Cevi DB bei der Gruppe Cevi Schweiz → Tab **API-Keys** → neuer Key.
@@ -139,28 +139,18 @@ Einrichten:
    - Zugriffsbereich: **Personen** und **Gruppen**.
 2. Im selben Formular unter **Hosts mit API-Zugriff** eintragen: `https://fabulousteaching.github.io`
 3. Im Tool im Tab **Cevi DB** den Key einfügen.
-4. **Gruppen automatisch übernehmen:**
-   - Die Gruppe „Cevi Schweiz" eintragen (Nummer oder Link) und auf **„Gruppen lesen"** klicken.
-   - Das Tool liest alle Gruppen dieser Ebene und schlägt pro Gruppe die Kategorie vor. Grundlage sind Gruppentyp (Vorstand, Geschäftsstelle, Spender …) und Name.
-   - Gruppen mit Untergruppen (z.B. Fachgruppen) werden als Untergruppen der Kategorie eingerichtet.
-   - Vorschlag prüfen, dann **„Übernehmen und Daten laden"**.
-   - **„Nur diese Gruppen übernehmen":** eine Liste, eine Gruppe pro Zeile. Vorgabe: Geschäftsstelle, Vorstand, Ausschüsse, Fachgruppen, Projektgruppen, Kommissionen, Krisenmanagement › Cevi CH, Ehrenmitglieder, PSA. Geschäftsstelle und **Vorstand** kommen in die Kategorie Cevi Schweiz (je als Untergruppe); bei bestehenden Einrichtungen sucht das Tool ihn beim nächsten Aktualisieren einmalig selbst und nimmt ihn dazu.
-     - Alle anderen Gruppen werden ignoriert und im Vorschlag nur aufgelistet.
-     - Leichte Namensabweichungen werden erkannt (z.B. „Krisenteam" für Krisenmanagement, „PSA Cevi Schweiz" für PSA).
-     - **Nur eine Untergruppe:** `Gruppe › Untergruppe`, z.B. `Krisenmanagement › Cevi CH`. Dann wird nur diese Untergruppe geladen, ohne die Obergruppe und ohne die übrigen Untergruppen. „CH" findet auch „Schweiz". Statt `›` geht auch `>` oder `/`. Früher übernommene andere Untergruppen (z.B. Basel, Bern) verschwinden beim nächsten Aktualisieren.
-     - Nicht gefundene Einträge werden gemeldet, bei Untergruppen mit der Liste der vorhandenen.
-     - Bleibt die Liste leer, schlägt das Tool alle Gruppen vor.
-   - **„Immer ausschliessen":** Wortteile im Gruppennamen, eine pro Zeile. Vorgabe: Ehemalige, Archiv, Norwegen Lager 2025, ESG LTS 2025.
-     - Solche Gruppen werden nie übernommen, auch nicht als Untergruppe, z.B. „Ehemalige Fachgruppen" oder „Ehemalige Ausschüsse". Das gilt auch für Untergruppen aus Excel.
-     - Leerzeichen spielen keine Rolle, und 2025 = 25: „Norwegen Lager 2025" trifft auch „Norwegenlager 25".
-     - Bereits übernommene werden beim nächsten Aktualisieren entfernt.
-     - Einzelne Untergruppen lassen sich auch direkt im Reiter Kategorien mit „✕ entfernen" ausschliessen.
-   - **Mitgliederorganisationen (MIO)** werden nicht aus der Cevi DB geladen. Die Kategorie MIO bleibt: für die MIO-Listen aus Excel und für von Hand erfasste Personen. Nach neuen Mitgliederorganisationen in der DB wird nicht gefragt.
-   - **PSA** wird nur auf der obersten Ebene geladen (ohne RV AG, Basel, Bern usw.). Ebenso **Conveniat** bei den Projektgruppen: nur die Projektgruppe selbst, ihre Untergruppen stehen im Reiter Cevi DB unter „Ausgeschlossene Gruppen“. Bei anderen Untergruppen mit eigenen Untergruppen geht das im Reiter Kategorien mit **„nur diese Ebene“**; neue Untergruppen darunter werden dann nicht mehr gefragt. Rückgängig: im Reiter Cevi DB unter „Ausgeschlossene Gruppen“ einzelne Untergruppe mit ↺ zurückholen.
-   - **Kursleitungen („＋ Kurse“):** lädt alle Kurse eines Jahres der Ebene Cevi Schweiz (wie in der DB unter Anlässe → Kurse, „diese Ebene“) und übernimmt **alle Rollen ausser Teilnehmende**: Hauptleitung, Leitung, Küche, Helfer/innen, Kasse, Referent/innen. Jeder Kurs wird eine Untergruppe der Kategorie (Vorgabe: Ausbildung), so lassen sich pro Kurs Zuständige festlegen. Alternativ bei „＋ Gruppe“ den Kurs-Link einfügen (z.B. `https://db.cevi.ch/groups/1/events/course?range=layer&year=2026`) – das Tool erkennt ihn. Jahr leer = jeweils das aktuelle Jahr.
+4. **Gruppen aus der Cevi DB – zwei Spalten:**
+   - Links **„✓ Für Versand berücksichtigt“**, rechts **„✕ Für Versand nicht berücksichtigt“**. Jede Karte ist eine Gruppe der obersten Ebene von Cevi Schweiz (Geschäftsstelle, Vorstand, Fachgruppen, Projektgruppen …).
+   - **Verschieben per Drag & Drop** (oder „← berücksichtigen“ bzw. ✕ klicken). Wer nach rechts kommt, wird beim nächsten Laden nicht mehr berücksichtigt.
+   - **Beim Berücksichtigen** öffnet sich ein Fenster: Kategorie wählen (Vorschlag nach Gruppentyp und Name, oder „＋ Neue Kategorie“), optional Zuständig, und mit Häkchen wählen, **welche Untergruppen** dazugehören. Ein Häkchen bei einer Gruppe setzt es auch bei ihren Untergruppen; „keine Untergruppen“ lädt nur die Gruppe selbst (wie bei PSA). Danach wird gleich geladen.
+   - **Links** zeigt jede Karte Kategorie, Zuständig und wie viele Untergruppen dabei sind („alle 12“, „9 von 12“, „nur Cevi CH“). **„Untergruppen wählen“** ändert die Auswahl jederzeit – so lassen sich auch früher entfernte Untergruppen wieder dazunehmen.
+   - Mitgliederorganisationen (MIO) stehen grau rechts: Sie kommen nicht aus der Cevi DB, sondern aus Excel.
+   - Neue Untergruppen unter einer berücksichtigten Gruppe werden beim Aktualisieren erkannt (siehe „Neue Gruppen in der DB“). Nicht gewählte Untergruppen werden nicht gefragt.
+   - Die Gruppenliste wird beim Aktualisieren nachgeführt; „jetzt neu lesen“ liest sie sofort.
+   - **Erweitert** (aufklappbar): „Immer ausschliessen“ (Wortteile im Gruppennamen, eine pro Zeile, Vorgabe: Ehemalige, Archiv, Norwegen Lager 2025, ESG LTS 2025 – solche Gruppen samt Untergruppen werden nie geladen, auch künftige und auch aus Excel; Leerzeichen spielen keine Rolle, 2025 = 25) und die Startgruppe „Cevi Schweiz“ (Nummer oder Link).
+   - **🎓 Kursleitungen** (Karte in der rechten Spalte, nach links ziehen): lädt alle Kurse eines Jahres der Ebene Cevi Schweiz (wie in der DB unter Anlässe → Kurse, „diese Ebene“) und übernimmt **alle Rollen ausser Teilnehmende**: Hauptleitung, Leitung, Küche, Helfer/innen, Kasse, Referent/innen. Jeder Kurs wird eine Untergruppe der Kategorie (Vorgabe: Ausbildung), so lassen sich pro Kurs Zuständige festlegen. Jahr leer = jeweils das aktuelle Jahr.
      - Dafür braucht der **API-Key** in der Cevi DB zusätzlich die Häkchen **„Anlässe“** und **„Teilnehmende von Anlässen“** (Cevi Schweiz → Bearbeiten → API-Keys → Key bearbeiten). Der Key selbst bleibt gleich.
      - Die Schnittstelle für Kurs-Teilnahmen gibt es ab hitobito 2.9. Kennt die Cevi DB sie noch nicht, meldet das Tool das; die übrigen DB-Daten werden trotzdem geladen.
-5. **Ausgeschlossene Gruppen** (Reiter Cevi DB, aufklappbar): alle Gruppen und Untergruppen, die beim Laden ignoriert werden – nach Kategorie geordnet, mit ↺ zum Zurückholen.
 5. Danach aktualisiert das Tool die DB-Daten **bei jedem Öffnen oder Neuladen automatisch**, sofern ein API-Key da ist (von Hand gemerkt oder automatisch aus dem Schlüssel-Ordner). Hat jemand in den letzten 2 Minuten aktualisiert, wird nicht nochmals geladen. Sofort geht es mit **„↻ Aktualisieren“** oben rechts: Der Knopf gleicht den gemeinsamen Stand ab und lädt die Cevi DB. Ist ein Key da, ist der Kasten „Verbindung zur Cevi DB“ zugeklappt. Aufklappen braucht es nur, um den Key zu ändern.
 6. **Neue Gruppen in der DB:** Beim Übernehmen merkt sich das Tool alle Gruppen. Taucht beim Aktualisieren eine neue Gruppe oder Untergruppe auf, fragt es in einem Fenster nach:
    - als Untergruppe der bisherigen Kategorie (z.B. neue Fachgruppe → Fachgruppen),

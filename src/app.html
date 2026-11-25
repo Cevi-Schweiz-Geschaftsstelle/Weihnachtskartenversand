@@ -95,6 +95,23 @@ table.le-tab td.le-act{white-space:nowrap;width:1%;padding:2px 6px}
 .le-tag{font-size:10.5px;color:var(--muted);margin-left:4px}
 tr.le-open td{background:#f4f7fb} tr.le-row>td{padding:0 10px 12px;background:#f4f7fb}
 .chip.fchip{background:#e8f2ef;color:var(--accent-ink);font-size:12.5px;padding:3px 6px 3px 10px}
+.dbcols{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px}
+.dbcolumn{background:#f7f9fb;border:2px dashed transparent;border-radius:12px;padding:10px;min-height:160px;display:flex;flex-direction:column;gap:8px;transition:border-color .12s,background .12s}
+.dbcolumn[data-drop="on"]{background:#f1f8f5}
+.dbcolumn.dropover{border-color:var(--accent);background:#e7f4ef}
+.dbcol-hd{font-weight:650;font-size:13.5px;padding:2px 4px 4px} .dbcol-hd.ok{color:var(--accent-ink)}
+.dbcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.dbcard[draggable="true"]{cursor:grab} .dbcard.dragging{opacity:.45}
+.dbcard.muted-card{background:#fafbfc;color:var(--muted)}
+.dbc-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dbc-hd .grip{color:var(--soft);cursor:grab;font-size:13px}
+.dbc-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dbc-row select.inline{max-width:220px}
+.dbc-row input{padding:4px 7px;border:1px solid var(--line);border-radius:7px;width:110px;font:inherit;font-size:13px}
+.dbempty{color:var(--muted);font-size:13px;text-align:center;padding:24px 10px;border:1px dashed var(--line);border-radius:10px}
+#subsModal .modal{width:min(640px,100%)}
+.sglist{max-height:55vh;overflow:auto}
+@media (max-width:900px){.dbcols{grid-template-columns:1fr}}
 .chip.edited{background:#eef0f3;color:var(--muted);font-weight:500;font-size:11px}
 .editgrid{display:flex;flex-wrap:wrap;gap:10px}
 .editgrid label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);flex:1 1 150px}
@@ -383,6 +400,7 @@ body.print-labels #labelsPrint{display:block}
 <div id="labelsPrint" aria-hidden="true"></div>
 <div class="modal-back" id="cloudModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cloudTitle"></div></div>
 <div class="modal-back" id="ngModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="ngTitle"></div></div>
+<div class="modal-back" id="subsModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="subsModalTitle"></div></div>
 <div class="modal-back" id="respModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="respModalTitle"></div></div>
 <div class="modal-back" id="editModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle"></div></div>
 <div class="modal-back" id="grpModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="grpModalTitle"></div></div>
@@ -1259,7 +1277,7 @@ const M365_DEFAULTS = { tenantId: '29537223-9280-4035-b685-49ec81dd6aea', client
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
 const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'deleted', 'edits', 'addrPick', 'remarks', 'coAdjust', 'importDone', 'notes', 'ignoredSugg', 'version'];
-const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh', 'layerId', 'knownGroups', 'pendingGroups', 'ignoredGroups', 'detachedGroups'];
+const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh', 'layerId', 'knownGroups', 'pendingGroups', 'ignoredGroups', 'detachedGroups', 'tree', 'treeAt', 'excludedIds'];
 const J = WB.J;
 /** Was alle teilen (ohne Ansicht, ohne API-Key, ohne Microsoft-Einstellungen) */
 function sharedOf(s) {
@@ -2152,38 +2170,194 @@ async function keyAction(a) {
   } catch (e) { toast(e.message || String(e)); }
   finally { KEYUI.busy = false; render(); }
 }
+// ---------------------------------------------------------------- Cevi DB: zwei Spalten „berücksichtigt“ / „nicht berücksichtigt“
+/** Gruppenbaum der Ebene (gemerkt, damit die Spalten auch ohne Abfrage gezeichnet werden können) */
+function cacheTree(res) { if (!res) return; S.db.layerId = res.layer; S.db.tree = res.groups.map(g => ({ id: g.id, name: g.name, parent: g.parent_id, type: g.type || '' })); S.db.treeAt = new Date().toISOString(); }
+async function dbLoadTree(quiet) {
+  if (!token()) { if (!quiet) toast('Bitte zuerst den API-Key eintragen (ganz unten „Verbindung zur Cevi DB“).'); return null; }
+  try {
+    const res = await dbLayerGroups();
+    if (!res) { if (!quiet) toast('Bitte unter „Erweitert“ den Link zur Gruppe Cevi Schweiz eintragen.'); return null; }
+    cacheTree(res);
+    if (!Array.isArray(S.db.knownGroups)) S.db.knownGroups = res.groups.filter(g => g.id !== res.layer).map(g => g.id);
+    save(); render(); if (!quiet) toast(`${res.groups.length} Gruppen aus der Cevi DB gelesen`); return res;
+  } catch (e) { logDb('Gruppen lesen: ' + e.message); if (!quiet) toast(e.message); return null; }
+}
+function treeIndex() {
+  const t = S.db.tree || [], by = new Map(t.map(g => [String(g.id), g])), kids = new Map();
+  for (const g of t) { const k = String(g.parent || ''); if (!kids.has(k)) kids.set(k, []); kids.get(k).push(g); }
+  for (const a of kids.values()) a.sort((x, y) => x.name.localeCompare(y.name, 'de'));
+  return { by, kids, layer: String(S.db.layerId || '') };
+}
+function topOf(id, T) { let cur = T.by.get(String(id)), n = 0; while (cur && String(cur.parent) !== T.layer && n++ < 40) cur = T.by.get(String(cur.parent)); return cur && String(cur.parent) === T.layer ? cur : null; }
+function subtreeIds(id, T) { const out = [], st = [String(id)]; while (st.length) { const x = st.shift(); out.push(x); for (const c of T.kids.get(x) || []) st.push(String(c.id)); } return out; }
+function blockedIds() { const b = removedDbIds(); for (const x of heldGroupIds()) b.add(String(x)); for (const x of S.db.excludedIds || []) b.add(String(x)); return b; }
+function sourcesUnder(topId, T) { const sub = new Set(subtreeIds(topId, T)); return S.db.sources.filter(s => !s.mode && parseGroupIds(s.groupIds).some(x => sub.has(String(x)))); }
+/** Welche Gruppen unter einer obersten Gruppe werden geladen? (gleiche Regeln wie beim Laden, aber ohne Abfrage) */
+function loadedUnder(topId, T) {
+  const blocked = blockedIds(), leaves = leafDbIds(), out = new Set(), sub = new Set(subtreeIds(topId, T));
+  for (const s of sourcesUnder(topId, T)) for (const r of parseGroupIds(s.groupIds).map(String).filter(x => sub.has(x))) {
+    out.add(r); if (!s.subgroups || leaves.has(r)) continue;
+    const st = [r];
+    while (st.length) { const x = st.shift(); for (const c of T.kids.get(x) || []) { const id = String(c.id); if (blocked.has(id) || isExcluded(c.name) || out.has(id)) continue; out.add(id); if (!leaves.has(id)) st.push(id); } }
+  }
+  return out;
+}
+function guessCatForTop(g) { const t = typeCategory(g); if (t && !t.skip) return t.catId; const same = S.cats.find(c => WB.key(c.name) === WB.key(g.name)); if (same) return same.id; const d = WB.detectCategory(g.name, S.cats); return d && d.score >= 2 ? d.catId : ''; }
+const catSelect = (attr, cur, allowNew) => `<select class="inline" ${attr}>${!cur ? '<option value="">Kategorie wählen …</option>' : ''}${S.order.map(id => `<option value="${id}" ${cur === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}${allowNew ? `<option value="__new">＋ Neue Kategorie „${esc(allowNew)}“</option>` : ''}</select>`;
+function dbColumnsView() {
+  const T = treeIndex(), d = S.db;
+  const tops = (T.kids.get(T.layer) || []).filter(g => !isExcluded(g.name));
+  const onTops = [], offTops = [], orphan = [];
+  const coveredTop = new Set();
+  for (const s of d.sources) { if (s.mode) continue; const t = parseGroupIds(s.groupIds).map(id => topOf(id, T)).find(Boolean); if (t) coveredTop.add(String(t.id)); else orphan.push(s); }
+  for (const g of tops) (coveredTop.has(String(g.id)) ? onTops : offTops).push(g);
+  const courses = d.sources.filter(s => s.mode === 'courses');
+  const summary = (g) => {
+    const all = subtreeIds(g.id, T).slice(1).filter(id => !isExcluded((T.by.get(id) || {}).name)), loaded = loadedUnder(g.id, T);
+    const subs = all.filter(id => loaded.has(id));
+    if (!loaded.has(String(g.id))) return 'nur ' + subs.slice(0, 3).map(id => T.by.get(id).name).join(', ') + (subs.length > 3 ? ` + ${subs.length - 3} weitere` : '');
+    if (!all.length) return '';
+    if (!subs.length) return 'ohne Untergruppen';
+    return subs.length === all.length ? `alle ${all.length} Untergruppen` : `${subs.length} von ${all.length} Untergruppen`;
+  };
+  const onCard = (g) => { const srcs = sourcesUnder(g.id, T), s0 = srcs[0] || {}, sum = summary(g), hasSubs = subtreeIds(g.id, T).length > 1; return `<div class="dbcard on" draggable="true" data-drag="top:${esc(g.id)}">
+      <div class="dbc-hd"><span class="grip" title="Ziehen zum Verschieben">⠿</span><b>${esc(g.name)}</b><button class="lnk x right" data-db-off="top:${esc(g.id)}" title="Nicht mehr für den Versand berücksichtigen">✕</button></div>
+      <div class="dbc-row">${catSelect(`data-db-cat="${esc(g.id)}" title="Kategorie"`, s0.catId || '')}<input list="ownerList" data-db-owner="${esc(g.id)}" value="${esc(s0.owner || '')}" placeholder="Zuständig" title="Zuständig (Kürzel) – leer: wie in der Kategorie"></div>
+      ${hasSubs || sum ? `<div class="dbc-row small"><span class="muted">${esc(sum)}</span>${hasSubs ? `<button class="btn small ghost right" data-db-subs="${esc(g.id)}">Untergruppen wählen</button>` : ''}</div>` : ''}</div>`; };
+  const offCard = (g) => { const skip = isOrgType(g) || (typeCategory(g) || {}).skip, n = subtreeIds(g.id, T).length - 1; return `<div class="dbcard off ${skip ? 'muted-card' : ''}" ${skip ? '' : 'draggable="true"'} data-drag="top:${esc(g.id)}">
+      <div class="dbc-hd">${skip ? '' : '<span class="grip" title="Ziehen zum Verschieben">⠿</span>'}<b>${esc(g.name)}</b>${n ? `<span class="small muted">${n} Untergruppe${n === 1 ? '' : 'n'}</span>` : ''}${skip ? '' : `<button class="lnk right" data-db-on="top:${esc(g.id)}" title="Für den Versand berücksichtigen">← berücksichtigen</button>`}</div>
+      ${skip ? '<div class="small muted">eigene Ebene (Mitgliederorganisationen) – Adressen kommen aus Excel</div>' : ''}</div>`; };
+  const courseOn = (s) => `<div class="dbcard on" draggable="true" data-drag="courses:${esc(s.id)}">
+      <div class="dbc-hd"><span class="grip">⠿</span><b>🎓 ${esc(s.label)}</b><button class="lnk x right" data-db-off="courses:${esc(s.id)}" title="Nicht mehr berücksichtigen">✕</button></div>
+      <div class="dbc-row">${catSelect(`data-dbs="${s.id}" data-k="catId" title="Kategorie"`, s.catId || '')}<input list="ownerList" data-dbs="${s.id}" data-k="owner" value="${esc(s.owner || '')}" placeholder="Zuständig"><input type="text" inputmode="numeric" data-dbs="${s.id}" data-k="year" value="${esc(s.year || '')}" placeholder="${new Date().getFullYear()}" title="Jahr der Kurse – leer = jeweils das aktuelle Jahr" style="width:64px;text-align:center"></div>
+      <div class="small muted">Kurse ${courseYear(s)} dieser Ebene – alle Rollen ausser Teilnehmende, jeder Kurs als Untergruppe</div></div>`;
+  const orphanCard = (s) => `<div class="dbcard on" draggable="true" data-drag="src:${esc(s.id)}">
+      <div class="dbc-hd"><span class="grip">⠿</span><b>${esc(s.label)}</b><span class="small muted">Gruppe ${esc(s.groupIds)}</span><button class="lnk x right" data-db-off="src:${esc(s.id)}" title="Nicht mehr berücksichtigen">✕</button></div>
+      <div class="dbc-row">${catSelect(`data-dbs="${s.id}" data-k="catId"`, s.catId || '')}<input list="ownerList" data-dbs="${s.id}" data-k="owner" value="${esc(s.owner || '')}" placeholder="Zuständig"></div></div>`;
+  const noTree = !(d.tree || []).length;
+  return `<div class="panel">
+    <div class="hd"><h2>Gruppen aus der Cevi DB</h2><span class="muted small">Zum Verschieben ziehen – oder „← berücksichtigen“ / ✕ klicken. Beim Berücksichtigen wählst du die Untergruppen.</span></div>
+    ${(d.pendingGroups || []).length ? `<div class="bd small" style="border-bottom:1px solid var(--line2)">🆕 <b>${d.pendingGroups.length} neue Gruppe${d.pendingGroups.length === 1 ? '' : 'n'}</b> in der DB noch nicht zugeordnet: ${d.pendingGroups.map(p => esc(p.name)).join(', ')} · <a href="#" data-action="ng-open">jetzt zuordnen</a></div>` : ''}
+    <div class="dbcols">
+      <div class="dbcolumn" data-drop="on"><div class="dbcol-hd ok">✓ Für Versand berücksichtigt <span class="muted small">(${onTops.length + courses.length + orphan.length})</span></div>
+        ${onTops.map(onCard).join('')}${orphan.map(orphanCard).join('')}${courses.map(courseOn).join('')}
+        ${!onTops.length && !orphan.length && !courses.length ? '<div class="dbempty">Hierher ziehen, was verschickt werden soll</div>' : ''}</div>
+      <div class="dbcolumn" data-drop="off"><div class="dbcol-hd">✕ Für Versand nicht berücksichtigt <span class="muted small">(${offTops.length + (courses.length ? 0 : 1)})</span></div>
+        ${noTree ? `<div class="dbempty">Die Gruppenliste der Cevi DB ist noch nicht gelesen.<br><button class="btn small primary" style="margin-top:8px" data-action="db-load-tree">🔎 Gruppen aus der DB lesen</button></div>` : ''}
+        ${offTops.map(offCard).join('')}
+        ${courses.length ? '' : `<div class="dbcard off" draggable="true" data-drag="courses:new"><div class="dbc-hd"><span class="grip">⠿</span><b>🎓 Kursleitungen</b><button class="lnk right" data-db-on="courses:new">← berücksichtigen</button></div><div class="small muted">alle Kurse ${new Date().getFullYear()} – alle Rollen ausser Teilnehmende</div></div>`}</div>
+    </div>
+    ${d.treeAt ? `<div class="bd small muted" style="border-top:1px solid var(--line2)">Gruppenliste Stand ${fmtDate(d.treeAt)} · wird beim Aktualisieren nachgeführt · <a href="#" data-action="db-load-tree">jetzt neu lesen</a></div>` : ''}
+  </div>`;
+}
+function dbAdvancedPanel() {
+  const d = S.db;
+  return `<details class="panel" data-dbadv style="margin-top:16px" ${DBUI.adv ? 'open' : ''}><summary class="hd" style="cursor:pointer"><h3>Erweitert</h3><span class="muted small">Ausschluss-Regeln und Startgruppe – braucht es selten</span></summary>
+    <div class="bd">
+      <label class="small" for="dbExclude"><b>Immer ausschliessen</b> <span class="muted">(Wortteil im Gruppennamen, eine pro Zeile – z.B. „Ehemalige“ schliesst „Ehemalige Fachgruppen“ samt Untergruppen aus, auch künftige. Gilt auch für Untergruppen aus Excel.)</span></label>
+      <textarea id="dbExclude" rows="4" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupExclude || '')}</textarea>
+      <label class="small" for="dbRoot"><b>Startgruppe</b> <span class="muted">(Gruppe „Cevi Schweiz“: Nummer oder Link)</span></label>
+      <div class="free" style="margin-top:4px"><input type="text" id="dbRoot" value="${esc(d.rootGroup || '')}" placeholder="https://db.cevi.ch/groups/1" style="flex:1;min-width:0"><button class="btn" data-action="db-load-tree">🔎 Gruppen lesen</button></div>
+    </div></details>`;
+}
+// Untergruppen wählen (beim Berücksichtigen einer Gruppe oder über „Untergruppen wählen“)
+let SG = null; // { topId, isNew }
+function openSubsDialog(topId, isNew) {
+  const T = treeIndex(), top = T.by.get(String(topId)); if (!top) return;
+  const srcs = sourcesUnder(topId, T), loaded = isNew ? null : loadedUnder(topId, T);
+  SG = { topId: String(topId), isNew: !!isNew };
+  const rows = [];
+  const walk = (g, depth) => {
+    const id = String(g.id), ex = isExcluded(g.name), on = !ex && (isNew ? true : loaded.has(id));
+    rows.push(`<label class="chk-row sgrow" style="padding-left:${8 + depth * 20}px"><input type="checkbox" data-sg="${esc(id)}" data-sg-parent="${esc(String(g.parent || ''))}" ${on ? 'checked' : ''} ${ex ? 'disabled' : ''}><span class="nm">${depth ? esc(g.name) : `<b>${esc(g.name)}</b> <span class="small muted">– Personen direkt in dieser Gruppe</span>`}</span>${ex ? '<span class="small muted">ausgeschlossen (Regel „Immer ausschliessen“)</span>' : ''}</label>`);
+    for (const c of T.kids.get(id) || []) walk(c, depth + 1);
+  };
+  walk(top, 0);
+  const s0 = srcs[0] || {}, cat = s0.catId || guessCatForTop(top);
+  const m = $('#subsModal');
+  m.querySelector('.modal').innerHTML = `
+    <div class="hd"><h3 id="subsModalTitle">${isNew ? 'Berücksichtigen: ' : ''}${esc(top.name)}</h3><div class="small muted">Welche Gruppen sollen für den Versand geladen werden? Ein Häkchen bei einer Gruppe setzt es auch bei ihren Untergruppen.</div></div>
+    <div class="bd">
+      <div class="dbc-row" style="margin-bottom:10px"><label class="small">Kategorie ${catSelect('id="sgCat"', cat, cat ? '' : top.name)}</label><label class="small">Zuständig <input id="sgOwner" list="ownerList" value="${esc(s0.owner || '')}" placeholder="leer = wie Kategorie" style="width:120px"></label>
+        <span class="right" style="display:flex;gap:6px"><button class="btn small ghost" data-action="sg-all">alle</button><button class="btn small ghost" data-action="sg-none">keine Untergruppen</button></span></div>
+      <div class="checklist sglist">${rows.join('')}</div>
+    </div>
+    <div class="ft"><button class="btn ghost" data-action="sg-close">Abbrechen</button><button class="btn primary" data-action="sg-save">${isNew ? '✓ Berücksichtigen' : 'Speichern'}</button></div>`;
+  m.hidden = false;
+}
+function closeSubsDialog() { $('#subsModal').hidden = true; SG = null; }
+function sgCascade(box) {
+  const id = box.dataset.sg, all = [...document.querySelectorAll('#subsModal [data-sg]')];
+  const kids = (pid) => all.filter(b => b.dataset.sgParent === pid);
+  const st = [id]; while (st.length) { const x = st.shift(); for (const k of kids(x)) { if (!k.disabled) k.checked = box.checked; st.push(k.dataset.sg); } }
+}
+function saveSubsDialog() {
+  if (!SG) return closeSubsDialog();
+  const T = treeIndex(), top = T.by.get(SG.topId); if (!top) return closeSubsDialog();
+  const sub = subtreeIds(SG.topId, T);
+  const C = new Set([...document.querySelectorAll('#subsModal [data-sg]')].filter(b => b.checked && !b.disabled).map(b => b.dataset.sg));
+  let catId = ($('#sgCat') || {}).value || '';
+  const owner = (($('#sgOwner') || {}).value || '').trim();
+  if (C.size && !catId) { toast('Bitte eine Kategorie wählen.'); return; }
+  if (catId === '__new') {
+    let c = S.cats.find(x => WB.key(x.name) === WB.key(top.name));
+    if (!c) { c = { id: 'cat-' + uid(), name: top.name, source: '', persons: [], personsManual: true, info: '', exact: [], strong: [WB.fold(top.name)], weak: [], custom: true }; S.cats.push(c); S.order.push(c.id); }
+    catId = c.id;
+  }
+  const old = sourcesUnder(SG.topId, T);
+  S.db.sources = S.db.sources.filter(s => !old.includes(s));
+  // Ausschlüsse: nicht gewählte Gruppen direkt unter einer gewählten (sonst kämen sie beim Laden mit)
+  const ex = new Set((S.db.excludedIds || []).map(String));
+  for (const id of sub) { const g = T.by.get(id); if (C.has(id)) ex.delete(id); else if (C.has(String(g.parent))) ex.add(id); else ex.delete(id); }
+  S.db.excludedIds = [...ex];
+  // frühere Sperren für jetzt gewählte Gruppen aufheben (entfernt, „nur diese Ebene“, ignoriert, verschoben)
+  const subSet = new Set(sub);
+  for (const c of S.cats) for (const g of Object.values(c.groups || {})) if (g.fromDb && subSet.has(String(g.fromDb))) { if (C.has(String(g.fromDb))) delete g.removed; delete g.leaf; }
+  for (const k of ['ignoredGroups', 'pendingGroups']) S.db[k] = (S.db[k] || []).filter(x => !C.has(String(x.id)));
+  S.db.detachedGroups = (S.db.detachedGroups || []).filter(x => !C.has(String(x)));
+  S.db.knownGroups = [...new Set([...(S.db.knownGroups || []), ...sub])];
+  // alte Filterzeilen „Gruppe › Untergruppe“ für diese Gruppe gelten nicht mehr
+  S.db.groupFilter = String(S.db.groupFilter || '').split('\n').filter(l => !(l.includes('›') && nameMatches(l.split('›')[0].trim(), top.name))).join('\n');
+  if (C.size) {
+    const roots = sub.filter(id => C.has(id) && !C.has(String(T.by.get(id).parent)));
+    const withSubs = roots.some(r => subtreeIds(r, T).slice(1).some(x => C.has(x)));
+    const label = roots.length === 1 && roots[0] !== SG.topId ? `${top.name} › ${T.by.get(roots[0]).name}` : top.name;
+    S.db.sources.push({ id: 'top-' + SG.topId, label, groupIds: roots.join(','), catId, owner, subgroups: withSubs, picked: true, ...(!withSubs && roots.some(r => subtreeIds(r, T).length > 1) ? { noSubs: true } : {}) });
+  }
+  const name = top.name, n = C.size;
+  closeSubsDialog(); save(); render();
+  toast(n ? `${name}: ${n} Gruppe${n === 1 ? '' : 'n'} berücksichtigt – wird geladen …` : `${name} wird nicht mehr berücksichtigt`);
+  scheduleDbReload();
+}
+let DB_RELOAD_T = null;
+function scheduleDbReload() { clearTimeout(DB_RELOAD_T); if (!token()) return; DB_RELOAD_T = setTimeout(() => dbRefresh(), 600); }
+function dbSetOff(v) {
+  const T = treeIndex();
+  if (v.startsWith('top:')) {
+    const id = v.slice(4), g = T.by.get(id), srcs = sourcesUnder(id, T); if (!srcs.length) return;
+    if (!confirm(`„${g ? g.name : id}“ nicht mehr für den Versand berücksichtigen?\n\nDie Personen daraus fallen beim nächsten Laden weg (ausser sie sind noch anderswo dabei).`)) return;
+    S.db.sources = S.db.sources.filter(s => !srcs.includes(s));
+  } else if (v.startsWith('courses:') || v.startsWith('src:')) {
+    const id = v.split(':')[1], s = S.db.sources.find(x => x.id === id); if (!s) return;
+    if (!confirm(`„${s.label}“ nicht mehr für den Versand berücksichtigen?`)) return;
+    S.db.sources = S.db.sources.filter(x => x !== s);
+  } else return;
+  save(); render(); scheduleDbReload();
+}
+function dbSetOn(v) {
+  if (v === 'courses:new') { const s = addCourseSource(); save(); render(); toast(`Kurse ${courseYear(s)} berücksichtigt – werden geladen …`); scheduleDbReload(); return; }
+  if (v.startsWith('top:')) { const id = v.slice(4), T = treeIndex(); if (sourcesUnder(id, T).length) return; const g = T.by.get(id); if (!g || isOrgType(g)) return; openSubsDialog(id, true); }
+}
+function dbDropped(v, zone) { if (zone === 'on') dbSetOn(v); else if (zone === 'off') dbSetOff(v); }
+
 function dbView() {
   const d = S.db;
   const tok = manualToken();
   return `${ownerDatalist()}<div class="dbcol">
     <div>
-      <div class="panel">
-        <div class="hd"><h2>Gruppen automatisch übernehmen</h2></div>
-        <div class="bd">
-          <div class="small muted" style="margin-bottom:8px">Das Tool liest alle Gruppen von Cevi Schweiz aus der DB, schlägt die passende Kategorie vor und richtet die Untergruppen (z.B. alle Fachgruppen) ein.</div>
-          <label class="small" for="dbFilter"><b>Nur diese Gruppen übernehmen</b> <span class="muted">(eine pro Zeile · leer = alle · nur eine Untergruppe: „Gruppe › Untergruppe“)</span></label>
-          <textarea id="dbFilter" rows="9" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupFilter || '')}</textarea>
-          <label class="small" for="dbExclude"><b>Immer ausschliessen</b> <span class="muted">(Wortteil im Gruppennamen, eine pro Zeile – z.B. „Ehemalige" entfernt „Ehemalige Fachgruppen", „Ehemalige Ausschüsse" usw. Gilt auch für Untergruppen aus Excel. Einzelne Untergruppen lassen sich auch im Tab Kategorien mit „✕ entfernen" ausschliessen.)</span></label>
-          <textarea id="dbExclude" rows="4" style="min-height:0;margin:4px 0 10px;font-family:inherit;font-size:13px">${esc(d.groupExclude || '')}</textarea>
-          <div class="free" style="margin-top:0"><input type="text" id="dbRoot" value="${esc(d.rootGroup || '')}" placeholder="Gruppe „Cevi Schweiz“: Nummer oder Link" style="flex:1;min-width:0"><button class="btn primary" data-action="db-read-groups">🔎 Gruppen lesen</button></div>
-        </div>
-      </div>
-      ${dbMapView()}
-      <div class="panel" style="margin-top:16px">
-        <div class="hd"><h2>Welche Gruppen sollen geladen werden?</h2><span class="right" style="display:flex;gap:6px"><button class="btn small" data-action="db-add-courses" title="Alle Kurse eines Jahres laden – nur Leitungen, Küche, Referent/innen usw., keine Teilnehmenden">＋ Kurse</button><button class="btn small" data-action="db-add">＋ Gruppe</button></span></div>
-        <div class="tablewrap"><table>
-          <thead><tr><th>Bezeichnung</th><th>Gruppen-ID(s) oder Link</th><th>Kategorie</th><th>Zuständig</th><th title="Alle Untergruppen mitladen (bei Kursen: Jahr)">inkl. Unter&shy;gruppen / Jahr</th><th></th></tr></thead>
-          <tbody>${!d.sources.length ? '<tr><td colspan="6" class="muted small" style="padding:14px 10px">Noch keine Gruppen – am einfachsten oben über „Gruppen automatisch übernehmen". Von Hand: „＋ Gruppe".</td></tr>' : ''}${d.sources.map(s => `<tr>
-            <td><input type="text" data-dbs="${s.id}" data-k="label" value="${esc(s.label)}" style="width:100%;min-width:150px;padding:5px 7px;border:1px solid var(--line);border-radius:7px">${s.mode === 'courses' ? `<div class="small muted" style="margin-top:3px">🎓 Kurse ${courseYear(s)} dieser Ebene – alle Rollen ausser Teilnehmende, jeder Kurs als Untergruppe</div>` : ''}</td>
-            <td><input type="text" data-dbs="${s.id}" data-k="groupIds" value="${esc(s.groupIds)}" placeholder="z.B. 1234 oder https://db.cevi.ch/groups/1234" style="width:100%;min-width:170px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
-            <td><select class="inline" data-dbs="${s.id}" data-k="catId"><option value="">automatisch</option>${S.order.map(id => `<option value="${id}" ${s.catId === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select></td>
-            <td><input type="text" list="ownerList" data-dbs="${s.id}" data-k="owner" value="${esc(s.owner)}" placeholder="Kürzel" style="width:80px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
-            <td style="text-align:center">${s.mode === 'courses' ? `<input type="text" inputmode="numeric" data-dbs="${s.id}" data-k="year" value="${esc(s.year || '')}" placeholder="${new Date().getFullYear()}" title="Jahr der Kurse – leer = jeweils das aktuelle Jahr" style="width:64px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;text-align:center">` : `<input type="checkbox" data-dbs="${s.id}" data-k="subgroups" ${s.subgroups ? 'checked' : ''}>`}</td>
-            <td><button class="btn small ghost danger" data-dbs-del="${s.id}">✕</button></td></tr>`).join('')}</tbody>
-        </table></div>
-        ${(d.pendingGroups || []).length ? `<div class="bd small" style="border-top:1px solid var(--line2)">🆕 <b>${d.pendingGroups.length} neue Gruppe${d.pendingGroups.length === 1 ? '' : 'n'}</b> in der DB noch nicht zugeordnet: ${d.pendingGroups.map(p => esc(p.name)).join(', ')} · <a href="#" data-action="ng-open">jetzt zuordnen</a></div>` : ''}
-      </div>
-      ${exclPanel()}
+      ${dbColumnsView()}
+      ${dbAdvancedPanel()}
       ${keyPanel()}
       <details class="panel" data-dblog style="margin-top:16px" ${DBUI.log ? 'open' : ''}><summary class="hd" style="cursor:pointer"><h3>Protokoll</h3><span class="muted small">nur für die Fehlersuche</span></summary><div class="bd"><div class="log" id="dblog">${esc(dbLog.join('\n')) || 'Noch keine Abfrage.'}</div></div></details>
       <details class="panel" data-dbconn style="margin-top:16px" ${!token() || DBUI.open ? 'open' : ''}>
@@ -2342,8 +2516,7 @@ async function apiAll(path, params, size = 100) {
 function leafDbIds() { const ids = new Set(); for (const c of S.cats) for (const g of Object.values(c.groups || {})) if (g.leaf && g.fromDb) ids.add(String(g.fromDb)); return ids; }
 async function expandSubgroups(ids) {
   const all = new Set(ids), parent = new Map(), name = new Map(); let frontier = ids.slice();
-  const removed = removedDbIds(), leaves = leafDbIds();
-  for (const x of heldGroupIds()) removed.add(x); // neue (noch offen), nicht übernommene oder in eine andere Kategorie verschobene Gruppen
+  const removed = blockedIds(), leaves = leafDbIds(); // entfernt, ausgeschlossen (Untergruppen wählen), neu/offen, ignoriert, verschoben
   for (let depth = 0; depth < 6 && frontier.length; depth++) {
     const next = [];
     for (let i = 0; i < frontier.length; i += 25) {
@@ -2418,7 +2591,7 @@ function pathFilterPrune() {
 }
 /** Beim Aktualisieren: Untergruppen-Baum einer DB-Gruppe auf „Gruppe › Untergruppe" beschränken (alte, ganze Übernahme) */
 function restrictToPaths(s, tree) {
-  if (String(s.label).includes('›')) return null;
+  if (s.picked || String(s.label).includes('›')) return null;
   const paths = filterEntries().map(x => x.split(PATH_SEP).map(t => t.trim()).filter(Boolean))
     .filter(p => p.length > 1 && (nameMatches(p[0], s.label) || (s.catId && catOfEntry(p[0]) === s.catId)));
   if (!paths.length) return null;
@@ -2705,9 +2878,9 @@ async function dbRefresh(auto = false) {
   if (!srcs.length && auto) return;
   if (!srcs.length) {
     S.ui.tab = 'db'; render();
-    if (parseGroupIds(S.db.rootGroup || '').length) { toast('Noch keine Gruppen ausgewählt – ich lese zuerst die Gruppen aus der Cevi DB. Bitte den Vorschlag prüfen und übernehmen.'); return dbReadGroups(); }
+    if (parseGroupIds(S.db.rootGroup || '').length || S.db.layerId) { toast('Noch keine Gruppen berücksichtigt – ich lese die Gruppen aus der Cevi DB. Ziehe danach die gewünschten nach links.'); return dbLoadTree(true); }
     const f = $('#dbRoot'); if (f) { f.focus(); f.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-    return toast('Das Tool weiss noch nicht, welche Gruppen es laden soll: Unter „Gruppen automatisch übernehmen" den Link zur Gruppe Cevi Schweiz einfügen und auf „Gruppen lesen" klicken.');
+    return toast('Das Tool weiss noch nicht, welche Gruppen es laden soll: Unter „Erweitert“ den Link zur Gruppe Cevi Schweiz eintragen und „Gruppen lesen“ klicken, dann die gewünschten Gruppen nach links ziehen.');
   }
   DB_BUSY = true; setDbStatus('↻ Cevi DB wird aktualisiert …');
   if (!auto) toast('Lade Daten aus der Cevi DB …');
@@ -2802,11 +2975,13 @@ async function dbLayerGroups() {
 /** Vergleicht die Gruppen der DB mit dem gemerkten Stand; neue kommen in S.db.pendingGroups. Gibt die Zahl neuer zurück. */
 async function scanNewGroups() {
   const res = await dbLayerGroups(); if (!res) return 0;
+  cacheTree(res);
   const { layer, groups } = res;
   const byId = new Map(groups.map(g => [g.id, g]));
   if (!Array.isArray(S.db.knownGroups)) { S.db.knownGroups = groups.filter(g => g.id !== layer).map(g => g.id); S.db.pendingGroups = []; logDb(`Ausgangsstand gemerkt: ${S.db.knownGroups.length} Gruppen`); return 0; }
   const known = new Set(S.db.knownGroups), pending = new Set((S.db.pendingGroups || []).map(p => p.id));
   const ignored = new Set((S.db.ignoredGroups || []).map(x => x.id)), removed = removedDbIds();
+  for (const x of S.db.excludedIds || []) removed.add(String(x));
   const hidden = (g) => { let cur = g, n = 0; while (cur && n++ < 30) { if (isExcluded(cur.name) || removed.has(cur.id) || ignored.has(cur.id)) return true; cur = byId.get(cur.parent_id); } return false; };
   const fresh = groups.filter(g => g.id !== layer && !known.has(g.id) && !pending.has(g.id));
   const freshIds = new Set(fresh.map(g => g.id));
@@ -2850,7 +3025,7 @@ function newGroupsDialog() {
       <p class="small" style="margin-top:0">Seit dem letzten Mal ${P.length === 1 ? 'ist diese Gruppe' : `sind diese ${P.length} Gruppen`} dazugekommen. Die Mitglieder werden erst geladen, wenn du sie zuordnest.</p>
       <table class="ngtab"><tbody>${P.map(p => `<tr><td><b>${esc(p.name)}</b>${p.path ? `<div class="small muted">unter ${esc(p.path)}</div>` : ''}${p.children && p.children.length ? `<div class="small muted">inkl. ${p.children.length} Untergruppe${p.children.length === 1 ? '' : 'n'}</div>` : ''}</td>
         <td><select class="inline" data-ng="${esc(p.id)}">${opts(p)}</select></td></tr>`).join('')}</tbody></table>
-      <p class="small muted">„Nicht übernehmen“: Die Gruppe wird nicht mehr gefragt. Zurückholen: Reiter Cevi DB → „Ausgeschlossene Gruppen“ → ↺.</p>
+      <p class="small muted">„Nicht übernehmen“: Die Gruppe wird nicht mehr gefragt. Zurückholen: Reiter Cevi DB → Gruppe links „Untergruppen wählen“ (bzw. rechts nach links ziehen).</p>
     </div>
     <div class="ft"><button class="btn ghost" data-action="ng-later">Später</button><button class="btn primary" data-action="ng-apply">Übernehmen</button></div>`;
   m.hidden = false;
@@ -2949,7 +3124,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-kpi],[data-resp],[data-le-toggle],[data-le-del],[data-le-undel],[data-addr-pick],[data-addr-reset],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-kpi],[data-resp],[data-db-on],[data-db-off],[data-db-subs],[data-le-toggle],[data-le-del],[data-le-undel],[data-addr-pick],[data-addr-reset],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -2987,6 +3162,9 @@ document.addEventListener('click', (ev) => {
     setGrp(c, gk, name, []); c.groups[gk].manual = true; S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [c.id]: true }; save(); render(); return;
   }
   if (t.dataset.kpi) { kpiGo(t.dataset.kpi); return; }
+  if (t.dataset.dbOn) { dbSetOn(t.dataset.dbOn); return; }
+  if (t.dataset.dbOff) { dbSetOff(t.dataset.dbOff); return; }
+  if (t.dataset.dbSubs) { openSubsDialog(t.dataset.dbSubs, false); return; }
   if (t.dataset.resp) { openRespDialog(t.dataset.resp); return; }
   if (t.dataset.delPerson) { deletePerson(t.dataset.delPerson); return; }
   if (t.dataset.editPerson) { openEditDialog(t.dataset.editPerson); return; }
@@ -3011,7 +3189,7 @@ document.addEventListener('click', (ev) => {
   if (t.dataset.subLeaf) {
     const { c, gk } = subRef(t.dataset.subLeaf); if (!c) return;
     const name = t.dataset.name || gk;
-    if (!confirm(`Bei „${name}" nur diese Ebene laden?\n\nAlle Untergruppen davon werden entfernt (Reiter Cevi DB → „Ausgeschlossene Gruppen“) und auch bei künftigen Importen ignoriert. Geladen werden nur noch die Personen direkt in „${name}".`)) return;
+    if (!confirm(`Bei „${name}" nur diese Ebene laden?\n\nAlle Untergruppen davon werden entfernt (zurückholen: Reiter Cevi DB → „Untergruppen wählen“) und auch bei künftigen Importen ignoriert. Geladen werden nur noch die Personen direkt in „${name}".`)) return;
     const n = markLeaf(c, gk); save(); render(); toast(`„${name}": ${n} Untergruppe${n === 1 ? '' : 'n'} entfernt – nur noch diese Ebene.`); return;
   }
   if (t.dataset.subUnhide) {
@@ -3129,6 +3307,10 @@ document.addEventListener('click', (ev) => {
   else if (a === 'gm-save') saveGroupDialog();
   else if (a === 'em-save') saveEditDialog(false);
   else if (a === 'rm-save') saveRespDialog();
+  else if (a === 'db-load-tree') { ev.preventDefault(); const r = $('#dbRoot'); if (r && r.value.trim() && r.value.trim() !== S.db.rootGroup) { S.db.rootGroup = r.value.trim(); S.db.layerId = ''; } dbLoadTree(false); }
+  else if (a === 'sg-save') saveSubsDialog();
+  else if (a === 'sg-close') closeSubsDialog();
+  else if (a === 'sg-all' || a === 'sg-none') { document.querySelectorAll('#subsModal [data-sg]').forEach((b, i) => { if (!b.disabled) b.checked = a === 'sg-all' || i === 0; }); }
   else if (a === 'fonly-clear') { S.ui.filter.only = ''; save(); render(); }
   else if (a === 'le-add') leAdd(t.dataset.src);
   else if (a === 'rm-close') closeRespDialog();
@@ -3171,6 +3353,9 @@ document.addEventListener('click', (ev) => {
 document.addEventListener('change', (ev) => {
   const t = ev.target;
   if (t.name === 'rmain') { respMainChanged(); return; }
+  if (t.dataset && t.dataset.sg) { sgCascade(t); return; }
+  if (t.dataset && t.dataset.dbCat) { const T = treeIndex(); for (const s of sourcesUnder(t.dataset.dbCat, T)) s.catId = t.value; save(); render(); scheduleDbReload(); return; }
+  if (t.dataset && t.dataset.dbOwner !== undefined) { const T = treeIndex(); for (const s of sourcesUnder(t.dataset.dbOwner, T)) s.owner = t.value.trim(); save(); scheduleDbReload(); return; }
   if (t.dataset && t.dataset.leF) { leSetField(t.dataset.leSrc, t.dataset.leRow, t.dataset.leF, t.value); renderKeepFocus(); return; }
   if (t.dataset && t.dataset.gm !== undefined) { const inp = document.querySelector(`#grpModal [data-gm-new="${t.dataset.gm}"]`); if (inp) { inp.hidden = t.value !== '__new'; if (!inp.hidden) inp.focus(); } return; }
   if (t.dataset && t.dataset.mf !== undefined) {
@@ -3261,6 +3446,11 @@ document.addEventListener('keydown', (ev) => {
   if (!$('#cloudModal').hidden && ev.key === 'Escape') { $('#cloudModal').hidden = true; return; }
   if (!$('#ngModal').hidden && ev.key === 'Escape') { NG_LATER = true; $('#ngModal').hidden = true; return; }
   if (!$('#labelModal').hidden && ev.key === 'Escape') { $('#labelModal').hidden = true; return; }
+  if (!$('#subsModal').hidden) {
+    if (ev.key === 'Escape') { ev.preventDefault(); closeSubsDialog(); }
+    if (ev.key === 'Enter' && !(ev.target && /^(BUTTON|SELECT)$/.test(ev.target.tagName))) { ev.preventDefault(); saveSubsDialog(); }
+    return;
+  }
   if (!$('#respModal').hidden) {
     if (ev.key === 'Escape') { ev.preventDefault(); closeRespDialog(); }
     if (ev.key === 'Enter' && !(ev.target && ev.target.tagName === 'BUTTON')) { ev.preventDefault(); saveRespDialog(); }
@@ -3287,7 +3477,7 @@ document.addEventListener('keydown', (ev) => {
   if (ev.target && ev.target.dataset && ev.target.dataset.mf !== undefined && ev.target.tagName === 'INPUT') { ev.preventDefault(); MF[ev.target.dataset.mf] = ev.target.value; manualAdd(); return; }
   const id = ev.target && ev.target.id;
   if (id === 'newCode' || id === 'newFirst' || id === 'newLast') { ev.preventDefault(); document.querySelector('[data-action="staff-add"]').click(); }
-  if (id === 'dbRoot') { ev.preventDefault(); S.db.rootGroup = ev.target.value.trim(); save(); dbReadGroups(); return; }
+  if (id === 'dbRoot') { ev.preventDefault(); S.db.rootGroup = ev.target.value.trim(); S.db.layerId = ''; save(); dbLoadTree(false); return; }
   if (id === 'newCat') { ev.preventDefault(); document.querySelector('[data-action="cat-add"]').click(); }
   if (ev.target && ev.target.dataset && ev.target.dataset.subNewname) { ev.preventDefault(); document.querySelector(`[data-sub-new="${ev.target.dataset.subNewname}"]`).click(); }
 });
@@ -3303,7 +3493,7 @@ document.addEventListener('input', (ev) => {
   if (t.id === 'dbToken') { sessionToken = t.value.trim(); if (S.db.rememberToken) S.db.token = sessionToken; }
 });
 // Auf-/Zuklappen der Untergruppen merken („toggle" bubbelt nicht → capture)
-document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } if (d && d.dataset && d.dataset.keybox !== undefined) KEYUI.open = d.open; if (d && d.dataset && d.dataset.mlist !== undefined) MF.listOpen = d.open; if (d && d.dataset && d.dataset.dbconn !== undefined) DBUI.open = d.open; if (d && d.dataset && d.dataset.dblog !== undefined) DBUI.log = d.open; if (d && d.dataset && d.dataset.dbexcl !== undefined) DBUI.excl = d.open; }, true);
+document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.subs) { S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [d.dataset.subs]: d.open }; save(); } if (d && d.dataset && d.dataset.merged !== undefined) { S.ui.mergedOpen = d.open; save(); } if (d && d.dataset && d.dataset.keybox !== undefined) KEYUI.open = d.open; if (d && d.dataset && d.dataset.mlist !== undefined) MF.listOpen = d.open; if (d && d.dataset && d.dataset.dbconn !== undefined) DBUI.open = d.open; if (d && d.dataset && d.dataset.dblog !== undefined) DBUI.log = d.open; if (d && d.dataset && d.dataset.dbexcl !== undefined) DBUI.excl = d.open; if (d && d.dataset && d.dataset.dbadv !== undefined) DBUI.adv = d.open; }, true);
 function readCloudFields() {
   const v = (id) => { const el = $(id); return el && !el.disabled ? el.value.trim() : undefined; };
   const t = v('#m365Tenant'), c = v('#m365Client'), s2 = v('#m365Site');
@@ -3325,6 +3515,11 @@ $('#fileInput').addEventListener('change', (e) => { const f = [...e.target.files
 let dragN = 0;
 window.addEventListener('dragenter', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { dragN++; $('#dropmask').classList.add('show'); } });
 window.addEventListener('dragleave', () => { dragN = Math.max(0, dragN - 1); if (!dragN) $('#dropmask').classList.remove('show'); });
+// Karten im Reiter Cevi DB zwischen „berücksichtigt“ und „nicht berücksichtigt“ verschieben
+document.addEventListener('dragstart', (e) => { const c = e.target.closest && e.target.closest('[data-drag]'); if (!c) return; e.dataTransfer.setData('text/x-wb', c.dataset.drag); e.dataTransfer.effectAllowed = 'move'; c.classList.add('dragging'); });
+document.addEventListener('dragend', () => document.querySelectorAll('.dragging,.dropover').forEach(x => x.classList.remove('dragging', 'dropover')));
+document.addEventListener('dragover', (e) => { const z = e.target.closest && e.target.closest('[data-drop]'); if (!z || ![...(e.dataTransfer?.types || [])].includes('text/x-wb')) return; e.preventDefault(); document.querySelectorAll('.dropover').forEach(x => x !== z && x.classList.remove('dropover')); z.classList.add('dropover'); });
+document.addEventListener('drop', (e) => { const z = e.target.closest && e.target.closest('[data-drop]'); const v = e.dataTransfer && e.dataTransfer.getData('text/x-wb'); if (!z || !v) return; e.preventDefault(); e.stopPropagation(); z.classList.remove('dropover'); dbDropped(v, z.dataset.drop); });
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => { e.preventDefault(); dragN = 0; $('#dropmask').classList.remove('show'); const f = [...(e.dataTransfer?.files || [])]; if (f.length) importFiles(f); });
 if (S.db.rememberToken) sessionToken = S.db.token;

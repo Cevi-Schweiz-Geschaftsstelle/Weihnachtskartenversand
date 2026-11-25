@@ -405,7 +405,7 @@ function defaultState() {
     cats: WB.DEFAULT_CATEGORIES.map(c => ({ ...c })),
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
-    aliasText: '', autoAliases: true, version: 10,
+    aliasText: '', autoAliases: true, version: 11,
     decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, edits: {}, addrPick: {}, remarks: {}, coAdjust: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nVorstand\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
@@ -532,6 +532,12 @@ function load() {
       }
       db.wantGroups = [...new Set([...(db.wantGroups || []), 'Vorstand'])];
       s.version = 10;
+    }
+    if (s.version < 11) {
+      // Version 11: Kategorie heisst wieder „Cevi Schweiz“ – die DB-Gruppen Geschäftsstelle und Vorstand sind ihre Untergruppen
+      const c = (s.cats || []).find(x => x.id === 'cevi-schweiz');
+      if (c && /^gesch[aä]ftsstelle$/i.test(String(c.name || '').trim())) c.name = 'Cevi Schweiz';
+      s.version = 11;
     }
     s.staff = s.staff || [];
     s.sources = (s.sources || []).filter(x => !x.demo); // frühere „Demo ohne Verbindung"-Daten

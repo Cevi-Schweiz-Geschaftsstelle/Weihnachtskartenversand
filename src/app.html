@@ -74,6 +74,11 @@ td.hidecol>div{line-height:1.6}
 .editgrid label.wfull{flex:1 1 100%}
 .editgrid textarea{padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;font:inherit;font-size:13.5px;color:var(--text);resize:vertical}
 .editgrid input:disabled{background:#f4f5f7;color:var(--muted)}
+button.resp{white-space:normal;line-height:1.25;text-align:left;padding:3px 8px;font-size:12px}
+td.co button.chip{display:inline-flex;margin-bottom:3px}
+#respModal .modal{width:min(640px,100%)}
+table.resptab td{padding:5px 8px;vertical-align:middle} table.resptab th{padding:5px 8px}
+table.resptab tr.is-main td{background:#f2f8f6}
 .chip.edited{background:#eef0f3;color:var(--muted);font-weight:500;font-size:11px}
 .editgrid{display:flex;flex-wrap:wrap;gap:10px}
 .editgrid label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);flex:1 1 150px}
@@ -357,6 +362,7 @@ body.print-labels #labelsPrint{display:block}
 <div id="labelsPrint" aria-hidden="true"></div>
 <div class="modal-back" id="cloudModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cloudTitle"></div></div>
 <div class="modal-back" id="ngModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="ngTitle"></div></div>
+<div class="modal-back" id="respModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="respModalTitle"></div></div>
 <div class="modal-back" id="editModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle"></div></div>
 <div class="modal-back" id="grpModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="grpModalTitle"></div></div>
 <div class="modal-back" id="catModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="catModalTitle"></div></div>
@@ -379,7 +385,7 @@ function defaultState() {
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
     aliasText: '', autoAliases: true, version: 9,
-    decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, edits: {}, addrPick: {}, remarks: {}, importDone: true,
+    decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, edits: {}, addrPick: {}, remarks: {}, coAdjust: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
@@ -586,7 +592,7 @@ function recompute() {
     for (const a of st.aliases || []) aliases.set(WB.fold(a), k);
     codeNames[k] = st.name || '';
   }
-  const { people, review } = WB.buildPeople(entries, { cats, order: S.order, aliases, codeNames, decisions: S.decisions, overrides: S.overrides, addrPick: S.addrPick || {} });
+  const { people, review } = WB.buildPeople(entries, { cats, order: S.order, aliases, codeNames, decisions: S.decisions, overrides: S.overrides, addrPick: S.addrPick || {}, coAdjust: S.coAdjust || {} });
   const byOwner = new Map(), coByOwner = new Map(), hiddenByOwner = new Map();
   for (const p of people) {
     p.done = S.done[p.key] !== undefined ? S.done[p.key] : !!p.doneFromFile; // „Erledigt" aus Excel wird immer übernommen
@@ -755,7 +761,8 @@ function membershipChips(p, highlightPrimary = true) {
   return p.memberships.map((m, i) => `<button class="chip cat ${highlightPrimary && i === 0 && m.catId === p.primaryCatId ? 'prim' : ''}" data-pgroup="${esc(p.key)}" title="${esc(m.source + (m.roles ? ' · ' + m.roles : '') + ' · zuständig: ' + (m.owner || 'offen') + '\nKlicken: Untergruppe zuweisen')}">${m.origin === 'db' ? '● ' : m.origin === 'manual' ? '<span title="von Hand erfasst">✎ </span>' : ''}${esc(m.cat)}${m.group && m.group !== m.cat ? ' › ' + esc(m.group) : ''}</button>`).join('');
 }
 function coChips(p) {
-  return p.coSigners.length ? p.coSigners.map(c => `<span class="chip co" title="${esc(c.via.join('\n'))}">✍ ${esc(c.owner)}${R.aliases.codeNames[c.owner] && R.aliases.codeNames[c.owner] !== c.owner ? ' · ' + esc(R.aliases.codeNames[c.owner].split(' ')[0]) : ''}</span>`).join('') : '<span class="muted small">–</span>';
+  if (!p.coSigners.length) return `<button class="btn small ghost resp" data-resp="${esc(p.key)}" title="Hauptzuständigkeit festlegen und weitere Personen mitunterschreiben lassen">Zuständigkeit anpassen</button>`;
+  return p.coSigners.map(c => `<button class="chip co" data-resp="${esc(p.key)}" title="${esc(c.via.join('\n') + '\n– klicken: Zuständigkeit anpassen')}">✍ ${esc(c.owner)}${R.aliases.codeNames[c.owner] && R.aliases.codeNames[c.owner] !== c.owner ? ' · ' + esc(R.aliases.codeNames[c.owner].split(' ')[0]) : ''}</button>`).join('');
 }
 function notesHtml(p) { return p.notes.map(n => `<span class="note ${/fehlt|keine|unvollständig|selbst – bitte|wählen/i.test(n) ? 'bad' : ''}">⚠ ${esc(n)}</span>`).join(''); }
 function ownerSelect(p) {
@@ -1167,7 +1174,7 @@ function printLabels() {
 const M365_DEFAULTS = { tenantId: '29537223-9280-4035-b685-49ec81dd6aea', clientId: 'fad64339-d256-4c02-9ab5-38894757993a', siteUrl: 'https://cevischweiz.sharepoint.com/sites/VSGS' };
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
-const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'deleted', 'edits', 'addrPick', 'remarks', 'importDone', 'notes', 'ignoredSugg', 'version'];
+const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'deleted', 'edits', 'addrPick', 'remarks', 'coAdjust', 'importDone', 'notes', 'ignoredSugg', 'version'];
 const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh', 'layerId', 'knownGroups', 'pendingGroups', 'ignoredGroups', 'detachedGroups'];
 const J = WB.J;
 /** Was alle teilen (ohne Ansicht, ohne API-Key, ohne Microsoft-Einstellungen) */
@@ -1470,6 +1477,69 @@ function saveCatDialog() {
   toast(added.length || removed.length ? `${key}: ${[added.length ? '+ ' + added.join(', ') : '', removed.length ? '− ' + removed.join(', ') : ''].filter(Boolean).join(' · ')}` : `${key}: keine Kategorien geändert`);
 }
 
+// ---------------------------------------------------------------- Zuständigkeit einer Person anpassen (wer versendet, wer unterschreibt mit)
+let RM = null; // { key }
+function openRespDialog(key) {
+  const p = R.people.find(x => x.key === key); if (!p) return;
+  RM = { key };
+  const co = new Map(p.coSigners.map(c => [c.owner, c.via]));
+  const main = p.overridden ? p.owner : '';
+  const first = [p.owner, ...p.coSigners.map(c => c.owner), ...p.ownerOptions].filter(Boolean);
+  const list = [...new Set([...first, ...allOwners()])].filter(o => o !== p.displayName);
+  const why = (o) => co.has(o) ? co.get(o).join(' · ') : p.ownerOptions.includes(o) ? 'aus den Listen' : '';
+  const rows = list.map(o => `<tr class="${o === p.owner ? 'is-main' : ''}">
+      <td>${ownerHtml(o)}</td>
+      <td style="text-align:center"><input type="radio" name="rmain" value="${esc(o)}" ${o === main ? 'checked' : ''} title="Versendet den Brief"></td>
+      <td style="text-align:center"><input type="checkbox" data-rco="${esc(o)}" ${co.has(o) ? 'checked' : ''} ${o === p.owner ? 'disabled' : ''} title="Unterschreibt mit"></td>
+      <td class="small muted">${o === p.owner && !p.overridden ? 'automatisch' : esc(why(o))}</td></tr>`).join('');
+  const m = $('#respModal');
+  m.querySelector('.modal').innerHTML = `
+    <div class="hd"><h3 id="respModalTitle">Zuständigkeit – ${esc(p.displayName)}</h3><div class="small muted">${esc(p.memberships.map(listLabel).join(' · '))}</div></div>
+    <div class="bd">
+      <label class="chk-row" style="padding:6px 0"><input type="radio" name="rmain" value="" ${!main ? 'checked' : ''}><span class="nm"><b>Automatisch</b> <span class="small muted">– versendet: ${esc(ownerName(p.suggested || ''))} (aus Kategorie/Untergruppe)</span></span></label>
+      <div class="tablewrap" style="max-height:52vh"><table class="resptab"><thead><tr><th>Person</th><th>★ versendet</th><th>✍ unterschreibt mit</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="small muted" style="margin-top:8px">★ = Hauptzuständigkeit (fest, auch nach neuen Importen). ✍ = unterschreibt zusätzlich. Wer automatisch mitunterschreibt (andere Kategorien), lässt sich hier auch entfernen.</div>
+    </div>
+    <div class="ft"><button class="btn ghost" data-action="rm-close">Abbrechen</button><button class="btn primary" data-action="rm-save">Speichern</button></div>`;
+  m.hidden = false;
+  RM.prevMain = p.owner;
+}
+function closeRespDialog() { $('#respModal').hidden = true; RM = null; }
+/** Wechsel der Hauptzuständigkeit im Dialog: neue*r Versender*in kann nicht mitunterschreiben, bisherige*r unterschreibt (vorgeschlagen) mit */
+function respMainChanged() {
+  if (!RM) return;
+  const p = R.people.find(x => x.key === RM.key); if (!p) return;
+  const sel = (document.querySelector('#respModal input[name="rmain"]:checked') || {}).value || '';
+  const main = sel || p.suggested || '';
+  for (const box of document.querySelectorAll('#respModal [data-rco]')) {
+    const o = box.dataset.rco;
+    if (o === main) { box.checked = false; box.disabled = true; }
+    else { if (box.disabled && o === RM.prevMain) box.checked = true; box.disabled = false; }
+  }
+  RM.prevMain = main;
+}
+function saveRespDialog() {
+  if (!RM) return closeRespDialog();
+  const key = RM.key;
+  const sel = (document.querySelector('#respModal input[name="rmain"]:checked') || {}).value || '';
+  const want = new Set([...document.querySelectorAll('#respModal [data-rco]')].filter(b => b.checked && !b.disabled).map(b => b.dataset.rco));
+  closeRespDialog();
+  if (sel) S.overrides[key] = sel; else delete S.overrides[key];
+  S.coAdjust = S.coAdjust || {};
+  delete S.coAdjust[key];
+  recompute();
+  const np = R.people.find(x => x.key === key);
+  if (np) {
+    want.delete(np.owner);
+    const auto = new Set(np.coAuto);
+    const add = [...want].filter(o => !auto.has(o)), remove = [...auto].filter(o => !want.has(o));
+    if (add.length || remove.length) S.coAdjust[key] = { add, remove };
+  }
+  save(); render();
+  const p = R.people.find(x => x.key === key);
+  if (p) toast(`${p.displayName}: versendet ${ownerName(p.owner)}${p.coSigners.length ? ' · unterschreiben mit: ' + p.coSigners.map(c => c.owner).join(', ') : ''}`);
+}
+
 // ---------------------------------------------------------------- Person bearbeiten (alles, was nicht aus der Cevi DB kommt)
 const EDIT_FIELDS = [['org', 'Organisation', 'w2'], ['first', 'Vorname'], ['last', 'Nachname'], ['careOf', 'Adresszusatz (z.Hd., c/o, Gebäude …)', 'w2'], ['street', 'Strasse', 'w2'], ['nr', 'Nr.', 'wnr'], ['zip', 'PLZ', 'wnr'], ['town', 'Ort'], ['country', 'Land (nur Ausland)'], ['email', 'E-Mail', 'w2']];
 let EM = null; // { key, uids }
@@ -1496,7 +1566,7 @@ function closeEditDialog() { $('#editModal').hidden = true; EM = null; }
 function moveKeyAfterEdit(oldKey, uid) {
   recompute();
   const np = R.people.find(x => x.entryUids.includes(uid)); if (!np || np.key === oldKey) return;
-  for (const store of [S.done, S.hidden, S.overrides, S.addrPick]) if (store && store[oldKey] !== undefined && store[np.key] === undefined) { store[np.key] = store[oldKey]; delete store[oldKey]; }
+  for (const store of [S.done, S.hidden, S.overrides, S.addrPick, S.coAdjust]) if (store && store[oldKey] !== undefined && store[np.key] === undefined) { store[np.key] = store[oldKey]; delete store[oldKey]; }
 }
 function saveEditDialog(reset) {
   if (!EM) return closeEditDialog();
@@ -2687,7 +2757,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-kpi],[data-addr-pick],[data-addr-reset],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-kpi],[data-resp],[data-addr-pick],[data-addr-reset],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -2725,6 +2795,7 @@ document.addEventListener('click', (ev) => {
     setGrp(c, gk, name, []); c.groups[gk].manual = true; S.ui.subsOpen = { ...(S.ui.subsOpen || {}), [c.id]: true }; save(); render(); return;
   }
   if (t.dataset.kpi) { kpiGo(t.dataset.kpi); return; }
+  if (t.dataset.resp) { openRespDialog(t.dataset.resp); return; }
   if (t.dataset.delPerson) { deletePerson(t.dataset.delPerson); return; }
   if (t.dataset.editPerson) { openEditDialog(t.dataset.editPerson); return; }
   if (t.dataset.hide) {
@@ -2854,6 +2925,8 @@ document.addEventListener('click', (ev) => {
   else if (a === 'modal-save') saveCatDialog();
   else if (a === 'gm-save') saveGroupDialog();
   else if (a === 'em-save') saveEditDialog(false);
+  else if (a === 'rm-save') saveRespDialog();
+  else if (a === 'rm-close') closeRespDialog();
   else if (a === 'em-reset') { if (confirm('Eigene Anpassungen verwerfen und wieder die Angaben aus der Liste verwenden?')) saveEditDialog(true); }
   else if (a === 'em-close') closeEditDialog();
   else if (a === 'deleted-restore') { ev.preventDefault(); const n = Object.keys(S.deleted || {}).length; if (n && confirm(`${n} gelöschte Adresse${n === 1 ? '' : 'n'} wiederherstellen?`)) { S.deleted = {}; save(); render(); toast(`${n} wiederhergestellt`); } }
@@ -2892,6 +2965,7 @@ document.addEventListener('click', (ev) => {
 });
 document.addEventListener('change', (ev) => {
   const t = ev.target;
+  if (t.name === 'rmain') { respMainChanged(); return; }
   if (t.dataset && t.dataset.gm !== undefined) { const inp = document.querySelector(`#grpModal [data-gm-new="${t.dataset.gm}"]`); if (inp) { inp.hidden = t.value !== '__new'; if (!inp.hidden) inp.focus(); } return; }
   if (t.dataset && t.dataset.mf !== undefined) {
     MF[t.dataset.mf] = t.value;
@@ -2981,6 +3055,11 @@ document.addEventListener('keydown', (ev) => {
   if (!$('#cloudModal').hidden && ev.key === 'Escape') { $('#cloudModal').hidden = true; return; }
   if (!$('#ngModal').hidden && ev.key === 'Escape') { NG_LATER = true; $('#ngModal').hidden = true; return; }
   if (!$('#labelModal').hidden && ev.key === 'Escape') { $('#labelModal').hidden = true; return; }
+  if (!$('#respModal').hidden) {
+    if (ev.key === 'Escape') { ev.preventDefault(); closeRespDialog(); }
+    if (ev.key === 'Enter' && !(ev.target && ev.target.tagName === 'BUTTON')) { ev.preventDefault(); saveRespDialog(); }
+    return;
+  }
   if (!$('#editModal').hidden) {
     if (ev.key === 'Escape') { ev.preventDefault(); closeEditDialog(); }
     if (ev.key === 'Enter' && ev.target && ev.target.tagName === 'INPUT') { ev.preventDefault(); saveEditDialog(false); }

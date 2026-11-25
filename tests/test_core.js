@@ -84,6 +84,20 @@ assert.deepStrictEqual([orgs[0].org, orgs[0].street, orgs[0].nr, orgs[0].zip], [
 const mixed = [{ ...orgs[0], uid: 900, origin: 'db' }, { org: 'Cevi Region Test', first: 'z.Hd. Team', last: '', street: 'Testweg', nr: '9', zip: '3000', town: 'Bern', catId: 'mio', group: 'Regionalverbände', uid: 901, origin: 'excel' }];
 assert.strictEqual(WB.buildPeople(mixed, { cats, aliases: new Map(), codeNames: {} }).people.length, 1, 'gleiche Organisation + PLZ = ein Brief');
 
+// Mitunterschreibende von Hand anpassen (hinzufügen / entfernen)
+{
+  const two = [
+    { uid: 1, first: 'Dana', last: 'Muster', street: 'Weg', nr: '1', zip: '3000', town: 'Bern', catId: cats[0].id, owner: 'AAA', origin: 'excel' },
+    { uid: 2, first: 'Dana', last: 'Muster', street: 'Weg', nr: '1', zip: '3000', town: 'Bern', catId: cats[1].id, owner: 'BBB', origin: 'excel' },
+  ];
+  let p = WB.buildPeople(two, { cats, aliases: new Map(), codeNames: {} }).people[0];
+  const main = p.owner, other = main === 'AAA' ? 'BBB' : 'AAA';
+  assert.deepStrictEqual(p.coSigners.map(c => c.owner), [other]); assert.deepStrictEqual(p.coAuto, [other]);
+  p = WB.buildPeople(two, { cats, aliases: new Map(), codeNames: {}, coAdjust: { [p.key]: { add: ['CCC', main], remove: [other] } } }).people[0];
+  assert.deepStrictEqual(p.coSigners.map(c => c.owner), ['CCC'], 'entfernt + hinzugefügt, Hauptzuständige*r nie doppelt');
+  assert.strictEqual(p.coSigners[0].via[0], 'von Hand hinzugefügt'); assert.strictEqual(p.coAdjusted, true);
+}
+
 // Kursleitungen aus /api/event_participations (fiktive Antwort im JSON:API-Format)
 {
   const page = {

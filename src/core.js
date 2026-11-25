@@ -667,7 +667,8 @@
     const catById = Object.fromEntries(cats.map(c => [c.id, c]));
     const decisions = opts.decisions || {};
     const overrides = opts.overrides || {};
-    const addrPick = opts.addrPick || {}; // { personKey: addrKey } – von Hand gewählte Adresse bei mehreren Adressen
+    const addrPick = opts.addrPick || {};
+    const coAdjust = opts.coAdjust || {}; // { personKey: { add: [...], remove: [...] } } – Mitunterschreibende von Hand angepasst // { personKey: addrKey } – von Hand gewählte Adresse bei mehreren Adressen
     const codeNames = opts.codeNames || {};
     const catPersonCache = new Map();
     const catPersons = (catId) => {
@@ -803,6 +804,13 @@
         { const x = extraOwners(e); for (const o of x.list) addCo(o, label + (x.via === ' (Untergruppe)' ? ' (weitere Zuständige der Untergruppe)' : ' (weitere Zuständige der Kategorie)')); }
         if (e.extra) for (const part of splitOwners(e.extra)) addCo(aliasOf(part), 'Spalte „Zus. Unterschriften" (' + label + ')');
       }
+      const coAuto = coSigners.map(c => c.owner);
+      { const adj = coAdjust[pKey];
+        if (adj) {
+          const rm = new Set((adj.remove || []).map(aliasOf));
+          for (let i = coSigners.length - 1; i >= 0; i--) if (rm.has(coSigners[i].owner)) coSigners.splice(i, 1);
+          for (const o of adj.add || []) addCo(aliasOf(o), 'von Hand hinzugefügt');
+        } }
       // Mehrere verschiedene Adressen sind nicht gültig → eine muss gewählt werden (addrPick)
       const addrSet = new Map();
       for (const e of es) if (e.zip || e.street) { const k = addrKey(e); if (!addrSet.has(k)) addrSet.set(k, e); }
@@ -829,7 +837,7 @@
         addrConflict, addrPicked: !!picked,
         addrOptions: addrSet.size > 1 ? [...addrSet].map(([k, e]) => ({ key: k, careOf: e.careOf || '', street: e.street, nr: e.nr, zip: e.zip, town: e.town, country: e.country || '', origin: e.origin || 'excel', source: e.sourceLabel || '' })) : [],
         owner, overridden, suggested, candidates, primaryCatId: primary.catId, primaryCat: (catById[primary.catId] || {}).name || 'ohne Kategorie', primaryGroup: primary.group,
-        coSigners, memberships, notes,
+        coSigners, coAuto, coAdjusted: !!coAdjust[pKey], memberships, notes,
         mergeReasons: es.length > 1 ? [...(reasons.get(root) || [])] : [],
         isDuplicate: es.length > 1, doneFromFile: es.some(e => e.done),
         ownerOptions: [...new Set(es.map(effOwner).filter(Boolean))],

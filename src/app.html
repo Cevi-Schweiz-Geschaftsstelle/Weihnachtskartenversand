@@ -68,6 +68,12 @@ button.chip{border:0;font:inherit;font-size:12px;cursor:pointer}
 .addropt{border:1px solid #e2b4b4;background:#fff7f7;border-radius:8px;padding:4px 8px;font:inherit;font-size:12.5px;text-align:left;cursor:pointer;line-height:1.35}
 .addropt:hover{border-color:var(--accent);background:#f2f8f6}
 .addropt .dbdot{color:#2b5ea8}
+.remark{display:inline-block;margin-top:3px;padding:1px 7px;border-radius:6px;background:#fff6dd;color:#6b5512;font-size:12px;white-space:pre-wrap;max-width:100%}
+td.hidecol>div{line-height:1.6}
+.mform .wfull{flex:1 1 100%}
+.editgrid label.wfull{flex:1 1 100%}
+.editgrid textarea{padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;font:inherit;font-size:13.5px;color:var(--text);resize:vertical}
+.editgrid input:disabled{background:#f4f5f7;color:var(--muted)}
 .chip.edited{background:#eef0f3;color:var(--muted);font-weight:500;font-size:11px}
 .editgrid{display:flex;flex-wrap:wrap;gap:10px}
 .editgrid label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);flex:1 1 150px}
@@ -373,7 +379,7 @@ function defaultState() {
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
     aliasText: '', autoAliases: true, version: 9,
-    decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, edits: {}, addrPick: {}, importDone: true,
+    decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, edits: {}, addrPick: {}, remarks: {}, importDone: true,
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
@@ -561,7 +567,7 @@ function recompute() {
       const group = gs !== undefined ? gs : e.group;
       if (hidden(catId, group)) continue;
       if (!e.mid && S.deleted && S.deleted[gsKey]) continue; // in der Masterliste gelöscht (Kategorien mit Löschen erlaubt)
-      entries.push({ ...e, group, groupOrig: e.group, gsKey, baseId, catId, uid: ++n, sourceId: src.id,
+      entries.push({ ...e, group, groupOrig: e.group, gsKey, baseId, remark: (S.remarks && S.remarks[baseId]) || '', catId, uid: ++n, sourceId: src.id,
         sourceLabel: (src.kind === 'db' ? 'Cevi DB: ' : '') + src.label, origin: src.kind === 'db' ? 'db' : src.kind === 'manual' ? 'manual' : 'excel' });
     }
   }
@@ -591,7 +597,9 @@ function recompute() {
     byOwner.get(o).push(p);
     for (const c of p.coSigners) { if (!coByOwner.has(c.owner)) coByOwner.set(c.owner, []); coByOwner.get(c.owner).push({ p, via: c.via }); }
   }
-  R = { people, review, entries, byUid: new Map(entries.map(e => [e.uid, e])), aliases: { codeNames, labelToCode: Object.fromEntries(aliases), auto }, byOwner, coByOwner, hiddenByOwner, active: people.filter(p => !p.hidden) };
+  const byUid = new Map(entries.map(e => [e.uid, e]));
+  for (const p of people) p.remark = [...new Set(p.entryUids.map(u => (byUid.get(u) || {}).remark).filter(Boolean))].join(' · ');
+  R = { people, review, entries, byUid, aliases: { codeNames, labelToCode: Object.fromEntries(aliases), auto }, byOwner, coByOwner, hiddenByOwner, active: people.filter(p => !p.hidden) };
 }
 const catName = (id) => (S.cats.find(c => c.id === id) || {}).name || 'ohne Kategorie';
 function ownerName(o) { if (!o) return 'Ohne Zuständigkeit'; const n = R.aliases.codeNames[o]; return n ? n : o; }
@@ -765,12 +773,12 @@ function personRow(p, opts = {}) {
   return `<tr class="${p.done ? 'done' : ''} ${p.hidden ? 'hiddenrow' : ''}">
     <td class="chk"><input type="checkbox" data-done="${esc(p.key)}" ${p.done ? 'checked' : ''} title="Brief erledigt"></td>
     <td class="who"><div class="name"><button class="pname" data-pgroup="${esc(p.key)}" title="Untergruppe zuweisen">${esc(p.displayName)}</button>${personEntries(p).some(e => e.edited) ? ' <span class="chip edited" title="Von Hand angepasst (✎ bearbeiten)">angepasst</span>' : ''}${isNew(p) ? ' <span class="chip new" title="Bei der letzten Aktualisierung dazugekommen">neu</span>' : ''}${p.isDuplicate ? ` <span class="chip dup" title="${esc('In ' + p.entryUids.length + ' Einträgen gefunden – zusammengeführt (' + p.mergeReasons.join(', ') + ')')}">${p.entryUids.length}× gelistet</span>` : ''}${p.fromDb ? ' <span class="chip db" title="Daten aus der Cevi DB">Cevi DB</span>' : ''}</div>
-      ${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}${p.email ? `<div class="org">${esc(p.email)}</div>` : ''}${notesHtml(p)}</td>
+      ${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}${p.email ? `<div class="org">${esc(p.email)}</div>` : ''}${p.remark ? `<div class="remark" title="Bemerkung">📝 ${esc(p.remark)}</div>` : ''}${notesHtml(p)}</td>
     <td class="addr">${addrCell(p)}</td>
     <td class="cats">${membershipChips(p)}</td>
     ${opts.showOwner ? `<td class="own">${ownerSelect(p)}${p.overridden ? '<div class="small muted">manuell</div>' : ''}</td>` : ''}
     <td class="co">${coChips(p)}</td>
-    <td class="hidecol noprint">${!p.fromDb ? `<button class="lnk" data-edit-person="${esc(p.key)}" title="Name, Adresse usw. anpassen">✎ bearbeiten</button><br>` : ''}${deletableEntries(p).length ? `<button class="lnk x" data-del-person="${esc(p.key)}" title="Aus ${esc([...new Set(deletableEntries(p).map(e => catName(e.catId)))].join(', '))} löschen">🗑 löschen</button><br>` : ''}${p.hidden ? `<button class="lnk" data-hide="${esc(p.key)}" title="Wieder für den Versand berücksichtigen">↺ einblenden</button><div class="small muted">kein Versand</div>` : `<button class="lnk x" data-hide="${esc(p.key)}" title="Für den Versand nicht berücksichtigen – keine Etikette, kein Export">✕ ausblenden</button>`}</td>
+    <td class="hidecol noprint">${p.hidden ? `<div><button class="lnk" data-hide="${esc(p.key)}" title="Wieder für den Versand berücksichtigen">↺ einblenden</button></div><div class="small muted">kein Versand</div>` : `<div><button class="lnk x" data-hide="${esc(p.key)}" title="Für den Versand nicht berücksichtigen – keine Etikette, kein Export">✕ ausblenden</button></div>`}<div><button class="lnk" data-edit-person="${esc(p.key)}" title="${p.fromDb ? 'Bemerkung festhalten (Name und Adresse kommen aus der Cevi DB)' : 'Name, Adresse, Bemerkung usw. anpassen'}">✎ bearbeiten</button></div>${deletableEntries(p).length ? `<div><button class="lnk x" data-del-person="${esc(p.key)}" title="Aus ${esc([...new Set(deletableEntries(p).map(e => catName(e.catId)))].join(', '))} löschen">🗑 löschen</button></div>` : ''}</td>
   </tr>`;
 }
 
@@ -852,7 +860,7 @@ function filteredPeople() {
     if (f.only === 'notes' && !p.notes.length) return false;
     if (f.only === 'hidden' && !p.hidden) return false;
     if (q) {
-      const hay = WB.fold([p.displayName, p.org, p.email, p.street, p.zip, p.town, ...p.memberships.map(m => m.cat + ' ' + m.group)].join(' '));
+      const hay = WB.fold([p.displayName, p.org, p.email, p.street, p.zip, p.town, p.remark, ...p.memberships.map(m => m.cat + ' ' + m.group)].join(' '));
       if (!q.split(/\s+/).every(w => hay.includes(w))) return false;
     }
     return true;
@@ -1159,7 +1167,7 @@ function printLabels() {
 const M365_DEFAULTS = { tenantId: '29537223-9280-4035-b685-49ec81dd6aea', clientId: 'fad64339-d256-4c02-9ab5-38894757993a', siteUrl: 'https://cevischweiz.sharepoint.com/sites/VSGS' };
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['User.Read', 'Sites.ReadWrite.All'];
-const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'deleted', 'edits', 'addrPick', 'importDone', 'notes', 'ignoredSugg', 'version'];
+const SHARED_KEYS = ['sources', 'cats', 'order', 'staff', 'overrides', 'decisions', 'done', 'hidden', 'groupSet', 'deleted', 'edits', 'addrPick', 'remarks', 'importDone', 'notes', 'ignoredSugg', 'version'];
 const DB_SHARED_KEYS = ['baseUrl', 'sources', 'groupFilter', 'groupExclude', 'rootGroup', 'lastRefresh', 'layerId', 'knownGroups', 'pendingGroups', 'ignoredGroups', 'detachedGroups'];
 const J = WB.J;
 /** Was alle teilen (ohne Ansicht, ohne API-Key, ohne Microsoft-Einstellungen) */
@@ -1466,17 +1474,22 @@ function saveCatDialog() {
 const EDIT_FIELDS = [['org', 'Organisation', 'w2'], ['first', 'Vorname'], ['last', 'Nachname'], ['careOf', 'Adresszusatz (z.Hd., c/o, Gebäude …)', 'w2'], ['street', 'Strasse', 'w2'], ['nr', 'Nr.', 'wnr'], ['zip', 'PLZ', 'wnr'], ['town', 'Ort'], ['country', 'Land (nur Ausland)'], ['email', 'E-Mail', 'w2']];
 let EM = null; // { key, uids }
 function openEditDialog(key) {
-  const p = R.people.find(x => x.key === key); if (!p || p.fromDb) return;
-  const es = personEntries(p).filter(e => e.origin !== 'db'); if (!es.length) return;
-  EM = { key, uids: es.map(e => e.uid) };
+  const p = R.people.find(x => x.key === key); if (!p) return;
+  const all = personEntries(p); if (!all.length) return;
+  // Name und Adresse aus der Cevi DB werden dort geändert – hier nur die Bemerkung
+  const ro = !!p.fromDb;
+  const es = ro ? [] : all.filter(e => e.origin !== 'db');
+  EM = { key, uids: es.map(e => e.uid), allUids: all.map(e => e.uid), ro };
   const m = $('#editModal');
   m.querySelector('.modal').innerHTML = `
     <div class="hd"><h3 id="editModalTitle">✎ ${esc(p.displayName)} bearbeiten</h3></div>
-    <div class="bd"><div class="editgrid">${EDIT_FIELDS.map(([k, l, cls]) => `<label class="${cls || ''}">${esc(l)}<input data-ef="${k}" value="${esc(p[k] || '')}" autocomplete="off"></label>`).join('')}</div>
-      <div class="small muted" style="margin-top:8px">Gilt für ${es.length === 1 ? 'diesen Eintrag' : `alle ${es.length} Einträge dieser Person`} (${esc([...new Set(es.map(e => e.sourceLabel))].join(', '))}). Die Änderung bleibt auch nach einem neuen Import erhalten, solange die Zeile in der Liste gleich bleibt.</div></div>
+    <div class="bd">${ro ? '<div class="callout" style="margin-bottom:10px">Name und Adresse kommen aus der <b>Cevi DB</b> und werden dort geändert. Hier kannst du eine Bemerkung festhalten.</div>' : ''}
+      <div class="editgrid">${EDIT_FIELDS.map(([k, l, cls]) => `<label class="${cls || ''}">${esc(l)}<input data-ef="${k}" value="${esc(p[k] || '')}" autocomplete="off" ${ro ? 'disabled' : ''}></label>`).join('')}
+        <label class="wfull">Bemerkungen <span style="font-weight:400">(nur intern, kommt nicht auf die Etikette)</span><textarea data-ef-remark rows="2" placeholder="z.B. „Karte persönlich übergeben“, „neue Adresse ab Januar“ …">${esc(p.remark || '')}</textarea></label></div>
+      ${ro ? '' : `<div class="small muted" style="margin-top:8px">Gilt für ${es.length === 1 ? 'diesen Eintrag' : `alle ${es.length} Einträge dieser Person`} (${esc([...new Set(es.map(e => e.sourceLabel))].join(', '))}). Die Änderung bleibt auch nach einem neuen Import erhalten, solange die Zeile in der Liste gleich bleibt.</div>`}</div>
     <div class="ft">${es.some(e => e.edited) ? '<button class="btn ghost" data-action="em-reset" title="Eigene Anpassungen verwerfen und wieder die Angaben aus der Liste verwenden" style="margin-right:auto">↺ Original aus der Liste</button>' : ''}<button class="btn ghost" data-action="em-close">Abbrechen</button><button class="btn primary" data-action="em-save">Speichern</button></div>`;
   m.hidden = false;
-  const f = m.querySelector('[data-ef="first"]') || m.querySelector('input'); if (f) f.focus();
+  const f = ro ? m.querySelector('[data-ef-remark]') : (m.querySelector('[data-ef="first"]') || m.querySelector('input')); if (f) f.focus();
 }
 function closeEditDialog() { $('#editModal').hidden = true; EM = null; }
 /** Gespeicherte Häkchen/Ausblenden/Zuständigkeit hängen am Personen-Schlüssel → nach einer Namensänderung mitnehmen */
@@ -1488,7 +1501,15 @@ function moveKeyAfterEdit(oldKey, uid) {
 function saveEditDialog(reset) {
   if (!EM) return closeEditDialog();
   const es = EM.uids.map(u => R.byUid.get(u)).filter(Boolean);
+  const all = (EM.allUids || EM.uids).map(u => R.byUid.get(u)).filter(Boolean);
   const vals = {};
+  // Bemerkung: gilt für alle Einträge der Person (auch aus der Cevi DB)
+  if (!reset) {
+    const remark = String((document.querySelector('#editModal [data-ef-remark]') || {}).value || '').trim();
+    S.remarks = S.remarks || {};
+    for (const e of all) { if (remark) S.remarks[e.baseId] = remark; else delete S.remarks[e.baseId]; }
+  }
+  if (EM.ro) { const who = (R.people.find(x => x.key === EM.key) || {}).displayName || ''; closeEditDialog(); save(); render(); toast(`${who}: Bemerkung gespeichert`); return; }
   if (!reset) {
     for (const [k] of EDIT_FIELDS) vals[k] = String((document.querySelector(`#editModal [data-ef="${k}"]`) || {}).value || '').trim();
     vals.email = vals.email.toLowerCase();
@@ -1688,7 +1709,7 @@ function listsView() {
 }
 
 // ---------------------------------------------------------------- Empfänger*innen von Hand erfassen
-const MF = { org: '', first: '', last: '', street: '', zip: '', town: '', cat: '', catNew: '', sub: '', subNew: '', owner: '', listOpen: false };
+const MF = { org: '', first: '', last: '', street: '', zip: '', town: '', remark: '', cat: '', catNew: '', sub: '', subNew: '', owner: '', listOpen: false };
 const manualEntries = () => (S.sources.find(x => x.id === 'manual') || { entries: [] }).entries;
 function manualSource() {
   let s = S.sources.find(x => x.id === 'manual');
@@ -1712,6 +1733,9 @@ function manualPanel() {
         <input data-mf="street" placeholder="Strasse und Nr." value="${esc(MF.street)}" class="w2" autocomplete="off">
         <input data-mf="zip" placeholder="PLZ" value="${esc(MF.zip)}" class="wzip" inputmode="numeric" autocomplete="off">
         <input data-mf="town" placeholder="Ort" value="${esc(MF.town)}" autocomplete="off">
+      </div>
+      <div class="mform" style="margin-top:8px">
+        <input data-mf="remark" placeholder="Bemerkungen (optional, nur intern – kommt nicht auf die Etikette)" value="${esc(MF.remark)}" class="wfull" autocomplete="off">
       </div>
       <div class="mform" style="margin-top:8px">
         <select data-mf="cat" title="Kategorie">${catOpts}</select>
@@ -1747,11 +1771,13 @@ function manualAdd() {
   } else if (MF.sub) { const g = subgroupsOf(c).find(x => x.gk === MF.sub); group = g ? g.name : ''; }
   let street = v('street'), nr = ''; const m = street.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/); if (m) { street = m[1].trim(); nr = m[2]; }
   const src = manualSource();
-  src.entries.push({ mid: uid(), org: v('org'), first: v('first'), last: v('last'), nick: '', email: '', street, nr, careOf: '', zip: v('zip'), town: v('town'), country: '',
-    owner: MF.owner, fixedOwner: true, extra: '', done: false, group, catId: c.id, rowNo: src.entries.length + 1, createdAt: new Date().toISOString() });
+  const ne = { mid: uid(), org: v('org'), first: v('first'), last: v('last'), nick: '', email: '', street, nr, careOf: '', zip: v('zip'), town: v('town'), country: '',
+    owner: MF.owner, fixedOwner: true, extra: '', done: false, group, catId: c.id, rowNo: src.entries.length + 1, createdAt: new Date().toISOString() };
+  src.entries.push(ne);
+  if (v('remark')) { S.remarks = S.remarks || {}; S.remarks[WB.identity(ne)] = v('remark'); }
   const who = [v('first'), v('last')].filter(Boolean).join(' ') || v('org');
   // Kategorie, Untergruppe und Zuständig bleiben für die nächste Person stehen
-  Object.assign(MF, { org: '', first: '', last: '', street: '', zip: '', town: '', catNew: '', subNew: '', cat: c.id, sub: group ? WB.groupKey(c.name, group) : '' });
+  Object.assign(MF, { org: '', first: '', last: '', street: '', zip: '', town: '', remark: '', catNew: '', subNew: '', cat: c.id, sub: group ? WB.groupKey(c.name, group) : '' });
   save(); render();
   toast(`${who} angelegt – ${c.name}${group ? ' › ' + group : ''}, zuständig: ${ownerName(MF.owner)}`);
   const f = document.querySelector('[data-mf="org"]'); if (f) f.focus();
@@ -2567,7 +2593,7 @@ function rowFor(p) {
     'Versendet von': p.owner, 'Name Zuständige*r': R.aliases.codeNames[p.owner] || '', 'Organisation': p.org, 'Vorname': p.first, 'Nachname': p.last,
     'Adresszusatz': p.careOf, 'Strasse': p.street, 'Nr.': p.nr, 'PLZ': p.zip, 'Ort': p.town, 'Land': p.country || '', 'E-Mail': p.email,
     'Kategorie': p.primaryCat, 'Gruppe': p.primaryGroup, 'Alle Listen': p.memberships.map(m => m.cat + (m.group && m.group !== m.cat ? ' › ' + m.group : '') + ' (' + (m.owner || 'offen') + ')').join('; '),
-    'Zus. Unterschriften': p.coSigners.map(c => c.owner).join(', '), 'Mehrfach gelistet': p.isDuplicate ? 'ja' : '', 'Hinweise': p.notes.join('; '), 'Erledigt': p.done ? 'ja' : '',
+    'Zus. Unterschriften': p.coSigners.map(c => c.owner).join(', '), 'Mehrfach gelistet': p.isDuplicate ? 'ja' : '', 'Hinweise': p.notes.join('; '), 'Bemerkungen': p.remark || '', 'Erledigt': p.done ? 'ja' : '',
   };
 }
 function sheetFrom(rows, widths) {

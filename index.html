@@ -94,6 +94,7 @@ table.le-tab tr.le-addrow td{background:#f7f9fb;border-top:2px solid var(--line)
 table.le-tab td.le-act{white-space:nowrap;width:1%;padding:2px 6px}
 .le-tag{font-size:10.5px;color:var(--muted);margin-left:4px}
 tr.le-open td{background:#f4f7fb} tr.le-row>td{padding:0 10px 12px;background:#f4f7fb}
+.chip.fchip{background:#e8f2ef;color:var(--accent-ink);font-size:12.5px;padding:3px 6px 3px 10px}
 .chip.edited{background:#eef0f3;color:var(--muted);font-weight:500;font-size:11px}
 .editgrid{display:flex;flex-wrap:wrap;gap:10px}
 .editgrid label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);flex:1 1 150px}
@@ -1376,7 +1377,7 @@ function defaultState() {
     db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
-    ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', owner: '', only: '' }, assignFilter: 'open' },
+    ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', sub: '', owner: '', only: '' }, assignFilter: 'open' },
   };
 }
 let S = load();
@@ -1712,7 +1713,7 @@ function renderKpis() {
 function kpiGo(k) {
   if (k === 'dups') { S.ui.tab = 'assign'; S.ui.assignFilter = 'open'; }
   else if (k === 'noowner') { S.ui.tab = 'owners'; S.ui.owner = ''; }
-  else { S.ui.tab = 'owners'; S.ui.owner = '__all'; S.ui.filter = { q: '', cat: '', owner: '', only: k === 'done' ? 'open' : '' }; }
+  else { S.ui.tab = 'owners'; S.ui.owner = '__all'; S.ui.filter = { q: '', cat: '', sub: '', owner: '', only: k === 'done' ? 'open' : '' }; }
   save(); render();
   const el = document.querySelector(k === 'dups' ? '#sec-dups' : '#main');
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1853,10 +1854,43 @@ function ownersView() {
   </div>`;
 }
 
+/** Untergruppen der gewählten Kategorie, die in der Masterliste vorkommen (in der Reihenfolge des Reiters Kategorien) */
+function subFilterOptions(catId) {
+  const c = S.cats.find(x => x.id === catId); if (!c) return { list: [], direct: 0 };
+  const used = new Map(); let direct = 0;
+  for (const p of R.people) for (const m of p.memberships) if (m.catId === catId) {
+    const g = m.group && WB.key(m.group) !== WB.key(c.name) ? m.group : '';
+    if (!g) { direct++; continue; }
+    const gk = WB.groupKey(c.name, g); if (!gk) continue;
+    if (!used.has(gk)) used.set(gk, { gk, name: ((c.groups || {})[gk] || {}).name || g, n: 0, depth: ((c.groups || {})[gk] || {}).depth || 0 });
+    used.get(gk).n++;
+  }
+  const order = subgroupsOf(c).map(g => g.gk), pos = (gk) => { const i = order.indexOf(gk); return i < 0 ? 1e6 : i; };
+  return { list: [...used.values()].sort((a, b) => (pos(a.gk) - pos(b.gk)) || a.name.localeCompare(b.name, 'de')), direct };
+}
+function subFilterSelect(f) {
+  if (!f.cat) return '';
+  const { list, direct } = subFilterOptions(f.cat);
+  if (!list.length) return '';
+  return `<select id="fsub" title="Untergruppe der gewählten Kategorie"><option value="">Alle Untergruppen</option>${list.map(g => `<option value="${esc(g.gk)}" ${f.sub === g.gk ? 'selected' : ''}>${'\u00a0\u00a0'.repeat(g.depth)}${esc(g.name)} (${g.n})</option>`).join('')}${direct ? `<option value="__none" ${f.sub === '__none' ? 'selected' : ''}>– ohne Untergruppe – (${direct})</option>` : ''}</select>`;
+}
+/** gewählte Untergruppe inkl. ihrer Untergruppen (verschachtelte DB-Gruppen) */
+function subWithChildren(c, gk) {
+  const set = new Set([gk]); let grew = true;
+  while (grew) { grew = false; for (const [k, g] of Object.entries(c.groups || {})) if (g.parentGk && set.has(g.parentGk) && !set.has(k)) { set.add(k); grew = true; } }
+  return set;
+}
 function filteredPeople() {
   const f = S.ui.filter, q = WB.fold(f.q || '');
+  const fc = f.cat && f.sub ? S.cats.find(x => x.id === f.cat) : null;
+  const subs = fc && f.sub !== '__none' ? subWithChildren(fc, f.sub) : null;
   return R.people.filter(p => {
     if (f.cat && !p.memberships.some(m => m.catId === f.cat)) return false;
+    if (fc && !p.memberships.some(m => {
+      if (m.catId !== f.cat) return false;
+      const g = m.group && WB.key(m.group) !== WB.key(fc.name) ? m.group : '';
+      return f.sub === '__none' ? !g : !!g && subs.has(WB.groupKey(fc.name, g));
+    })) return false;
     if (f.owner === '__none' && p.owner) return false;
     if (f.owner && f.owner !== '__none' && p.owner !== f.owner && !p.coSigners.some(c => c.owner === f.owner)) return false;
     if (f.only === 'dup' && !p.isDuplicate) return false;
@@ -1878,8 +1912,9 @@ function allView() {
     <div class="hd filters noprint">
       <input type="search" id="q" placeholder="Suchen (Name, Ort, Gruppe…)" value="${esc(f.q)}">
       <select id="fcat"><option value="">Alle Kategorien</option>${usedCats.map(id => `<option value="${id}" ${f.cat === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select>
+      ${subFilterSelect(f)}
       <select id="fowner"><option value="">Alle Zuständigen</option><option value="__none" ${f.owner === '__none' ? 'selected' : ''}>⚠ ohne Zuständigkeit</option>${allOwners().map(o => `<option value="${esc(o)}" ${f.owner === o ? 'selected' : ''}>${esc(o)}${R.aliases.codeNames[o] && R.aliases.codeNames[o] !== o ? ' · ' + esc(R.aliases.codeNames[o]) : ''}</option>`).join('')}</select>
-      <select id="fonly"><option value="">Alle</option><option value="dup" ${f.only === 'dup' ? 'selected' : ''}>Nur mehrfach gelistete</option><option value="open" ${f.only === 'open' ? 'selected' : ''}>Nur nicht erledigte</option><option value="notes" ${f.only === 'notes' ? 'selected' : ''}>Nur mit Hinweisen ⚠</option><option value="hidden" ${f.only === 'hidden' ? 'selected' : ''}>Nur ausgeblendete</option></select>
+      ${f.only ? `<span class="chip fchip">${esc({ open: 'Nur nicht erledigte', dup: 'Nur mehrfach gelistete', notes: 'Nur mit Hinweisen', hidden: 'Nur ausgeblendete' }[f.only] || f.only)}<button class="lnk x" data-action="fonly-clear" title="Filter entfernen">✕</button></span>` : ''}
       <span class="muted small right">${Object.keys(S.deleted || {}).length ? `🗑 ${Object.keys(S.deleted).length} gelöscht · <a href="#" data-action="deleted-restore" title="Gelöschte Adressen aus Excel und Cevi DB wieder aufnehmen">wiederherstellen</a> · ` : ''}${list.length} von ${R.people.length}</span>
       <button class="btn small" data-action="export-all" title="Masterliste, ein Blatt pro zuständiger Person und die Duplikate als Excel herunterladen">⇩ Excel exportieren</button>
     </div>
@@ -4018,6 +4053,7 @@ document.addEventListener('click', (ev) => {
   else if (a === 'gm-save') saveGroupDialog();
   else if (a === 'em-save') saveEditDialog(false);
   else if (a === 'rm-save') saveRespDialog();
+  else if (a === 'fonly-clear') { S.ui.filter.only = ''; save(); render(); }
   else if (a === 'le-add') leAdd(t.dataset.src);
   else if (a === 'rm-close') closeRespDialog();
   else if (a === 'em-reset') { if (confirm('Eigene Anpassungen verwerfen und wieder die Angaben aus der Liste verwenden?')) saveEditDialog(true); }
@@ -4142,7 +4178,7 @@ document.addEventListener('change', (ev) => {
   if (t.id === 'dbToken') { if (S.db.rememberToken) S.db.token = t.value.trim(); sessionToken = t.value.trim(); save(); if (Cloud.key.state === 'none') render(); return; }
   if (t.id === 'keyConfirm') { KEYUI.ok = t.checked; render(); return; }
   if (t.id === 'dbRemember') { S.db.rememberToken = t.checked; S.db.token = t.checked ? sessionToken : ''; save(); return; }
-  if (t.id === 'fcat' || t.id === 'fowner' || t.id === 'fonly') { S.ui.filter[{ fcat: 'cat', fowner: 'owner', fonly: 'only' }[t.id]] = t.value; save(); render(); return; }
+  if (t.id === 'fcat' || t.id === 'fowner' || t.id === 'fsub') { S.ui.filter[{ fcat: 'cat', fowner: 'owner', fsub: 'sub' }[t.id]] = t.value; if (t.id === 'fcat') S.ui.filter.sub = ''; save(); render(); return; }
 });
 document.addEventListener('keydown', (ev) => {
   if (!$('#dataMenu').hidden && ev.key === 'Escape') { setDataMenu(false); $('#btnMenu').focus(); return; }

@@ -13,7 +13,7 @@ Oben stehen vier Kacheln, die sich anklicken lassen:
 - **Briefe (eindeutige Empfänger)** öffnet die Masterliste mit allen Briefen.
 - **mögliche Duplikate prüfen** (inkl. Personen mit mehreren Adressen) öffnet den Reiter Unvollständig beim Abschnitt mit den Duplikaten.
 - **ohne Zuständigkeit** öffnet die Liste „⚠ Ohne Zuständigkeit“, wo man die Zuständigkeit direkt wählen kann.
-- **erledigt** öffnet die Masterliste mit dem Filter „Nur nicht erledigte“.
+- **erledigt** öffnet die Masterliste mit dem Filter „Nur nicht erledigte“ (oben als Kärtchen, mit ✕ wieder weg).
 
 1. **Zuständigkeit:** Hier werden die zuständigen Personen erfasst.
    - Vorname und Nachname eintragen. Das **Kürzel entsteht automatisch** aus dem 1. Buchstaben des Vornamens und dem 1. und 2. Buchstaben des Nachnamens (z.B. Anna Beispiel → ABE). Ist es schon vergeben, nimmt das Tool die nächste Variante. Von Hand überschreiben ist möglich.
@@ -61,7 +61,7 @@ Oben stehen vier Kacheln, die sich anklicken lassen:
    - **Mehrfach gelistet:** Für Personen in mehreren Listen wählt man per Klick die Hauptverantwortung. Die anderen unterschreiben automatisch mit.
    - **Automatisch zusammengeführt** (aufklappbar): Alle Personen, die das Tool selbst zusammengeführt hat. Bei einem Fehler „Trennen".
 5. **Pro Zuständige\*r:** Jede Person sieht ihre Briefe und wo sie mitunterschreibt. Hier gibt es Erledigt-Häkchen, Drucken und den Export.
-   - **Adresse ausblenden:** Hinten in jeder Zeile (in der Masterliste und bei jeder Person) steht „✕ ausblenden“. Eine ausgeblendete Adresse wird nicht verschickt: kein Brief, keine Etikette, kein Export, keine offene Entscheidung. Sie bleibt grau in der Masterliste (Filter „Nur ausgeblendete“) und bei der Person unter „Ausgeblendet“ und lässt sich mit „↺ einblenden“ zurückholen. Das gilt auch nach neuen Importen – z.B. wenn zu viele Adressen importiert wurden.
+   - **Adresse ausblenden:** Hinten in jeder Zeile (in der Masterliste und bei jeder Person) steht „✕ ausblenden“. Eine ausgeblendete Adresse wird nicht verschickt: kein Brief, keine Etikette, kein Export, keine offene Entscheidung. Sie bleibt grau in der Masterliste und bei der Person unter „Ausgeblendet“ und lässt sich mit „↺ einblenden“ zurückholen. Das gilt auch nach neuen Importen – z.B. wenn zu viele Adressen importiert wurden.
    - **Zuständigkeit anpassen (Spalte „Unterschreiben auch“):** Steht dort niemand, gibt es den Knopf „Zuständigkeit anpassen“; stehen Personen dort (✍ …), genügt ein Klick auf einen Namen. Im Fenster:
      - **★ versendet:** Hauptzuständigkeit festlegen (gilt fest, auch nach neuen Importen) oder „Automatisch“ (aus Kategorie/Untergruppe). Wechselt die Hauptzuständigkeit, wird die bisherige Person als Mitunterschreibende vorgeschlagen.
      - **✍ unterschreibt mit:** weitere Personen hinzufügen oder automatisch Mitunterschreibende (aus anderen Kategorien) entfernen.
@@ -71,7 +71,7 @@ Oben stehen vier Kacheln, die sich anklicken lassen:
      - Bemerkungen erscheinen gelb unter dem Namen („📝 …“), sind in der Suche der Masterliste auffindbar und stehen im Excel-Export in der Spalte „Bemerkungen“ – auf die Etikette kommen sie nicht.
    - **Löschen (🗑):** In den Kategorien **Diverse, Alpenblick, MIO und Internationale Partner** dürfen Adressen gelöscht werden. Hinten in der Zeile steht dort „🗑 löschen“, auch bei Adressen aus Excel oder der Cevi DB. Von Hand erfasste Personen lassen sich überall löschen. Steht jemand zusätzlich in einer anderen Kategorie, bleibt die Person dort (das Tool sagt es vor dem Löschen). Gelöschte Adressen kommen auch bei einem neuen Import nicht zurück. Oben in der Masterliste steht „🗑 N gelöscht · wiederherstellen“.
    - **Untergruppe zuweisen:** Ein Klick auf den Namen einer Person (oder auf ihre Kategorie unter „Gefunden in“) öffnet ein kleines Fenster. Dort lässt sich pro Kategorie die Untergruppe wählen, „keine Untergruppe“ setzen oder direkt eine **neue Untergruppe** anlegen. Danach richtet sich die Zuständigkeit nach der Untergruppe (sonst nach der Kategorie). Das funktioniert für alle Personen: aus Excel, aus der Cevi DB und von Hand erfasst. Die Wahl bleibt auch nach einem neuen Import erhalten. Wählt man wieder die Gruppe aus der Liste, gilt wieder die Liste.
-   - Ganz oben in der Liste links steht **📋 Masterliste**: alle Empfänger\*innen mit Suche, Filtern und dem Gesamt-Export (früher ein eigener Reiter).
+   - Ganz oben in der Liste links steht **📋 Masterliste**: alle Empfänger\*innen mit Suche, Filtern und dem Gesamt-Export (früher ein eigener Reiter). Filter: Kategorie, **Untergruppe** (erscheint nur, wenn die gewählte Kategorie Untergruppen hat; eine Obergruppe schliesst ihre Untergruppen ein, „– ohne Untergruppe –“ zeigt die direkt in der Kategorie) und Zuständige.
    - **🏷 Etiketten:** Alle Adressen der gewählten Person auf A4-Etikettenbögen drucken.
      - Bögen: Avery Zweckform 3475, 3474, 3422, L7160, L7163 oder eigene Masse.
      - Sortiert nach Name oder PLZ, optional nur nicht erledigte.

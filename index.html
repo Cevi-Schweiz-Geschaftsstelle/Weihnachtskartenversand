@@ -79,6 +79,21 @@ td.co button.chip{display:inline-flex;margin-bottom:3px}
 #respModal .modal{width:min(640px,100%)}
 table.resptab td{padding:5px 8px;vertical-align:middle} table.resptab th{padding:5px 8px}
 table.resptab tr.is-main td{background:#f2f8f6}
+.listcol .le{padding:10px 4px 6px}
+.le-hd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.le-hd input{margin-left:auto;padding:5px 9px;border:1px solid var(--line);border-radius:7px;min-width:220px}
+.le-wrap{max-height:60vh;border:1px solid var(--line2);border-radius:8px}
+table.le-tab{font-size:12.5px;table-layout:fixed;min-width:1080px}
+table.le-tab th{padding:5px 4px;font-size:11.5px}
+table.le-tab td{padding:2px 2px;border-bottom:1px solid var(--line2)}
+table.le-tab input{width:100%;min-width:0;text-overflow:ellipsis;border:1px solid transparent;border-radius:5px;padding:4px 5px;background:transparent;font:inherit}
+table.le-tab input:hover{border-color:var(--line)} table.le-tab input:focus{border-color:var(--accent);background:#fff;outline:0}
+table.le-tab tr.le-del input{text-decoration:line-through;color:var(--soft)}
+table.le-tab tr.le-added td{background:#f2faf5} table.le-tab tr.le-edited td{background:#fffbea}
+table.le-tab tr.le-addrow td{background:#f7f9fb;border-top:2px solid var(--line)} table.le-tab tr.le-addrow input{border-color:var(--line);background:#fff}
+table.le-tab td.le-act{white-space:nowrap;width:1%;padding:2px 6px}
+.le-tag{font-size:10.5px;color:var(--muted);margin-left:4px}
+tr.le-open td{background:#f4f7fb} tr.le-row>td{padding:0 10px 12px;background:#f4f7fb}
 .chip.edited{background:#eef0f3;color:var(--muted);font-weight:500;font-size:11px}
 .editgrid{display:flex;flex-wrap:wrap;gap:10px}
 .editgrid label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);flex:1 1 150px}
@@ -101,7 +116,7 @@ button.pname:hover{color:var(--accent);text-decoration:underline}
 .sdet{padding:0 0 6px 14px}
 .sedit{display:flex;gap:10px;flex-wrap:wrap}
 .sedit label{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--muted)}
-.sedit input.cell{border-color:var(--line);background:#fff;min-width:140px} .staffcol{max-width:1180px} .listcol{max-width:1180px}
+.sedit input.cell{border-color:var(--line);background:#fff;min-width:140px} .staffcol{max-width:1180px} .listcol{max-width:1400px}
 .grid2.resp{grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr)}
 .grid2.resp.wl{grid-template-columns:minmax(0,1.65fr) minmax(300px,1fr)}
 @media (max-width:1100px){.grid2,.grid2.resp.wl{grid-template-columns:1fr}}
@@ -1536,6 +1551,8 @@ function recompute() {
   for (const src of S.sources) {
     if (src.enabled === false) continue;
     for (const e0 of src.entries) {
+      const list = e0.listId ? S.sources.find(x => x.id === e0.listId) : null;
+      if (list && list.enabled === false) continue; // im Tool ergänzte Zeile einer ausgeschalteten Liste
       const catId = src.perRow ? (e0.catId || src.catId) : src.catId;
       // von Hand korrigierte Angaben (✎ bearbeiten) – nur für Einträge, die nicht aus der Cevi DB kommen
       const baseId = WB.identity(e0), ed = src.kind !== 'db' && S.edits && S.edits[baseId];
@@ -1546,7 +1563,7 @@ function recompute() {
       if (hidden(catId, group)) continue;
       if (!e.mid && S.deleted && S.deleted[gsKey]) continue; // in der Masterliste gelöscht (Kategorien mit Löschen erlaubt)
       entries.push({ ...e, group, groupOrig: e.group, gsKey, baseId, remark: (S.remarks && S.remarks[baseId]) || '', catId, uid: ++n, sourceId: src.id,
-        sourceLabel: (src.kind === 'db' ? 'Cevi DB: ' : '') + src.label, origin: src.kind === 'db' ? 'db' : src.kind === 'manual' ? 'manual' : 'excel' });
+        sourceLabel: list ? list.label + ' (im Tool ergänzt)' : (src.kind === 'db' ? 'Cevi DB: ' : '') + src.label, origin: src.kind === 'db' ? 'db' : src.kind === 'manual' ? 'manual' : 'excel' });
     }
   }
   const cats = S.cats;
@@ -1640,6 +1657,14 @@ function allOwners() {
 
 // ---------------------------------------------------------------- Rendering
 let rendering = false, renderAgain = false;
+/** Neu zeichnen und das Feld, in dem man gerade ist (z.B. nach Tab), wieder fokussieren */
+function renderKeepFocus() {
+  setTimeout(() => {
+    const a = document.activeElement, k = a && a.dataset && a.dataset.leKey, pos = a && typeof a.selectionStart === 'number' ? a.selectionStart : null;
+    render();
+    if (k) { const el = document.querySelector(`[data-le-key="${CSS.escape(k)}"]`); if (el) { el.focus(); if (pos !== null) try { el.setSelectionRange(pos, pos); } catch (e) { /* */ } } }
+  }, 0);
+}
 function render() {
   // Schutz: Beim Ersetzen des Inhalts kann ein Feld noch ein „change" auslösen → danach erneut zeichnen
   if (rendering) { renderAgain = true; return; }
@@ -2733,12 +2758,13 @@ function settingsView() {
 }
 
 function listsView() {
-  const srcRows = S.sources.map(s => `<tr>
+  const srcRows = S.sources.map(s => { const ex = listExtras(s); return `<tr class="${LE.open === s.id ? 'le-open' : ''}">
     <td><input type="checkbox" data-src-enable="${esc(s.id)}" ${s.enabled !== false ? 'checked' : ''} title="Liste verwenden"></td>
     <td><div class="name">${esc(s.label)}</div><div class="org">${s.kind === 'db' ? 'Cevi DB · Stand ' + fmtDate(s.importedAt) : esc(s.file)}</div>${s.enabled === false && s.disabledBy ? `<div class="small" style="color:var(--warn)">ausgeschaltet – ersetzt durch ${esc(s.disabledBy)}</div>` : ''}</td>
-    <td style="text-align:right">${s.entries.length}</td>
+    <td style="text-align:right;white-space:nowrap">${s.kind === 'manual' ? manualEntries().filter(m => !m.listId).length : s.entries.length}${ex.added ? `<div class="small" style="color:var(--ok)">+${ex.added} ergänzt</div>` : ''}${ex.deleted ? `<div class="small muted">−${ex.deleted} gelöscht</div>` : ''}${ex.edited ? `<div class="small muted">${ex.edited} angepasst</div>` : ''}</td>
     <td>${s.perRow ? '<span class="muted small">pro Zeile (Spalte Kategorie/Rollen)</span>' : `<select class="inline" data-src-cat="${esc(s.id)}"><option value="">– keine –</option>${S.order.map(id => `<option value="${id}" ${s.catId === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select>`}</td>
-    <td><button class="btn small ghost danger" data-src-del="${esc(s.id)}" title="Liste entfernen">✕</button></td></tr>`).join('');
+    <td style="white-space:nowrap">${s.kind !== 'db' ? `<button class="btn small ${LE.open === s.id ? 'primary' : ''}" data-le-toggle="${esc(s.id)}" title="Einträge dieser Liste ansehen, ergänzen, ändern oder entfernen">✎ ${LE.open === s.id ? 'schliessen' : 'bearbeiten'}</button>` : ''} <button class="btn small ghost danger" data-src-del="${esc(s.id)}" title="Liste entfernen">✕</button></td></tr>
+    ${LE.open === s.id ? `<tr class="le-row"><td colspan="5">${listEditor(s)}</td></tr>` : ''}`; }).join('');
   return `<div class="listcol">
       <div class="panel">
         <div class="hd"><h2>Importierte Listen</h2><span class="muted small">${S.sources.length} Listen aus ${new Set(S.sources.map(s => s.file)).size} Quellen</span></div>
@@ -2748,6 +2774,89 @@ function listsView() {
         ${IMPORT_NOTES.list.length && Date.now() - IMPORT_NOTES.at < NOTE_MS ? `<div class="bd small muted notes-fade" style="animation-delay:-${Date.now() - IMPORT_NOTES.at}ms">${IMPORT_NOTES.list.map(esc).join('<br>')}</div>` : ''}
       </div>
   </div>`;
+}
+
+// ---------------------------------------------------------------- Liste im Tool bearbeiten (Excel-Listen und „Von Hand erfasst“)
+const LE = { open: null, q: '' };
+const LE_FIELDS = [['org', 'Organisation', 17], ['first', 'Vorname', 13], ['last', 'Nachname', 12], ['careOf', 'Zusatz', 10], ['street', 'Strasse', 14], ['nr', 'Nr.', 5], ['zip', 'PLZ', 6], ['town', 'Ort', 11], ['country', 'Land', 6], ['email', 'E-Mail', 13]];
+const pickFields = (e) => Object.fromEntries(EDIT_FIELDS.map(([k]) => [k, String(e[k] || '').trim()]));
+/** Zeilen einer Liste: Original + Anpassungen (S.edits), gelöschte (S.deleted) und im Tool ergänzte (manuelle Einträge mit listId) */
+function listRows(s) {
+  const rows = [];
+  const view = (e0) => { const ed = S.edits && S.edits[WB.identity(e0)]; return { e: ed ? { ...e0, ...ed } : e0, edited: !!ed }; };
+  if (s.kind === 'manual') {
+    for (const m of s.entries) if (!m.listId) rows.push({ key: 'm' + m.mid, mid: m.mid, e0: m, ...view(m), added: false });
+  } else {
+    s.entries.forEach((e0, i) => { const catId = s.perRow ? (e0.catId || s.catId) : s.catId; const gsKey = groupSetKey(e0, catId); rows.push({ key: 'x' + i, i, e0, ...view(e0), gsKey, del: !!(S.deleted && S.deleted[gsKey]) }); });
+    for (const m of manualEntries()) if (m.listId === s.id) rows.push({ key: 'm' + m.mid, mid: m.mid, e0: m, ...view(m), added: true });
+  }
+  return rows;
+}
+function listExtras(s) {
+  if (s.kind === 'db') return {};
+  const rows = listRows(s);
+  return { added: rows.filter(r => r.added).length, deleted: rows.filter(r => r.del).length, edited: rows.filter(r => r.edited).length };
+}
+function listEditor(s) {
+  const all = listRows(s);
+  const q = WB.fold(LE.q || '');
+  const rows = q ? all.filter(r => WB.fold(LE_FIELDS.map(([k]) => r.e[k]).join(' ')).includes(q)) : all;
+  const cell = (r, k) => `<td><input data-le-src="${esc(s.id)}" data-le-row="${r.key}" data-le-f="${k}" data-le-key="${esc(s.id)}|${r.key}|${k}" value="${esc(r.e[k] || '')}" ${r.del ? 'disabled' : ''} autocomplete="off"></td>`;
+  const body = rows.map(r => `<tr class="${r.del ? 'le-del' : ''} ${r.added ? 'le-added' : ''} ${r.edited ? 'le-edited' : ''}">${LE_FIELDS.map(([k]) => cell(r, k)).join('')}
+      <td class="le-act">${r.del ? `<button class="lnk" data-le-undel="${esc(s.id)}|${r.key}" title="Wieder aufnehmen">↺</button>` : `<button class="lnk x" data-le-del="${esc(s.id)}|${r.key}" title="${r.mid ? 'Zeile löschen' : 'Zeile aus dieser Liste entfernen (bleibt in der Excel-Datei, kommt aber nicht mehr ins Tool)'}">🗑</button>`}${r.added ? '<span class="le-tag" title="Im Tool ergänzt">neu</span>' : r.edited ? '<span class="le-tag" title="Im Tool angepasst">✎</span>' : ''}</td></tr>`).join('');
+  const addRow = s.kind === 'manual' ? '' : `<tr class="le-addrow">${LE_FIELDS.map(([k, l]) => `<td><input data-la-f="${k}" data-le-key="${esc(s.id)}|add|${k}" placeholder="${esc(l)}" autocomplete="off"></td>`).join('')}<td class="le-act"><button class="btn small primary" data-action="le-add" data-src="${esc(s.id)}" title="Person zu dieser Liste hinzufügen">＋</button></td></tr>`;
+  return `<div class="le">
+    <div class="le-hd"><b>${esc(s.label)}</b><span class="small muted">${all.length} Zeilen · Änderungen gelten sofort und bleiben auch nach einem neuen Import erhalten${s.kind === 'manual' ? '' : ' · neue Person: unterste Zeile ausfüllen und ＋ (oder Enter)'}</span>
+      ${all.length > 15 ? `<input id="leq" type="search" placeholder="In dieser Liste suchen …" value="${esc(LE.q)}" data-le-key="search">` : ''}</div>
+    <div class="tablewrap le-wrap"><table class="le-tab"><colgroup>${LE_FIELDS.map(([, , w]) => `<col style="width:${w}%">`).join('')}<col style="width:44px"></colgroup><thead><tr>${LE_FIELDS.map(([, l]) => `<th>${esc(l)}</th>`).join('')}<th></th></tr></thead><tbody>${body}${addRow}</tbody></table></div>
+    ${q && !rows.length ? '<div class="small muted" style="padding:6px 2px">Keine Treffer.</div>' : ''}
+  </div>`;
+}
+function leRow(srcId, key) { const s = S.sources.find(x => x.id === srcId); return s ? { s, r: listRows(s).find(x => x.key === key) } : {}; }
+/** Feld ändern: als Anpassung (S.edits) zum Original-Eintrag – bleibt nach neuem Import erhalten */
+function leSetField(srcId, key, f, value) {
+  const { r } = leRow(srcId, key); if (!r) return;
+  const baseId = WB.identity(r.e0);
+  const cur = { ...pickFields(r.e0), ...((S.edits || {})[baseId] || {}) };
+  cur[f] = f === 'email' ? String(value || '').trim().toLowerCase() : String(value || '').trim();
+  if (f === 'zip') { const z = cur.zip.match(/^(?:[A-Z]{1,2}\s*-\s*)?(\d{4,5})$/i); if (z) cur.zip = z[1]; }
+  if (!cur.org && !cur.first && !cur.last) { toast('Organisation oder Name darf nicht ganz leer sein.'); render(); return; }
+  const before = R.entries.find(e => e.baseId === baseId); const p0 = before && R.people.find(p => p.entryUids.includes(before.uid));
+  S.edits = S.edits || {};
+  const same = EDIT_FIELDS.every(([k]) => String(r.e0[k] || '').trim() === cur[k]);
+  if (same) delete S.edits[baseId]; else S.edits[baseId] = cur;
+  if (p0) moveKeyAfterEdit(p0.key, before.uid);
+  save();
+}
+function leDelete(srcId, key, undo) {
+  const { s, r } = leRow(srcId, key); if (!r) return;
+  if (r.mid) {
+    if (!confirm(`${[r.e.first, r.e.last].filter(Boolean).join(' ') || r.e.org} löschen?`)) return;
+    const ms = S.sources.find(x => x.id === 'manual'); ms.entries = ms.entries.filter(x => x.mid !== r.mid);
+    if (!ms.entries.length) S.sources = S.sources.filter(x => x.id !== 'manual');
+  } else {
+    S.deleted = S.deleted || {};
+    if (undo) delete S.deleted[r.gsKey]; else S.deleted[r.gsKey] = new Date().toISOString().slice(0, 10);
+  }
+  save(); render();
+  toast(undo ? 'Wieder aufgenommen' : `Aus „${s.label}“ entfernt`);
+}
+function leAdd(srcId) {
+  const s = S.sources.find(x => x.id === srcId); if (!s) return;
+  const v = {}; for (const [k] of LE_FIELDS) v[k] = String((document.querySelector(`[data-la-f="${k}"]`) || {}).value || '').trim();
+  v.email = v.email.toLowerCase();
+  if (!v.org && !v.first && !v.last) { toast('Bitte eine Organisation oder Vor- bzw. Nachname eintragen.'); return; }
+  if (!v.nr && v.street) { const m = v.street.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/); if (m) { v.street = m[1].trim(); v.nr = m[2]; } }
+  { const z = v.zip.match(/^(?:[A-Z]{1,2}\s*-\s*)?(\d{4,5})$/i); if (z) v.zip = z[1]; }
+  // wie die anderen Zeilen der Liste: Kategorie, Gruppe und (häufigste) Zuständigkeit aus der Liste
+  const most = (arr) => { const m = new Map(); for (const x of arr.filter(Boolean)) m.set(x, (m.get(x) || 0) + 1); return [...m].sort((a, b) => b[1] - a[1])[0]?.[0] || ''; };
+  const catId = s.perRow ? most(s.entries.map(e => e.catId)) || s.catId : s.catId;
+  const src = manualSource();
+  src.entries.push({ mid: uid(), listId: s.id, ...v, nick: '', owner: most(s.entries.map(e => e.owner)), fixedOwner: false, extra: '', done: false,
+    group: s.perRow ? most(s.entries.map(e => e.group)) : s.group, catId, rowNo: src.entries.length + 1, createdAt: new Date().toISOString() });
+  save(); render();
+  toast(`${[v.first, v.last].filter(Boolean).join(' ') || v.org} zu „${s.label}“ hinzugefügt`);
+  const f = document.querySelector('[data-la-f="org"]'); if (f) f.focus();
 }
 
 // ---------------------------------------------------------------- Empfänger*innen von Hand erfassen
@@ -3729,7 +3838,7 @@ let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.
 function bindDrop(el) { el.addEventListener('click', () => $('#fileInput').click()); }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-kpi],[data-resp],[data-addr-pick],[data-addr-reset],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
+  const t = ev.target.closest('[data-tab],[data-owner],[data-action],[data-decide],[data-split],[data-move],[data-src-del],[data-dbs-del],[data-assign-key],[data-unassign],[data-afilter],[data-free-btn],[data-staff-sugg],[data-sugg-hide],[data-cat-dialog],[data-sub-primary],[data-sub-remove],[data-sub-adopt],[data-sub-adopt-all],[data-sub-new],[data-sub-create],[data-sub-del],[data-del-person],[data-edit-person],[data-kpi],[data-resp],[data-le-toggle],[data-le-del],[data-le-undel],[data-addr-pick],[data-addr-reset],[data-pgroup],[data-hide],[data-sub-hide],[data-sub-unhide],[data-sub-leaf],[data-staff-del],[data-staff-toggle],[data-staff-quick],[data-cat-primary],[data-cat-remove],[data-cat-del],[data-cat-rename]');
   if (!t) return;
   if (t.dataset.assignKey) { const y = window.scrollY; assign(t.dataset.assignKey, t.dataset.assignVal); window.scrollTo(0, y); return; }
   if (t.dataset.freeBtn) { const inp = t.parentElement.querySelector('input[data-free]'); const v = resolveOwner(inp && inp.value); if (!v) { toast('Bitte zuerst ein Kürzel oder einen Namen eintragen.'); inp && inp.focus(); return; } assign(t.dataset.freeBtn, v); toast('Zugewiesen: ' + ownerName(v)); return; }
@@ -3862,7 +3971,18 @@ document.addEventListener('click', (ev) => {
     save(); render(); toast('Getrennt. Rückgängig im Tab Zuständigkeit → Daten → „Zuteilungen & Duplikat-Entscheide zurücksetzen“.'); return;
   }
   if (t.dataset.move) { const i = S.order.indexOf(t.dataset.move), j = i + Number(t.dataset.dir); if (j < 0 || j >= S.order.length) return; [S.order[i], S.order[j]] = [S.order[j], S.order[i]]; save(); render(); return; }
-  if (t.dataset.srcDel) { S.sources = S.sources.filter(s => s.id !== t.dataset.srcDel); save(); render(); return; }
+  if (t.dataset.srcDel) {
+    const id = t.dataset.srcDel, ms = S.sources.find(x => x.id === 'manual');
+    const extra = ms ? ms.entries.filter(m => m.listId === id).length : 0;
+    if (extra && !confirm(`Die Liste enthält ${extra} im Tool ergänzte Person${extra === 1 ? '' : 'en'}. Diese werden mit entfernt.`)) return;
+    S.sources = S.sources.filter(s => s.id !== id);
+    if (ms && extra) { ms.entries = ms.entries.filter(m => m.listId !== id); if (!ms.entries.length) S.sources = S.sources.filter(x => x.id !== 'manual'); }
+    if (LE.open === id) LE.open = null;
+    save(); render(); return;
+  }
+  if (t.dataset.leToggle) { LE.open = LE.open === t.dataset.leToggle ? null : t.dataset.leToggle; LE.q = ''; render(); return; }
+  if (t.dataset.leDel) { const [sid, key] = t.dataset.leDel.split('|'); leDelete(sid, key, false); return; }
+  if (t.dataset.leUndel) { const [sid, key] = t.dataset.leUndel.split('|'); leDelete(sid, key, true); return; }
   if (t.dataset.dbsDel) { S.db.sources = S.db.sources.filter(s => s.id !== t.dataset.dbsDel); save(); render(); return; }
   const a = t.dataset.action;
   if (a === 'print') window.print();
@@ -3898,6 +4018,7 @@ document.addEventListener('click', (ev) => {
   else if (a === 'gm-save') saveGroupDialog();
   else if (a === 'em-save') saveEditDialog(false);
   else if (a === 'rm-save') saveRespDialog();
+  else if (a === 'le-add') leAdd(t.dataset.src);
   else if (a === 'rm-close') closeRespDialog();
   else if (a === 'em-reset') { if (confirm('Eigene Anpassungen verwerfen und wieder die Angaben aus der Liste verwenden?')) saveEditDialog(true); }
   else if (a === 'em-close') closeEditDialog();
@@ -3938,6 +4059,7 @@ document.addEventListener('click', (ev) => {
 document.addEventListener('change', (ev) => {
   const t = ev.target;
   if (t.name === 'rmain') { respMainChanged(); return; }
+  if (t.dataset && t.dataset.leF) { leSetField(t.dataset.leSrc, t.dataset.leRow, t.dataset.leF, t.value); renderKeepFocus(); return; }
   if (t.dataset && t.dataset.gm !== undefined) { const inp = document.querySelector(`#grpModal [data-gm-new="${t.dataset.gm}"]`); if (inp) { inp.hidden = t.value !== '__new'; if (!inp.hidden) inp.focus(); } return; }
   if (t.dataset && t.dataset.mf !== undefined) {
     MF[t.dataset.mf] = t.value;
@@ -4048,6 +4170,8 @@ document.addEventListener('keydown', (ev) => {
     return;
   }
   if (ev.key !== 'Enter') return;
+  if (ev.target && ev.target.dataset && ev.target.dataset.laF) { ev.preventDefault(); const b = document.querySelector('[data-action="le-add"]'); if (b) leAdd(b.dataset.src); return; }
+  if (ev.target && ev.target.dataset && ev.target.dataset.leF) { ev.preventDefault(); ev.target.blur(); return; }
   if (ev.target && ev.target.dataset && ev.target.dataset.mf !== undefined && ev.target.tagName === 'INPUT') { ev.preventDefault(); MF[ev.target.dataset.mf] = ev.target.value; manualAdd(); return; }
   const id = ev.target && ev.target.id;
   if (id === 'newCode' || id === 'newFirst' || id === 'newLast') { ev.preventDefault(); document.querySelector('[data-action="staff-add"]').click(); }
@@ -4059,6 +4183,7 @@ let qT;
 document.addEventListener('input', (ev) => {
   const t = ev.target;
   if (t.dataset && t.dataset.mf !== undefined && t.tagName === 'INPUT') { MF[t.dataset.mf] = t.value; return; }
+  if (t.id === 'leq') { LE.q = t.value; renderKeepFocus(); return; }
   if (t.id === 'q') { clearTimeout(qT); qT = setTimeout(() => { S.ui.filter.q = t.value; const pos = t.selectionStart; render(); const q = $('#q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }, 180); }
   if (t.id === 'newFirst' || t.id === 'newLast') { const c = $('#newCode'); if (c && c.dataset.manual !== '1') c.value = autoCode($('#newFirst').value, $('#newLast').value); }
   if (t.id === 'newCode') t.dataset.manual = t.value.trim() ? '1' : '';

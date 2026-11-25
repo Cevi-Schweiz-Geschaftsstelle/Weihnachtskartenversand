@@ -37,6 +37,11 @@ Oben stehen vier Kacheln, die sich anklicken lassen:
      - **„✕ entfernen"** nimmt eine Untergruppe heraus, die nicht mehr gebraucht wird (z.B. ein vergangenes Lager). Ihre Adressen fallen weg, sofern sie nicht noch in einer anderen Liste stehen. Bei jedem weiteren Import aus der Cevi DB oder aus Excel wird sie ignoriert. Zurückholen: Reiter Cevi DB → **„Ausgeschlossene Gruppen“** → ↺.
    - Die Reihenfolge der Kategorien (▲▼) bestimmt den Vorschlag, wenn jemand in mehreren Kategorien vorkommt.
 3. **Excel importieren:** Die Adressliste ins Fenster ziehen oder im Reiter **Importierte Listen** (ganz hinten) auf **„＋ Excel hinzufügen“**. Dort stehen auch alle eingelesenen Listen: einzeln ein-/ausschalten, Kategorie ändern, entfernen.
+   - **Liste im Tool bearbeiten (✎ bearbeiten):** öffnet die Einträge einer Excel-Liste (oder „Von Hand erfasst“) als Tabelle direkt im Tool.
+     - **Ändern:** in ein Feld klicken und tippen; mit Tab oder Enter wird gespeichert. Angepasste Zeilen sind gelb.
+     - **Ergänzen:** unterste Zeile ausfüllen und „＋“ (oder Enter) – die Person gehört dann zu dieser Liste (gleiche Kategorie, Gruppe und Zuständigkeit wie die übrigen Zeilen) und ist grün markiert. Wird die Liste ausgeschaltet oder entfernt, gilt das auch für die ergänzten Personen.
+     - **Entfernen:** 🗑 – Zeilen aus der Excel-Liste werden durchgestrichen und kommen nicht mehr ins Tool (↺ holt sie zurück); im Tool ergänzte werden gelöscht.
+     - Alles bleibt auch nach einem **neuen Import** derselben Datei erhalten. Die Excel-Datei selbst wird nicht verändert. Bei langen Listen hilft das Suchfeld.
    - Jedes Blatt bzw. jeder Block (z.B. „CCH › Vorstand") wird automatisch einer Kategorie zugeordnet.
    - **Fast jede Liste wird gelesen.** Gebraucht werden nur Name, Vorname, Strasse (mit Nr.), PLZ und Ort; alle anderen Spalten werden ignoriert.
      - Spaltentitel auf Deutsch, Französisch, Italienisch oder Englisch und aus Exporten von hitobito, Abacus, Bexio, Outlook usw., z.B. „Prénom/Nom“, „Nome/Cognome“, „First Name/Last Name“, „Strasse und Nr.“, „Adresszeile 1“, „NPA“, „Localité“, „Name 1/Name 2“.

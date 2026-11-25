@@ -1932,15 +1932,15 @@ function dbView() {
       </div>
       ${dbMapView()}
       <div class="panel" style="margin-top:16px">
-        <div class="hd"><h2>Welche Gruppen sollen geladen werden?</h2><button class="btn small right" data-action="db-add">＋ Gruppe</button></div>
+        <div class="hd"><h2>Welche Gruppen sollen geladen werden?</h2><span class="right" style="display:flex;gap:6px"><button class="btn small" data-action="db-add-courses" title="Alle Kurse eines Jahres laden – nur Leitungen, Küche, Referent/innen usw., keine Teilnehmenden">＋ Kurse</button><button class="btn small" data-action="db-add">＋ Gruppe</button></span></div>
         <div class="tablewrap"><table>
-          <thead><tr><th>Bezeichnung</th><th>Gruppen-ID(s) oder Link</th><th>Kategorie</th><th>Zuständig</th><th title="Alle Untergruppen mitladen">inkl. Unter&shy;gruppen</th><th></th></tr></thead>
+          <thead><tr><th>Bezeichnung</th><th>Gruppen-ID(s) oder Link</th><th>Kategorie</th><th>Zuständig</th><th title="Alle Untergruppen mitladen (bei Kursen: Jahr)">inkl. Unter&shy;gruppen / Jahr</th><th></th></tr></thead>
           <tbody>${!d.sources.length ? '<tr><td colspan="6" class="muted small" style="padding:14px 10px">Noch keine Gruppen – am einfachsten oben über „Gruppen automatisch übernehmen". Von Hand: „＋ Gruppe".</td></tr>' : ''}${d.sources.map(s => `<tr>
-            <td><input type="text" data-dbs="${s.id}" data-k="label" value="${esc(s.label)}" style="width:100%;min-width:150px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
+            <td><input type="text" data-dbs="${s.id}" data-k="label" value="${esc(s.label)}" style="width:100%;min-width:150px;padding:5px 7px;border:1px solid var(--line);border-radius:7px">${s.mode === 'courses' ? `<div class="small muted" style="margin-top:3px">🎓 Kurse ${courseYear(s)} dieser Ebene – alle Rollen ausser Teilnehmende, jeder Kurs als Untergruppe</div>` : ''}</td>
             <td><input type="text" data-dbs="${s.id}" data-k="groupIds" value="${esc(s.groupIds)}" placeholder="z.B. 1234 oder https://db.cevi.ch/groups/1234" style="width:100%;min-width:170px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
             <td><select class="inline" data-dbs="${s.id}" data-k="catId"><option value="">automatisch</option>${S.order.map(id => `<option value="${id}" ${s.catId === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select></td>
             <td><input type="text" list="ownerList" data-dbs="${s.id}" data-k="owner" value="${esc(s.owner)}" placeholder="Kürzel" style="width:80px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></td>
-            <td style="text-align:center"><input type="checkbox" data-dbs="${s.id}" data-k="subgroups" ${s.subgroups ? 'checked' : ''}></td>
+            <td style="text-align:center">${s.mode === 'courses' ? `<input type="text" inputmode="numeric" data-dbs="${s.id}" data-k="year" value="${esc(s.year || '')}" placeholder="${new Date().getFullYear()}" title="Jahr der Kurse – leer = jeweils das aktuelle Jahr" style="width:64px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;text-align:center">` : `<input type="checkbox" data-dbs="${s.id}" data-k="subgroups" ${s.subgroups ? 'checked' : ''}>`}</td>
             <td><button class="btn small ghost danger" data-dbs-del="${s.id}">✕</button></td></tr>`).join('')}</tbody>
         </table></div>
         ${(d.pendingGroups || []).length ? `<div class="bd small" style="border-top:1px solid var(--line2)">🆕 <b>${d.pendingGroups.length} neue Gruppe${d.pendingGroups.length === 1 ? '' : 'n'}</b> in der DB noch nicht zugeordnet: ${d.pendingGroups.map(p => esc(p.name)).join(', ')} · <a href="#" data-action="ng-open">jetzt zuordnen</a></div>` : ''}
@@ -2363,7 +2363,7 @@ function applyMapping() {
   // „nur oberste Ebene" (z.B. PSA) bleibt beim erneuten Übernehmen erhalten
   for (const f of fresh) { const old = S.db.sources.find(x => x.noSubs && parseGroupIds(x.groupIds).join() === parseGroupIds(f.groupIds).join()); if (old) { f.subgroups = false; f.noSubs = true; } }
   const covered = new Set(fresh.flatMap(x => parseGroupIds(x.groupIds)));
-  const keep = S.db.sources.filter(x => !x.auto && parseGroupIds(x.groupIds).length && !parseGroupIds(x.groupIds).every(id => covered.has(id)));
+  const keep = S.db.sources.filter(x => x.mode === 'courses' || (!x.auto && parseGroupIds(x.groupIds).length && !parseGroupIds(x.groupIds).every(id => covered.has(id))));
   S.db.sources = [...fresh, ...keep];
   cleanExcluded(); pathFilterPrune();
   DBMAP = null; save();
@@ -2392,6 +2392,48 @@ function dbMapView() {
   </div>`;
 }
 let DB_BUSY = false;
+// ---------------------------------------------------------------- Kurse: alle Rollen ausser Teilnehmende
+const courseYear = (s) => Number(s.year) || new Date().getFullYear();
+async function loadCourseLeaders(s) {
+  const layer = parseGroupIds(s.groupIds), year = courseYear(s);
+  logDb(`${s.label}: Kurse ${year} der Ebene ${layer.join(', ')} …`);
+  // wie „Kurse dieser Ebene“ in der DB: Kurse können auch an Untergruppen der Ebene hängen
+  const gids = new Set(layer.map(String));
+  try { for (const pg of await apiAll('/api/groups', { 'filter[layer_group_id]': layer.join(',') })) for (const d of pg.data || []) gids.add(String(d.id)); }
+  catch (e) { logDb('  Hinweis: Gruppen der Ebene nicht lesbar (' + e.message + ') – nur Kurse direkt an ' + layer.join(', ')); }
+  const ids = [...gids], events = new Map();
+  const range = { 'filter[after_or_on]': `${year}-01-01`, 'filter[before_or_on]': `${year}-12-31` };
+  const isCourse = (d) => /course/i.test(String((d.attributes || {}).type || d.type || ''));
+  try {
+    for (let i = 0; i < ids.length; i += 25) {
+      const part = { ...range, 'filter[group_id]': ids.slice(i, i + 25).join(',') };
+      let pages = await apiAll('/api/events', { ...part, 'filter[type]': 'Event::Course' });
+      if (!pages.some(pg => (pg.data || []).length)) pages = (await apiAll('/api/events', part)).map(pg => ({ ...pg, data: (pg.data || []).filter(isCourse) }));
+      for (const pg of pages) for (const d of pg.data || []) events.set(String(d.id), String((d.attributes || {}).name || '').trim() || ('Kurs ' + d.id));
+    }
+  } catch (e) {
+    if (/HTTP 403/.test(e.message)) throw new Error('Der API-Key darf keine Anlässe lesen: in der Cevi DB beim API-Key „Anlässe“ und „Teilnehmende von Anlässen“ anhaken.');
+    throw e;
+  }
+  logDb(`  → ${events.size} Kurse ${year}`);
+  if (!events.size) return [];
+  const evIds = [...events.keys()], pages = [];
+  try { for (let i = 0; i < evIds.length; i += 20) pages.push(...await apiAll('/api/event_participations', { 'filter[event_id]': evIds.slice(i, i + 20).join(','), include: 'participant,roles' })); }
+  catch (e) {
+    if (/HTTP 404/.test(e.message)) throw new Error('Die Cevi DB bietet die Kurs-Teilnahmen in der Schnittstelle (noch) nicht an (/api/event_participations, ab hitobito 2.9) – bitte bei der DB-Betreuung nachfragen.');
+    if (/HTTP 403/.test(e.message)) throw new Error('Der API-Key darf die Kurs-Teilnahmen nicht lesen: in der Cevi DB beim API-Key „Teilnehmende von Anlässen“ anhaken.');
+    throw e;
+  }
+  const entries = WB.entriesFromParticipations(pages, events, { label: s.label, catId: s.catId || 'ausbildung', owner: s.owner });
+  logDb(`  → ${entries.length} Leitungsrollen in ${new Set(entries.map(e => e.eventId)).size} Kursen (Teilnehmende nicht übernommen)`);
+  return entries;
+}
+function addCourseSource(groupIds, year) {
+  const s = { id: uid(), label: 'Kursleitungen', groupIds: groupIds || (parseGroupIds(S.db.rootGroup || '')[0] || '1'), catId: S.cats.some(c => c.id === 'ausbildung') ? 'ausbildung' : '', owner: '', subgroups: false, mode: 'courses', year: year && Number(year) !== new Date().getFullYear() ? String(year) : '' };
+  S.db.sources.push(s);
+  return s;
+}
+
 async function dbRefresh(auto = false) {
   if (DB_BUSY) return;
   if (!token()) { if (auto) return; S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
@@ -2411,10 +2453,18 @@ async function dbRefresh(auto = false) {
   const fresh = [];
   const before = S.sources.length ? snapshotPeople() : null;
   const prev = { sources: S.sources.slice(), cats: S.cats.map(c => ({ ...c })), order: S.order.slice(), lastChange: S.lastChange || null, lastRefresh: S.db.lastRefresh };
-  const live = new Set();
+  const live = new Set(), warnings = [];
   try {
     try { await scanNewGroups(); } catch (e) { logDb('Neue Gruppen konnten nicht geprüft werden: ' + e.message); }
     for (const s of srcs) {
+      if (s.mode === 'courses') {
+        let entries;
+        try { entries = await loadCourseLeaders(s); }
+        catch (e) { logDb(`${s.label}: Fehler – ${e.message}`); warnings.push(`${s.label}: ${e.message}`); const old = S.sources.find(x => x.id === 'db:' + s.id); if (old) fresh.push(old); continue; }
+        fresh.push({ id: 'db:' + s.id, kind: 'db', file: 'Cevi DB', sheet: '', block: '', label: s.label + ' ' + courseYear(s), group: s.label,
+          catId: s.catId || 'ausbildung', perRow: false, detectedBy: 'Kurse aus der Cevi DB', confidence: 'manuell', entries, importedAt: now, enabled: true });
+        continue;
+      }
       let pages;
       if (s.mode === 'orgs') {
         const ids = parseGroupIds(s.groupIds); pages = []; ids.forEach(id => live.add(String(id)));
@@ -2457,7 +2507,8 @@ async function dbRefresh(auto = false) {
     save(); render();
     const summary = before && before.length ? changeSummary() : '';
     if ((S.db.pendingGroups || []).length && !NG_LATER) setTimeout(newGroupsDialog, 300);
-    if (!auto) toast(`Cevi DB aktualisiert: ${fresh.reduce((a, s) => a + s.entries.length, 0)} Einträge aus ${fresh.length} Quellen` + (summary ? ' · ' + summary : ''));
+    if (warnings.length) toast(warnings.join('\n'));
+    else if (!auto) toast(`Cevi DB aktualisiert: ${fresh.reduce((a, s) => a + s.entries.length, 0)} Einträge aus ${fresh.length} Quellen` + (summary ? ' · ' + summary : ''));
     else if (summary && !/keine Änderungen/.test(summary)) toast('Cevi DB automatisch aktualisiert: ' + summary);
   } catch (e) {
     logDb('Fehler: ' + e.message);
@@ -2498,7 +2549,7 @@ async function scanNewGroups() {
   const fresh = groups.filter(g => g.id !== layer && !known.has(g.id) && !pending.has(g.id));
   const freshIds = new Set(fresh.map(g => g.id));
   const underNew = (g) => { let cur = byId.get(g.parent_id), n = 0; while (cur && n++ < 30) { if (freshIds.has(cur.id) || pending.has(cur.id)) return true; cur = byId.get(cur.parent_id); } return false; };
-  const srcOf = (id) => S.db.sources.find(x => x.mode !== 'orgs' && parseGroupIds(x.groupIds).includes(id));
+  const srcOf = (id) => S.db.sources.find(x => x.mode !== 'orgs' && x.mode !== 'courses' && parseGroupIds(x.groupIds).includes(id));
   const add = [];
   for (const g of fresh) {
     if (hidden(g)) { S.db.knownGroups.push(g.id); continue; } // ausgeschlossen (z.B. „Ehemalige …") → nie fragen
@@ -2836,6 +2887,7 @@ document.addEventListener('click', (ev) => {
   else if (a === 'map-apply') applyMapping();
   else if (a === 'map-cancel') { DBMAP = null; render(); }
   else if (a === 'db-refresh') dbRefresh();
+  else if (a === 'db-add-courses') { const s = addCourseSource(); save(); render(); toast(`Kurse ${courseYear(s)} hinzugefügt (Kategorie ${catName(s.catId) || '–'}). Mit „↻ Aktualisieren“ laden.`); }
   else if (a === 'db-add') { S.db.sources.push({ id: uid(), label: 'Neue Gruppe', groupIds: '', catId: '', owner: '', subgroups: false }); save(); render(); }
 });
 document.addEventListener('change', (ev) => {
@@ -2904,7 +2956,13 @@ document.addEventListener('change', (ev) => {
   if (t.dataset.catName) { const c = S.cats.find(x => x.id === t.dataset.catName); const v = t.value.trim(); if (v) { c.name = v; save(); } render(); return; }
   if (t.dataset.catOwner) { const c = S.cats.find(x => x.id === t.dataset.catOwner); c.owner = resolveOwner(t.value); c.ownerManual = true; save(); render(); return; }
   if (t.dataset.catInfo) { const c = S.cats.find(x => x.id === t.dataset.catInfo); c.info = t.value; save(); return; }
-  if (t.dataset.dbs) { const s = S.db.sources.find(x => x.id === t.dataset.dbs); const k = t.dataset.k; s[k] = t.type === 'checkbox' ? t.checked : t.value.trim(); if (k === 'subgroups') { if (t.checked) delete s.noSubs; else s.noSubs = true; } save(); if (k === 'catId') render(); return; }
+  if (t.dataset.dbs) { const s = S.db.sources.find(x => x.id === t.dataset.dbs); const k = t.dataset.k; s[k] = t.type === 'checkbox' ? t.checked : t.value.trim();
+    if (k === 'groupIds' && /\/events\/course/.test(s.groupIds) && s.mode !== 'courses') {
+      const y = (s.groupIds.match(/year=(\d{4})/) || [])[1];
+      Object.assign(s, { mode: 'courses', subgroups: false, year: y && Number(y) !== new Date().getFullYear() ? y : '', label: /^neue gruppe$/i.test(s.label) ? 'Kursleitungen' : s.label, catId: s.catId || (S.cats.some(c => c.id === 'ausbildung') ? 'ausbildung' : '') });
+      save(); render(); toast('Link zu den Kursen erkannt – es werden alle Rollen ausser Teilnehmende geladen.'); return;
+    }
+    if (k === 'year') { s.year = /^\d{4}$/.test(s.year) && Number(s.year) !== new Date().getFullYear() ? s.year : ''; save(); render(); return; } if (k === 'subgroups') { if (t.checked) delete s.noSubs; else s.noSubs = true; } save(); if (k === 'catId') render(); return; }
   if (t.id === 'aliasText') { S.aliasText = t.value; save(); render(); return; }
   if (t.id === 'autoAliases') { S.autoAliases = t.checked; save(); render(); return; }
   if (t.id === 'dbRoot') { S.db.rootGroup = t.value.trim(); save(); return; }

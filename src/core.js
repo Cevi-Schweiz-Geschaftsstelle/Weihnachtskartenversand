@@ -562,6 +562,56 @@
     }
     return out;
   }
+  /** Name und Adresse einer Person aus der hitobito-JSON:API */
+  function personFields(a) {
+    let street = str(a.street), nr = str(a.housenumber);
+    if (!street && a.address) {
+      const line = str(String(a.address).split('\n')[0]);
+      const m = line.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/);
+      street = m ? m[1].trim() : line; nr = m ? m[2] : '';
+    }
+    return {
+      org: a.company ? str(a.company_name) : '', first: str(a.first_name), last: str(a.last_name), nick: str(a.nickname),
+      email: str(a.email).toLowerCase(), street, nr, careOf: str(a.address_care_of), zip: str(a.zip_code), town: str(a.town), country: str(a.country),
+    };
+  }
+
+  // Rollen in Kursen (hitobito Event::Role) – Teilnehmende werden nicht verdankt
+  const EVENT_ROLE_DE = { Leader: 'Hauptleitung', AssistantLeader: 'Leitung', Cook: 'Küche', Helper: 'Helfer/in', Treasurer: 'Kasse', Speaker: 'Referent/in', Participant: 'Teilnehmer/in' };
+  const isParticipantRole = (type) => /(^|::)Participant$/.test(str(type));
+  /**
+   * Kursleitungen aus /api/event_participations?include=participant,roles.
+   * events: Map eventId → Kursname. Pro Person und Kurs ein Eintrag (Gruppe = Kursname); nur Rollen ausser Teilnehmende.
+   */
+  function entriesFromParticipations(pages, events, source) {
+    const people = new Map(), roles = new Map(), parts = [];
+    for (const p of pages) {
+      for (const inc of p.included || []) {
+        if (inc.type === 'people') people.set(String(inc.id), inc.attributes || {});
+        if (inc.type === 'event_roles') roles.set(String(inc.id), inc.attributes || {});
+      }
+      for (const d of p.data || []) if (d.type === 'event_participations') parts.push(d);
+    }
+    const entries = [], seen = new Set();
+    for (const d of parts) {
+      const a = d.attributes || {}, rel = d.relationships || {};
+      const pd = rel.participant && rel.participant.data;
+      if (pd && pd.type && pd.type !== 'people') continue; // Gäste ohne Personendaten
+      const pid = String((pd && pd.id) || (a.participant_type === 'Person' ? a.participant_id : '') || '');
+      const person = people.get(pid); if (!person) continue;
+      const rs = ((rel.roles && rel.roles.data) || []).map(r => roles.get(String(r.id))).filter(Boolean);
+      const lead = rs.filter(r => !isParticipantRole(r.type));
+      if (!lead.length) continue;
+      const eventId = String(a.event_id || (rel.event && rel.event.data && rel.event.data.id) || '');
+      const k = pid + '|' + eventId; if (seen.has(k)) continue; seen.add(k);
+      const course = str(events.get(eventId)) || source.label;
+      const roleNames = lead.map(r => str(r.label) || EVENT_ROLE_DE[str(r.type).split('::').pop()] || str(r.type).split('::').pop());
+      entries.push({ ...personFields(person), owner: normOwner(source.owner), extra: '', done: false,
+        group: course, catId: source.catId || '', roles: [...new Set(roleNames)].join(', '), dbPersonId: pid, eventId, rowNo: null });
+    }
+    return entries;
+  }
+
   function entriesFromJsonApi(pages, source, cats) {
     const people = new Map(), groups = new Map(), entries = [];
     const roles = [];
@@ -585,17 +635,9 @@
       const k = pid + '|' + gid;
       if (seen.has(k)) continue;
       seen.add(k);
-      let street = str(a.street), nr = str(a.housenumber);
-      if (!street && a.address) {
-        const line = str(String(a.address).split('\n')[0]);
-        const m = line.match(/^(.*\D)\s+(\d+\s?[a-zA-Z]?)$/);
-        street = m ? m[1].trim() : line; nr = m ? m[2] : '';
-      }
       const catId = source.catId || (detectFromMany([groupName, source.label], cats) || {}).catId || '';
       entries.push({
-        org: a.company ? str(a.company_name) : '', first: str(a.first_name), last: str(a.last_name), nick: str(a.nickname),
-        email: str(a.email).toLowerCase(), street, nr, careOf: str(a.address_care_of), zip: str(a.zip_code), town: str(a.town),
-        country: str(a.country), owner: normOwner(source.owner), extra: '', done: false,
+        ...personFields(a), owner: normOwner(source.owner), extra: '', done: false,
         group: groupName, catId, roles: str((r.attributes || {}).name || (r.attributes || {}).type),
         dbPersonId: pid, groupId: gid, rowNo: null,
       });
@@ -891,6 +933,6 @@
     return l; // beide haben denselben Wert verschieden geändert → die eigene Änderung gilt
   }
 
-  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, addrKey, splitFullName, guessNameOrder, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, merge3, J, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
+  const api = { DEFAULT_CATEGORIES, detectCategory, parseWorkbookRows, addrKey, entriesFromParticipations, isParticipantRole, splitFullName, guessNameOrder, applyOverview, buildPeople, entriesFromJsonApi, entriesFromGroups, deriveAliases, splitOwners, catPersonLabels, groupKey, groupPersonLabels, subgroupTree, merge3, J, makeCode, codeVariants, fold, key, normOwner, identity, pairKey, str };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.WB = api;
 })(typeof window !== 'undefined' ? window : globalThis);

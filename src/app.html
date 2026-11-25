@@ -405,9 +405,9 @@ function defaultState() {
     cats: WB.DEFAULT_CATEGORIES.map(c => ({ ...c })),
     order: WB.DEFAULT_CATEGORIES.map(c => c.id),
     staff: [],
-    aliasText: '', autoAliases: true, version: 9,
+    aliasText: '', autoAliases: true, version: 10,
     decisions: {}, overrides: {}, done: {}, hidden: {}, groupSet: {}, deleted: {}, edits: {}, addrPick: {}, remarks: {}, coAdjust: {}, importDone: true,
-    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
+    db: { baseUrl: 'https://db.cevi.ch', token: '', rememberToken: false, lastRefresh: null, groupExclude: 'Ehemalige\nArchiv\nNorwegen Lager 2025\nESG LTS 2025', groupFilter: 'Geschäftsstelle\nVorstand\nAusschüsse\nFachgruppen\nProjektgruppen\nKommissionen\nKrisenmanagement › Cevi CH\nEhrenmitglieder\nPSA',
           sources: [] },
     m365: { tenantId: '', clientId: '', siteUrl: '', folder: 'Weihnachtsbrief-Tool', enabled: false, linked: false },
     ui: { tab: 'settings', owner: null, filter: { q: '', cat: '', sub: '', owner: '', only: '' }, assignFilter: 'open' },
@@ -521,6 +521,17 @@ function load() {
         }
       }
       s.version = 9;
+    }
+    if (s.version < 10) {
+      // Version 10: Gruppe „Vorstand“ aus der Cevi DB dazunehmen (Kategorie Geschäftsstelle) – wird beim nächsten Aktualisieren gesucht
+      const db = s.db || (s.db = {});
+      const lines = String(db.groupFilter || '').split('\n');
+      if (lines.some(l => l.trim()) && !lines.some(l => WB.fold(l.trim()) === 'vorstand')) {
+        const at = lines.findIndex(l => /gesch[aä]ftsstelle/i.test(l));
+        lines.splice(at >= 0 ? at + 1 : 0, 0, 'Vorstand'); db.groupFilter = lines.join('\n');
+      }
+      db.wantGroups = [...new Set([...(db.wantGroups || []), 'Vorstand'])];
+      s.version = 10;
     }
     s.staff = s.staff || [];
     s.sources = (s.sources || []).filter(x => !x.demo); // frühere „Demo ohne Verbindung"-Daten
@@ -2655,11 +2666,35 @@ function addCourseSource(groupIds, year) {
   return s;
 }
 
+/** Gruppen, die neu dazukommen sollen (z.B. „Vorstand“): in der Ebene suchen und als Quelle anlegen */
+async function addWantedGroups() {
+  const want = (S.db.wantGroups || []).filter(Boolean); if (!want.length) return 0;
+  const layer = S.db.layerId || parseGroupIds(S.db.rootGroup || '')[0]; if (!layer) return 0;
+  const groups = (await apiAll('/api/groups', { 'filter[layer_group_id]': layer })).flatMap(pg => pg.data || [])
+    .map(d => ({ id: String(d.id), name: (d.attributes || {}).display_name || (d.attributes || {}).name || '', type: (d.attributes || {}).type || '' }));
+  const covered = new Set(S.db.sources.flatMap(x => parseGroupIds(x.groupIds)));
+  let n = 0;
+  for (const w of want) {
+    const wk = WB.fold(w), rx = new RegExp(w.replace(/[^a-z]/gi, '') + '$', 'i');
+    const g = groups.find(x => WB.fold(x.name) === wk) || groups.find(x => rx.test(String(x.type).replace(/^Group::/, '')));
+    if (!g) { logDb(`Gruppe „${w}“ in der Cevi DB nicht gefunden`); continue; }
+    for (const k of ['ignoredGroups', 'pendingGroups']) S.db[k] = (S.db[k] || []).filter(x => String(x.id) !== g.id);
+    S.db.detachedGroups = (S.db.detachedGroups || []).filter(x => String(x) !== g.id);
+    if (covered.has(g.id)) continue;
+    const catId = ((typeCategory(g) || {}).catId) || (WB.detectCategory(g.name, S.cats) || {}).catId || 'cevi-schweiz';
+    S.db.sources.push({ id: 'want-' + g.id, label: g.name, groupIds: g.id, catId, owner: '', subgroups: true });
+    logDb(`${g.name} (Gruppe ${g.id}) neu dazugenommen → Kategorie ${catName(catId)}`); n++;
+  }
+  S.db.wantGroups = [];
+  return n;
+}
+
 async function dbRefresh(auto = false) {
   if (DB_BUSY) return;
   if (!token()) { if (auto) return; S.ui.tab = 'db'; render(); return toast('Bitte zuerst den API-Key eintragen.'); }
   if (cleanExcluded()) save();
   if (S.db.sources.some(x => x.mode === 'orgs')) S.db.sources = S.db.sources.filter(x => x.mode !== 'orgs'); // MIO kommen nicht aus der DB
+  if ((S.db.wantGroups || []).length && S.db.sources.length) { try { if (await addWantedGroups()) save(); } catch (e) { logDb('Neue Gruppen konnten nicht gesucht werden: ' + e.message); } }
   const srcs = S.db.sources.filter(s => parseGroupIds(s.groupIds).length);
   if (!srcs.length && auto) return;
   if (!srcs.length) {

@@ -84,6 +84,40 @@ assert.deepStrictEqual([orgs[0].org, orgs[0].street, orgs[0].nr, orgs[0].zip], [
 const mixed = [{ ...orgs[0], uid: 900, origin: 'db' }, { org: 'Cevi Region Test', first: 'z.Hd. Team', last: '', street: 'Testweg', nr: '9', zip: '3000', town: 'Bern', catId: 'mio', group: 'Regionalverbände', uid: 901, origin: 'excel' }];
 assert.strictEqual(WB.buildPeople(mixed, { cats, aliases: new Map(), codeNames: {} }).people.length, 1, 'gleiche Organisation + PLZ = ein Brief');
 
+// Kursleitungen aus /api/event_participations (fiktive Antwort im JSON:API-Format)
+{
+  const page = {
+    data: [
+      { id: '1', type: 'event_participations', attributes: { event_id: 501, participant_id: 11, participant_type: 'Person', active: true }, relationships: { participant: { data: { type: 'people', id: '11' } }, roles: { data: [{ type: 'event_roles', id: '91' }] } } },
+      { id: '2', type: 'event_participations', attributes: { event_id: 501, participant_id: 12, participant_type: 'Person', active: true }, relationships: { participant: { data: { type: 'people', id: '12' } }, roles: { data: [{ type: 'event_roles', id: '92' }] } } },
+      { id: '3', type: 'event_participations', attributes: { event_id: 502, participant_id: 11, participant_type: 'Person', active: true }, relationships: { participant: { data: { type: 'people', id: '11' } }, roles: { data: [{ type: 'event_roles', id: '93' }, { type: 'event_roles', id: '94' }] } } },
+      { id: '4', type: 'event_participations', attributes: { event_id: 502, participant_id: 5, participant_type: 'Event::Guest', active: true }, relationships: { participant: { data: { type: 'event_guests', id: '5' } }, roles: { data: [{ type: 'event_roles', id: '95' }] } } },
+      { id: '5', type: 'event_participations', attributes: { event_id: 502, participant_id: 13, participant_type: 'Person', active: true }, relationships: { participant: { data: { type: 'people', id: '13' } }, roles: { data: [{ type: 'event_roles', id: '96' }] } } },
+    ],
+    included: [
+      { id: '11', type: 'people', attributes: { first_name: 'Anna', last_name: 'Beispiel', email: 'Anna@Example.org', street: 'Musterweg', housenumber: '12', zip_code: '3000', town: 'Bern' } },
+      { id: '12', type: 'people', attributes: { first_name: 'Ben', last_name: 'Probe', street: 'Testgasse', housenumber: '3', zip_code: '8000', town: 'Zürich' } },
+      { id: '13', type: 'people', attributes: { first_name: 'Cleo', last_name: 'Test', address: 'Seeweg 7', zip_code: '6000', town: 'Luzern' } },
+      { id: '91', type: 'event_roles', attributes: { participation_id: 1, type: 'Event::Role::Leader', label: '' } },
+      { id: '92', type: 'event_roles', attributes: { participation_id: 2, type: 'Event::Course::Role::Participant', label: '' } },
+      { id: '93', type: 'event_roles', attributes: { participation_id: 3, type: 'Event::Role::AssistantLeader', label: '' } },
+      { id: '94', type: 'event_roles', attributes: { participation_id: 3, type: 'Event::Role::Cook', label: 'Chefkoch' } },
+      { id: '95', type: 'event_roles', attributes: { participation_id: 4, type: 'Event::Role::Helper', label: '' } },
+      { id: '96', type: 'event_roles', attributes: { participation_id: 5, type: 'Event::Role::Speaker', label: '' } },
+    ],
+  };
+  const ev = new Map([['501', 'Gruppenleiterkurs 2026'], ['502', 'Kursleiterkurs 2026']]);
+  const es = WB.entriesFromParticipations([page], ev, { label: 'Kurse', catId: 'ausbildung', owner: '' });
+  assert.deepStrictEqual(es.map(e => [e.first, e.group, e.roles]), [
+    ['Anna', 'Gruppenleiterkurs 2026', 'Hauptleitung'],
+    ['Anna', 'Kursleiterkurs 2026', 'Leitung, Chefkoch'],
+    ['Cleo', 'Kursleiterkurs 2026', 'Referent/in'],
+  ], 'nur Leitungsrollen, keine Teilnehmenden, keine Gäste');
+  assert.deepStrictEqual([es[0].street, es[0].nr, es[0].email, es[0].catId], ['Musterweg', '12', 'anna@example.org', 'ausbildung']);
+  assert.deepStrictEqual([es[2].street, es[2].nr], ['Seeweg', '7'], 'Adresse aus einem Feld');
+  assert.ok(WB.isParticipantRole('Event::Course::Role::Participant') && WB.isParticipantRole('Event::Role::Participant') && !WB.isParticipantRole('Event::Role::Leader'));
+}
+
 // Dieselbe Person mit zwei verschiedenen Adressen → ungültig, bis eine gewählt ist
 {
   const two = [

@@ -182,7 +182,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:po
 select.inline{border:1px solid var(--line);border-radius:7px;padding:3px 6px;background:#fff;max-width:220px}
 .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .filters input[type=search]{padding:7px 10px;border:1px solid var(--line);border-radius:8px;min-width:240px}
-.filters select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.filters select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;max-width:240px;text-overflow:ellipsis}
 .filters label{display:inline-flex;gap:6px;align-items:center;color:var(--muted)}
 /* Drop */
 .drop{border:2px dashed #c9ced6;border-radius:14px;padding:40px 20px;text-align:center;background:#fff;cursor:pointer;transition:.15s}
@@ -900,7 +900,8 @@ function subFilterSelect(f) {
   if (!f.cat) return '';
   const { list, direct } = subFilterOptions(f.cat);
   if (!list.length) return '';
-  return `<select id="fsub" title="Untergruppe der gewählten Kategorie"><option value="">Alle Untergruppen</option>${list.map(g => `<option value="${esc(g.gk)}" ${f.sub === g.gk ? 'selected' : ''}>${'\u00a0\u00a0'.repeat(g.depth)}${esc(g.name)} (${g.n})</option>`).join('')}${direct ? `<option value="__none" ${f.sub === '__none' ? 'selected' : ''}>– ohne Untergruppe – (${direct})</option>` : ''}</select>`;
+  const cur = list.find(g => g.gk === f.sub);
+  return `<select id="fsub" title="${esc(cur ? cur.name : 'Untergruppe der gewählten Kategorie')}"><option value="">Alle Untergruppen</option>${list.map(g => `<option value="${esc(g.gk)}" ${f.sub === g.gk ? 'selected' : ''}>${'\u00a0\u00a0'.repeat(g.depth)}${esc(g.name)} (${g.n})</option>`).join('')}${direct ? `<option value="__none" ${f.sub === '__none' ? 'selected' : ''}>– ohne Untergruppe – (${direct})</option>` : ''}</select>`;
 }
 /** gewählte Untergruppe inkl. ihrer Untergruppen (verschachtelte DB-Gruppen) */
 function subWithChildren(c, gk) {

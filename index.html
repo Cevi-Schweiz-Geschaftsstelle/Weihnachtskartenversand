@@ -94,6 +94,7 @@ table.le-tab tr.le-addrow td{background:#f7f9fb;border-top:2px solid var(--line)
 table.le-tab td.le-act{white-space:nowrap;width:1%;padding:2px 6px}
 .le-tag{font-size:10.5px;color:var(--muted);margin-left:4px}
 tr.le-open td{background:#f4f7fb} tr.le-row>td{padding:0 10px 12px;background:#f4f7fb}
+.filters label.fchk{font-size:13px;cursor:pointer;white-space:nowrap}
 .chip.fchip{background:#e8f2ef;color:var(--accent-ink);font-size:12.5px;padding:3px 6px 3px 10px}
 .dbcols{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px}
 .dbcolumn{background:#f7f9fb;border:2px dashed transparent;border-radius:12px;padding:10px;min-height:160px;display:flex;flex-direction:column;gap:8px;transition:border-color .12s,background .12s}
@@ -1956,7 +1957,8 @@ function allView() {
       <select id="fcat"><option value="">Alle Kategorien</option>${usedCats.map(id => `<option value="${id}" ${f.cat === id ? 'selected' : ''}>${esc(catName(id))}</option>`).join('')}</select>
       ${subFilterSelect(f)}
       <select id="fowner"><option value="">Alle Zuständigen</option><option value="__none" ${f.owner === '__none' ? 'selected' : ''}>⚠ ohne Zuständigkeit</option>${allOwners().map(o => `<option value="${esc(o)}" ${f.owner === o ? 'selected' : ''}>${esc(o)}${R.aliases.codeNames[o] && R.aliases.codeNames[o] !== o ? ' · ' + esc(R.aliases.codeNames[o]) : ''}</option>`).join('')}</select>
-      ${f.only ? `<span class="chip fchip">${esc({ open: 'Nur nicht erledigte', dup: 'Nur mehrfach gelistete', notes: 'Nur mit Hinweisen', hidden: 'Nur ausgeblendete' }[f.only] || f.only)}<button class="lnk x" data-action="fonly-clear" title="Filter entfernen">✕</button></span>` : ''}
+      <label class="fchk" title="Nur die ausgeblendeten Personen zeigen (kein Versand)"><input type="checkbox" id="fhidden" ${f.only === 'hidden' ? 'checked' : ''}> nur ausgeblendete <span class="muted">(${R.people.filter(p => p.hidden).length})</span></label>
+      ${f.only && f.only !== 'hidden' ? `<span class="chip fchip">${esc({ open: 'Nur nicht erledigte', dup: 'Nur mehrfach gelistete', notes: 'Nur mit Hinweisen', hidden: 'Nur ausgeblendete' }[f.only] || f.only)}<button class="lnk x" data-action="fonly-clear" title="Filter entfernen">✕</button></span>` : ''}
       <span class="muted small right">${Object.keys(S.deleted || {}).length ? `🗑 ${Object.keys(S.deleted).length} gelöscht · <a href="#" data-action="deleted-restore" title="Gelöschte Adressen aus Excel und Cevi DB wieder aufnehmen">wiederherstellen</a> · ` : ''}${list.length} von ${R.people.length}</span>
       <button class="btn small" data-action="export-all" title="Masterliste, ein Blatt pro zuständiger Person und die Duplikate als Excel herunterladen">⇩ Excel exportieren</button>
     </div>
@@ -4411,6 +4413,7 @@ document.addEventListener('change', (ev) => {
   if (t.id === 'dbToken') { if (S.db.rememberToken) S.db.token = t.value.trim(); sessionToken = t.value.trim(); save(); if (Cloud.key.state === 'none') render(); return; }
   if (t.id === 'keyConfirm') { KEYUI.ok = t.checked; render(); return; }
   if (t.id === 'dbRemember') { S.db.rememberToken = t.checked; S.db.token = t.checked ? sessionToken : ''; save(); return; }
+  if (t.id === 'fhidden') { S.ui.filter.only = t.checked ? 'hidden' : ''; save(); render(); return; }
   if (t.id === 'fcat' || t.id === 'fowner' || t.id === 'fsub') { S.ui.filter[{ fcat: 'cat', fowner: 'owner', fsub: 'sub' }[t.id]] = t.value; if (t.id === 'fcat') S.ui.filter.sub = ''; save(); render(); return; }
 });
 document.addEventListener('keydown', (ev) => {

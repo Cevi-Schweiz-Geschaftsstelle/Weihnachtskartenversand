@@ -36,3 +36,86 @@ auth = auth.replace("/*__BRIDGE__*/", "/* msal-browser redirect bridge – MIT *
 with open(os.path.join(HERE, "auth.html"), "w", encoding="utf-8") as f:
     f.write(auth)
 print("auth.html gebaut:", len(auth.encode("utf-8")) // 1024, "KB")
+
+# ---------------------------------------------------------------------------
+# anleitung.html: Anleitung für Nutzer*innen (Quelle: src/anleitung.md, Bilder: anleitung/*.png)
+import html as _html
+import re as _re
+
+
+def _inline(t):
+    t = _html.escape(t, quote=False)
+    t = t.replace("\\*", "&#42;")
+    t = _re.sub(r"\[([^\]]+)\]\(([^)]+)\)", lambda m: f'<a href="{m.group(2)}">{m.group(1)}</a>', t)
+    t = _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", t)
+    t = _re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"<em>\1</em>", t)
+    return t
+
+
+def _md_to_html(md):
+    out, toc = [], []
+    lines = md.split("\n")
+    i = 0
+    while i < len(lines):
+        ln = lines[i]
+        if not ln.strip():
+            i += 1
+            continue
+        m = _re.match(r"^(#{1,3}) (.+)$", ln)
+        if m:
+            level, text = len(m.group(1)), m.group(2)
+            slug = _re.sub(r"[^a-z0-9]+", "-", text.lower().translate(str.maketrans("äöüß", "aous"))).strip("-")
+            if level == 2:
+                toc.append((slug, text))
+            out.append(f'<h{level} id="{slug}">{_inline(text)}</h{level}>')
+            i += 1
+            continue
+        m = _re.match(r"^!\[([^\]]*)\]\(([^)]+)\)$", ln.strip())
+        if m:
+            out.append(f'<figure><a href="{m.group(2)}" target="_blank" rel="noopener"><img src="{m.group(2)}" alt="{_html.escape(m.group(1))}"></a></figure>')
+            i += 1
+            continue
+        if ln.startswith("|"):
+            rows = []
+            while i < len(lines) and lines[i].startswith("|"):
+                rows.append([c.strip() for c in lines[i].strip().strip("|").split("|")])
+                i += 1
+            head, body = rows[0], [r for r in rows[1:] if not all(_re.match(r"^-+$", c) for c in r)]
+            out.append("<table><thead><tr>" + "".join(f"<th>{_inline(c)}</th>" for c in head) + "</tr></thead><tbody>"
+                       + "".join("<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in r) + "</tr>" for r in body) + "</tbody></table>")
+            continue
+        if _re.match(r"^(\d+\.|-) ", ln):
+            # Liste (eine Unterebene mit 4 Leerzeichen)
+            items = []
+            kind = "ol" if _re.match(r"^\d+\.", ln) else "ul"
+            while i < len(lines) and (_re.match(r"^(\d+\.|-) ", lines[i]) or lines[i].startswith("    ")):
+                if lines[i].startswith("    "):
+                    items[-1][1].append(_re.sub(r"^\s*- ", "", lines[i]))
+                else:
+                    items.append([_re.sub(r"^(\d+\.|-) ", "", lines[i]), []])
+                i += 1
+            html_items = ""
+            for text, subs in items:
+                sub = "<ul>" + "".join(f"<li>{_inline(s)}</li>" for s in subs) + "</ul>" if subs else ""
+                html_items += f"<li>{_inline(text)}{sub}</li>"
+            out.append(f"<{kind}>{html_items}</{kind}>")
+            continue
+        para = [ln]
+        i += 1
+        while i < len(lines) and lines[i].strip() and not _re.match(r"^(#|\||!\[|\d+\. |- )", lines[i]):
+            para.append(lines[i])
+            i += 1
+        text = " ".join(p.strip() for p in para)
+        cls = ' class="cap"' if _re.match(r"^\*Bild \d+", text) else ""
+        out.append(f"<p{cls}>{_inline(text)}</p>")
+    return "\n".join(out), toc
+
+
+_md = read("src", "anleitung.md")
+_body, _toc = _md_to_html(_md)
+_page = read("src", "anleitung.html")
+_page = _page.replace("<!--TOC-->", "".join(f'<li><a href="#{s}">{_html.escape(t)}</a></li>' for s, t in _toc), 1)
+_page = _page.replace("<!--INHALT-->", _body, 1)
+with open(os.path.join(HERE, "anleitung.html"), "w", encoding="utf-8") as f:
+    f.write(_page)
+print("anleitung.html gebaut:", len(_page.encode("utf-8")) // 1024, "KB,", len(_toc), "Abschnitte")

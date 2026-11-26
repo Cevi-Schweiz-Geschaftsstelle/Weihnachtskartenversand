@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anleitung – Weihnachtsbrief-Versand</title>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--line:#e3e6ea;--line2:#eef0f3;--text:#1d232b;--muted:#66707c;--accent:#0f6e64;--accent-soft:#e3f2ef;--accent-ink:#0b5149}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif}
+header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid var(--line);padding:12px 22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0}
+header .sub{color:var(--muted);font-size:13px}
+header .sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:14px;color:var(--text);text-decoration:none;cursor:pointer}
+.btn:hover{border-color:#b9c6d6}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+main{max-width:940px;margin:0 auto;padding:24px 22px 60px}
+.toc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:26px}
+.toc b{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.toc ol{margin:6px 0 0;padding-left:22px;columns:2;column-gap:28px}
+.toc a{color:var(--accent-ink);text-decoration:none} .toc a:hover{text-decoration:underline}
+h2{font-size:21px;margin:34px 0 8px;padding-top:6px;border-top:1px solid var(--line);scroll-margin-top:70px}
+h2:first-of-type{border-top:0;margin-top:0}
+p{margin:8px 0}
+ul,ol{margin:6px 0 10px;padding-left:24px} li{margin:3px 0}
+a{color:var(--accent-ink)}
+table{border-collapse:collapse;width:100%;margin:10px 0 14px;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:7px 10px;border-bottom:1px solid var(--line2)}
+th{background:#fafbfc;color:var(--muted);font-size:13px}
+p.cap{color:var(--muted);font-size:13.5px;margin:14px 0 4px}
+figure{margin:0 0 18px}
+figure img{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.06);background:#fff}
+@media (max-width:700px){.toc ol{columns:1}}
+@media print{
+  header .btn{display:none} header{position:static;border:0;padding:0 0 8px}
+  body{background:#fff;font-size:11.5pt} main{max-width:none;padding:0}
+  .toc{break-after:page} h2{break-before:page;border-top:0} figure,table,p.cap{break-inside:avoid}
+  figure img{box-shadow:none} a{color:inherit;text-decoration:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Anleitung – Weihnachtsbrief-Versand</h1><div class="sub">für Nutzer*innen · Stand 26.11.2026</div></div>
+  <div class="sp"></div>
+  <button class="btn" onclick="window.print()" title="Drucken oder im Druckfenster „Als PDF sichern“ wählen">🖨 Drucken / als PDF</button>
+  <a class="btn primary" href="index.html">← zum Tool</a>
+</header>
+<main>
+  <nav class="toc"><b>Inhalt</b><ol><li><a href="#worum-geht-es">Worum geht es</a></li><li><a href="#tool-offnen-und-anmelden">Tool öffnen und anmelden</a></li><li><a href="#uberblick-kacheln-und-reiter">Überblick: Kacheln und Reiter</a></li><li><a href="#meine-briefe-finden">Meine Briefe finden</a></li><li><a href="#etiketten-drucken">Etiketten drucken</a></li><li><a href="#briefe-abhaken">Briefe abhaken</a></li><li><a href="#masterliste-suchen-und-filtern">Masterliste: suchen und filtern</a></li><li><a href="#eine-person-anpassen">Eine Person anpassen</a></li><li><a href="#zustandigkeit-anpassen">Zuständigkeit anpassen</a></li><li><a href="#untergruppe-zuweisen-ausblenden-loschen">Untergruppe zuweisen, ausblenden, löschen</a></li><li><a href="#fehlende-person-erganzen">Fehlende Person ergänzen</a></li><li><a href="#offene-punkte-klaren-reiter-unvollstandig">Offene Punkte klären (Reiter Unvollständig)</a></li><li><a href="#haufige-fragen-und-tipps">Häufige Fragen und Tipps</a></li></ol></nav>
+<h2 id="worum-geht-es">Worum geht es</h2>
+<p>Mit dem Tool verschickt Cevi Schweiz die Weihnachtskarten: Es sammelt alle Empfänger&#42;innen aus der Cevi DB und aus Excel-Listen, legt für jede Person fest, wer die Karte schreibt, und druckt die Adressetiketten.</p>
+<p>Das machst du als Nutzer&#42;in:</p>
+<ul><li>deine Briefe ansehen und die Etiketten drucken</li><li>geschriebene Karten abhaken</li><li>bei Bedarf eine Adresse korrigieren, eine Bemerkung notieren oder eine fehlende Person ergänzen</li></ul>
+<p>Das machst du nicht: Einstellungen in den Reitern <strong>Cevi DB</strong>, <strong>Importierte Listen</strong>, <strong>Kategorien</strong> und <strong>Zuständigkeit</strong>. Diese betreuen die Verantwortlichen.</p>
+<p>Gut zu wissen:</p>
+<ul><li>Jede Person bekommt <strong>nur eine Karte</strong>, auch wenn sie in mehreren Listen steht. Die anderen Zuständigen unterschreiben mit.</li><li>Alles, was du im Tool änderst, wird <strong>automatisch für alle gespeichert</strong>. Es gibt keinen Speichern-Knopf.</li><li>Alle Personen und Adressen in den Bildern dieser Anleitung sind erfunden.</li></ul>
+<h2 id="tool-offnen-und-anmelden">Tool öffnen und anmelden</h2>
+<p>Du öffnest das Tool im Browser und meldest dich einmal mit deinem Cevi-Konto an. Danach lädt es alles selbst.</p>
+<ol><li>Öffne den Link zum Tool am Computer (Chrome, Edge, Firefox oder Safari): <a href="index.html">Weihnachtsbrief-Versand</a>. Lege dir ein Lesezeichen an. Ändert sich der Link, melden das die Verantwortlichen.</li><li>Klicke oben rechts auf den orangen Knopf <strong>„↻ Aktualisieren“</strong> und melde dich mit deinem <strong>Cevi-Konto</strong> (Microsoft) an.</li><li>Das Tool lädt den gemeinsamen Stand aller und die Daten aus der Cevi DB. Das dauert ein paar Sekunden.</li></ol>
+<p>Ab dann aktualisiert sich das Tool bei jedem Öffnen automatisch. „↻ Aktualisieren“ brauchst du nur, wenn du sofort den neusten Stand willst.</p>
+<p>Wurde das Tool verbessert, lade die Seite einmal ganz neu: <strong>Cmd + Shift + R</strong> (Mac) bzw. <strong>Ctrl + F5</strong> (Windows).</p>
+<p class="cap"><em>Bild 1: Oben links der Titel, oben rechts „↻ Aktualisieren“, „ⓘ Anleitung“ und das Menü, darunter die vier Kacheln und die Reiter.</em></p>
+<figure><a href="anleitung/01-kopf.png" target="_blank" rel="noopener"><img src="anleitung/01-kopf.png" alt="Kopfbereich mit Aktualisieren, Kacheln und Reitern"></a></figure>
+<h2 id="uberblick-kacheln-und-reiter">Überblick: Kacheln und Reiter</h2>
+<p>Für deine Arbeit brauchst du vor allem den Reiter <strong>Pro Zuständige&#42;r</strong>. Die vier Kacheln oben zeigen den Stand und führen per Klick direkt zu den betroffenen Personen.</p>
+<table><thead><tr><th>Kachel</th><th>Ein Klick führt zu …</th></tr></thead><tbody><tr><td>Briefe (eindeutige Empfänger)</td><td>der Masterliste mit allen Briefen</td></tr><tr><td>mögliche Duplikate prüfen</td><td>den offenen Fragen im Reiter Unvollständig</td></tr><tr><td>ohne Zuständigkeit</td><td>den Briefen, für die noch niemand zuständig ist</td></tr><tr><td>erledigt</td><td>allen Briefen, die noch nicht abgehakt sind</td></tr></tbody></table>
+<table><thead><tr><th>Reiter</th><th>Wofür</th><th>Für wen</th></tr></thead><tbody><tr><td>Pro Zuständige&#42;r</td><td>deine Briefe, Etiketten, Masterliste</td><td>alle</td></tr><tr><td>Unvollständig</td><td>offene Fragen: Duplikate, mehrere Adressen, fehlende Zuständigkeit</td><td>alle, die sich mit den Personen auskennen</td></tr><tr><td>Kategorien</td><td>ganz oben „Person anlegen“; darunter wer für welche Kategorie zuständig ist</td><td>Person anlegen: alle; Rest: Verantwortliche</td></tr><tr><td>Zuständigkeit</td><td>Liste der zuständigen Personen mit Kürzel</td><td>Verantwortliche</td></tr><tr><td>Cevi DB</td><td>welche Gruppen aus der Cevi DB geladen werden</td><td>Verantwortliche</td></tr><tr><td>Importierte Listen</td><td>eingelesene Excel-Listen</td><td>Verantwortliche</td></tr></tbody></table>
+<h2 id="meine-briefe-finden">Meine Briefe finden</h2>
+<p>Im Reiter <strong>Pro Zuständige&#42;r</strong> klickst du links auf deinen Namen und siehst alle Karten, die du verschickst.</p>
+<ol><li>Reiter <strong>Pro Zuständige&#42;r</strong> öffnen.</li><li>Links deinen Namen anklicken (oder oben im Suchfeld dein Kürzel eintippen). Bei jedem Namen steht, wie viele Briefe es sind und wie viele schon erledigt.</li><li>Rechts erscheint deine Liste: Empfänger&#42;in, Adresse, in welcher Kategorie die Person vorkommt und wer zusätzlich unterschreibt.</li></ol>
+<p>So liest du eine Zeile:</p>
+<ul><li><strong>Cevi DB</strong> (grün): Name und Adresse kommen aus der Cevi DB.</li><li><strong>2× gelistet</strong> (violett): Die Person steht in zwei Listen und bekommt trotzdem nur eine Karte.</li><li><strong>Gefunden in</strong> (blau): Kategorie und Untergruppe, z.B. „Cevi Schweiz › Vorstand“. Der Punkt ● bedeutet: aus der Cevi DB.</li><li><strong>Unterschreiben auch</strong> (gelb, „✍ CTE · Clara“): Diese Person unterschreibt deine Karte mit. Gib ihr die Karte weiter, bevor du sie verschickst.</li><li>Rote Hinweise wie „Adresse unvollständig“ oder „Welche Adresse gilt?“: Diese Karte kann noch nicht gedruckt werden (siehe „Offene Punkte“).</li></ul>
+<p><strong>Hellgrau hinterlegte Zeilen</strong> sind ausgeblendet: Diese Personen bekommen dieses Jahr keine Karte, bleiben aber sichtbar, damit sie nicht vergessen gehen. Mit „↺ einblenden“ holst du sie zurück.</p>
+<p>Unter deiner Liste steht ein zweiter Abschnitt <strong>„Hier unterschreibt … zusätzlich mit“</strong>: Diese Karten verschicken andere, du unterschreibst nur.</p>
+<p class="cap"><em>Bild 2: Die Liste von Anna Beispiel mit Hinweisen, Kategorien und Mitunterschreibenden.</em></p>
+<figure><a href="anleitung/02-meine-briefe.png" target="_blank" rel="noopener"><img src="anleitung/02-meine-briefe.png" alt="Liste einer zuständigen Person"></a></figure>
+<h2 id="etiketten-drucken">Etiketten drucken</h2>
+<p>Mit dem grünen Knopf <strong>„Etiketten“</strong> über deiner Liste druckst du alle deine Adressen auf einen A4-Etikettenbogen.</p>
+<ol><li>In deiner Liste oben rechts auf <strong>„Etiketten“</strong> klicken.</li><li>Den <strong>Etikettenbogen</strong> wählen, den du hast (z.B. Avery Zweckform 3475, 70 × 36 mm). Rechts siehst du die Vorschau.</li><li>Bei Bedarf einstellen:<ul><li><strong>Start bei Etikett</strong>: bei einem angebrauchten Bogen die Nummer des ersten freien Etiketts.</li><li><strong>nur noch nicht erledigte Briefe</strong>: druckt nur, was noch nicht abgehakt ist.</li><li><strong>Reihenfolge</strong>: nach Nachname oder nach PLZ.</li></ul></li><li>Zuerst einen <strong>Probedruck auf Normalpapier</strong> machen (Häkchen „Rahmen drucken“) und gegen den Bogen halten.</li><li>Auf <strong>„Etiketten drucken“</strong> klicken. Im Druckfenster: Papier <strong>A4</strong>, Skalierung <strong>100 %</strong> („Tatsächliche Grösse“), Ränder <strong>„Keine“</strong>.</li></ol>
+<p>Auslandsadressen bekommen das Land automatisch als letzte Zeile (z.B. DEUTSCHLAND). Adressen, die unvollständig sind oder bei denen noch nicht klar ist, welche Adresse gilt, werden <strong>nicht</strong> gedruckt. Das Fenster zeigt unten, welche das sind.</p>
+<p>Daneben: <strong>„Drucken“</strong> druckt deine Liste als Übersicht, <strong>„Nur diese Liste“</strong> lädt sie als Excel-Datei herunter (z.B. für einen Serienbrief).</p>
+<p class="cap"><em>Bild 3: Etiketten für Anna Beispiel mit Einstellungen links und Vorschau rechts.</em></p>
+<figure><a href="anleitung/03-etiketten.png" target="_blank" rel="noopener"><img src="anleitung/03-etiketten.png" alt="Etiketten-Fenster mit Vorschau"></a></figure>
+<h2 id="briefe-abhaken">Briefe abhaken</h2>
+<p>Ist eine Karte geschrieben und verschickt, setzt du vorne in der Zeile das <strong>Häkchen</strong>. Die Zeile wird grau und durchgestrichen.</p>
+<ul><li>Der Fortschritt steht links bei deinem Namen (z.B. „1/5“) und oben in der Kachel <strong>erledigt</strong>.</li><li>Das Häkchen sehen alle. So weiss das Team, was noch offen ist.</li><li>Versehentlich abgehakt? Einfach nochmals klicken.</li></ul>
+<h2 id="masterliste-suchen-und-filtern">Masterliste: suchen und filtern</h2>
+<p>Die <strong>📋 Masterliste</strong> (Reiter Pro Zuständige&#42;r, ganz oben links) zeigt alle Empfänger&#42;innen. Hier findest du jede Person, auch wenn jemand anderes sie verschickt.</p>
+<ul><li><strong>Suchen</strong>: Name, Ort, Gruppe oder ein Wort aus einer Bemerkung eintippen.</li><li><strong>Alle Kategorien</strong>: nur eine Kategorie anzeigen, z.B. Fachgruppen.</li><li><strong>Alle Untergruppen</strong>: erscheint, sobald die gewählte Kategorie Untergruppen hat, z.B. „FG Inklusion“.</li><li><strong>Alle Zuständigen</strong>: nur die Briefe einer Person, oder „⚠ ohne Zuständigkeit“. Das Häkchen „nur ausgeblendete“ zeigt nur die ausgeblendeten Personen.</li><li><strong>Hauptzuständig (versendet)</strong>: Hier lässt sich direkt wählen, wer die Karte verschickt.</li><li><strong>⇩ Excel exportieren</strong>: lädt die ganze Liste herunter, mit einem Blatt pro zuständiger Person.</li></ul>
+<p class="cap"><em>Bild 4: Masterliste, gefiltert auf die Kategorie Fachgruppen.</em></p>
+<figure><a href="anleitung/04-masterliste.png" target="_blank" rel="noopener"><img src="anleitung/04-masterliste.png" alt="Masterliste mit Filtern"></a></figure>
+<h2 id="eine-person-anpassen">Eine Person anpassen</h2>
+<p>Hinten in jeder Zeile stehen die Aktionen. Mit <strong>„✎ bearbeiten“</strong> korrigierst du Name oder Adresse und hältst eine Bemerkung fest.</p>
+<ol><li>In der Zeile der Person auf <strong>„✎ bearbeiten“</strong> klicken.</li><li>Felder ändern: Organisation, Vorname, Nachname, Adresszusatz (z.Hd., c/o, Gebäude), Strasse, Nr., PLZ, Ort, Land (nur Ausland), E-Mail.</li><li>Unter <strong>Bemerkungen</strong> kannst du eine interne Notiz schreiben, z.B. „Karte persönlich übergeben“. Sie kommt nicht auf die Etikette.</li><li><strong>Speichern</strong> (oder Enter).</li></ol>
+<p>Gut zu wissen:</p>
+<ul><li>Die Person ist danach mit <strong>„angepasst“</strong> markiert. Die Bemerkung steht gelb unter dem Namen („📝 …“).</li><li>Bei Personen aus der <strong>Cevi DB</strong> sind Name und Adresse gesperrt. Sie werden in der Cevi DB korrigiert. Die Bemerkung kannst du trotzdem schreiben.</li><li><strong>„↺ Original aus der Liste“</strong> im selben Fenster holt die ursprünglichen Angaben zurück.</li></ul>
+<p class="cap"><em>Bild 5: Fenster „bearbeiten“ für eine Person aus einer Excel-Liste, mit Bemerkung.</em></p>
+<figure><a href="anleitung/05-bearbeiten.png" target="_blank" rel="noopener"><img src="anleitung/05-bearbeiten.png" alt="Fenster bearbeiten"></a></figure>
+<p class="cap"><em>Bild 6: Die Aktionen hinten in der Zeile: ausblenden, bearbeiten, löschen.</em></p>
+<figure><a href="anleitung/08-zeile.png" target="_blank" rel="noopener"><img src="anleitung/08-zeile.png" alt="Zeile mit Aktionen"></a></figure>
+<h2 id="zustandigkeit-anpassen">Zuständigkeit anpassen</h2>
+<p>Wer eine Karte verschickt und wer mitunterschreibt, legst du in der Spalte <strong>„Unterschreiben auch“</strong> fest.</p>
+<ol><li>Steht dort niemand, auf <strong>„Zuständigkeit anpassen“</strong> klicken. Steht dort schon jemand („✍ …“), auf den Namen klicken.</li><li>Im Fenster:<ul><li><strong>Automatisch</strong>: Es versendet, wer bei der Kategorie oder Untergruppe eingetragen ist. Das ist der Normalfall.</li><li><strong>★ versendet</strong>: eine Person fest wählen. Das gilt auch nach neuen Importen.</li><li><strong>✍ unterschreibt mit</strong>: weitere Personen anhaken oder jemanden abwählen.</li></ul></li><li><strong>Speichern</strong>.</li></ol>
+<p>Wechselst du die versendende Person, schlägt das Tool die bisherige automatisch als Mitunterschreibende vor. Die Listen aller Beteiligten passen sich sofort an.</p>
+<p class="cap"><em>Bild 7: Fenster „Zuständigkeit“ für eine Person, die in zwei Kategorien vorkommt.</em></p>
+<figure><a href="anleitung/06-zustaendigkeit.png" target="_blank" rel="noopener"><img src="anleitung/06-zustaendigkeit.png" alt="Fenster Zuständigkeit"></a></figure>
+<h2 id="untergruppe-zuweisen-ausblenden-loschen">Untergruppe zuweisen, ausblenden, löschen</h2>
+<p><strong>Untergruppe zuweisen</strong>: Klicke auf den <strong>Namen</strong> der Person (oder auf ihre Kategorie unter „Gefunden in“). Im Fenster wählst du pro Kategorie eine Untergruppe, „keine Untergruppe“ oder legst mit „＋ Neue Untergruppe …“ eine neue an. Danach ist zuständig, wer bei dieser Untergruppe eingetragen ist.</p>
+<p class="cap"><em>Bild 8: Fenster „Untergruppe zuweisen“.</em></p>
+<figure><a href="anleitung/07-untergruppe.png" target="_blank" rel="noopener"><img src="anleitung/07-untergruppe.png" alt="Fenster Untergruppe zuweisen"></a></figure>
+<p><strong>Ausblenden</strong> („✕ ausblenden“): Die Person bekommt dieses Jahr keine Karte, keine Etikette und erscheint in keinem Export. Sie bleibt grau sichtbar (in der Masterliste mit dem Häkchen „nur ausgeblendete“ schnell zu finden) und lässt sich mit <strong>„↺ einblenden“</strong> zurückholen. Das ist der richtige Weg, wenn jemand nur dieses Mal keine Karte erhält.</p>
+<p><strong>Löschen</strong> („🗑 löschen“): Gibt es nur in den Kategorien Diverse, Alpenblick, MIO und Internationale Partner sowie bei Personen, die von Hand erfasst wurden.</p>
+<ul><li>Steht die Person noch in einer anderen Kategorie, bleibt sie dort. Das Tool sagt es dir vor dem Löschen.</li><li>Gelöschte Personen kommen auch bei einem neuen Import nicht zurück.</li><li>Vertan? Oben in der Masterliste steht „🗑 … gelöscht · wiederherstellen“.</li></ul>
+<h2 id="fehlende-person-erganzen">Fehlende Person ergänzen</h2>
+<p>Fehlt jemand, der eine Karte bekommen soll, legst du die Person im Reiter <strong>Kategorien</strong> ganz oben unter <strong>„Person anlegen und zuweisen“</strong> an. Suche vorher in der Masterliste, ob sie nicht doch schon da ist.</p>
+<ol><li><strong>Organisation</strong> nur ausfüllen, wenn die Karte an eine Organisation geht. Vor- und Nachname dürfen dann leer bleiben oder die Kontaktperson nennen.</li><li><strong>Vorname, Nachname, Strasse und Nr., PLZ, Ort</strong> eintragen.</li><li>Bei Bedarf eine <strong>Bemerkung</strong> (nur intern).</li><li><strong>Kategorie</strong> wählen, allenfalls eine <strong>Untergruppe</strong>, und <strong>wer zuständig</strong> ist.</li><li>Auf <strong>„＋ Person anlegen“</strong> klicken (oder Enter).</li></ol>
+<p>Die gewählte Zuständigkeit gilt fest. Die Person erscheint sofort in der Liste der zuständigen Person und in der Masterliste (mit „✎“ bei der Kategorie). Falsch erfasst? In der Zeile „✎ bearbeiten“ oder „🗑 löschen“.</p>
+<p class="cap"><em>Bild 9: Formular „Person anlegen und zuweisen“ im Reiter Kategorien.</em></p>
+<figure><a href="anleitung/09-person-anlegen.png" target="_blank" rel="noopener"><img src="anleitung/09-person-anlegen.png" alt="Formular Person anlegen und zuweisen"></a></figure>
+<h2 id="offene-punkte-klaren-reiter-unvollstandig">Offene Punkte klären (Reiter Unvollständig)</h2>
+<p>Im Reiter <strong>Unvollständig</strong> sammelt das Tool alles, was eine Entscheidung braucht. Die Zahl im Reiter zeigt, wie viel noch offen ist.</p>
+<table><thead><tr><th>Abschnitt</th><th>Was ist los?</th><th>Was du tust</th></tr></thead><tbody><tr><td>Mögliche Duplikate prüfen</td><td>Zwei Einträge sehen nach derselben Person aus, z.B. gleicher Name mit anderer PLZ.</td><td>Gleiche Person: unter der richtigen Adresse <strong>„Dieselbe Person – diese Adresse“</strong>. Sonst <strong>„Verschiedene Personen“</strong>.</td></tr><tr><td>Mehrere Adressen – eine wählen</td><td>Eine Person hat zwei verschiedene Adressen. Sie wird nicht gedruckt, bis eine gewählt ist.</td><td>Auf die <strong>gültige Adresse</strong> klicken.</td></tr><tr><td>Ohne Zuständigkeit</td><td>Für diese Briefe ist niemand eingetragen.</td><td>Kürzel oder Name eintragen und <strong>„Zuweisen“</strong>.</td></tr><tr><td>Mehrfach gelistet</td><td>Die Person steht in mehreren Listen mit verschiedenen Zuständigen.</td><td>Wählen, wer versendet; die anderen unterschreiben mit.</td></tr></tbody></table>
+<p>Bist du unsicher, ob zwei Einträge dieselbe Person sind, lass den Punkt offen und frag die Verantwortlichen.</p>
+<p class="cap"><em>Bild 10: Reiter Unvollständig mit einem möglichen Duplikat und einer Person mit zwei Adressen.</em></p>
+<figure><a href="anleitung/10-unvollstaendig.png" target="_blank" rel="noopener"><img src="anleitung/10-unvollstaendig.png" alt="Reiter Unvollständig"></a></figure>
+<h2 id="haufige-fragen-und-tipps">Häufige Fragen und Tipps</h2>
+<p><strong>Mein Name fehlt links in der Liste.</strong> Dann bist du noch nicht als zuständige Person erfasst. Melde dich bei den Verantwortlichen.</p>
+<p><strong>Eine Adresse aus der Cevi DB ist falsch.</strong> Sie muss in der Cevi DB korrigiert werden. Nach dem nächsten Aktualisieren stimmt sie auch im Tool. Bis dahin kannst du eine Bemerkung festhalten.</p>
+<p><strong>Der Knopf „↻ Aktualisieren“ ist orange oder zeigt ⚠.</strong> Klicke darauf und melde dich bei Bedarf neu mit dem Cevi-Konto an.</p>
+<p><strong>Können mehrere gleichzeitig arbeiten?</strong> Ja. Das Tool gleicht alle paar Sekunden mit den anderen ab und führt die Änderungen zusammen.</p>
+<p><strong>Die Etiketten sind verschoben.</strong> Mach einen Probedruck mit Rahmen, prüfe im Druckfenster Skalierung 100 % und Ränder „Keine“, und passe bei Bedarf „Innenrand links“ an.</p>
+<p><strong>Am Handy?</strong> Das Tool ist für den Computer gedacht. Etiketten und Listen druckst du am besten von dort.</p>
+<p><strong>Datenschutz:</strong> Die Adressen sind nur für den Weihnachtsversand. Gib Excel-Exporte nicht weiter und lösche sie nach Gebrauch.</p>
+</main>
+</body>
+</html>

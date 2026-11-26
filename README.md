@@ -9,6 +9,8 @@ Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Bro
 
 ## Ablauf
 
+Für Nutzer*innen gibt es eine bebilderte Anleitung: Knopf **„ⓘ Anleitung“** oben rechts im Tool (Seite `anleitung.html`, druckbar bzw. als PDF speicherbar).
+
 Oben stehen vier Kacheln, die sich anklicken lassen:
 - **Briefe (eindeutige Empfänger)** öffnet die Masterliste mit allen Briefen.
 - **mögliche Duplikate prüfen** (inkl. Personen mit mehreren Adressen) öffnet den Reiter Unvollständig beim Abschnitt mit den Duplikaten.
@@ -175,8 +177,11 @@ Der API-Key gibt Lesezugriff auf Personendaten. Er gehört nie ins Repository, i
 src/app.html        Oberfläche (HTML/CSS/JS), inkl. Abgleich mit Microsoft 365
 src/auth.html       Rückkehrseite für die Microsoft-Anmeldung (MSAL „Redirect Bridge")
 src/core.js         Logik: Einlesen, Kategorien, Duplikate, Zuteilung
+src/anleitung.md    Anleitung für Nutzer*innen (Text) – daraus wird anleitung.html
+src/anleitung.html  Vorlage der Anleitungsseite
+anleitung/          Bilder der Anleitung (nur erfundene Beispieldaten)
 vendor/             SheetJS (Excel, Apache-2.0), MSAL (Microsoft-Anmeldung, MIT)
-build.py            baut daraus index.html (eine Datei, läuft offline) und auth.html
+build.py            baut daraus index.html (eine Datei, läuft offline), auth.html und anleitung.html
 start-tool.py       lokaler Start mit Weiterleitung zur Cevi DB
 tests/test_core.js  Schnelltest der Logik mit erfundenen Daten
 ```

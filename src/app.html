@@ -149,7 +149,8 @@ button.pname:hover{color:var(--accent);text-decoration:underline}
 .owner:hover{background:#f7f8fa}
 .owner.on{background:var(--accent-soft)}
 .owner.all{border-bottom:2px solid var(--line)}
-tr.hiddenrow td{opacity:.45} tr.hiddenrow td.hidecol{opacity:1}
+tr.hiddenrow td{background:#eceef1;color:var(--muted)} tr.hiddenrow td:not(.hidecol)>*{opacity:.6}
+@media print{tr.hiddenrow{display:none}}
 tr.hiddenrow .name{text-decoration:line-through}
 td.hidecol{white-space:nowrap;text-align:right;width:1%}
 .owner .n{font-weight:600;display:flex;gap:6px;align-items:baseline}
@@ -881,6 +882,10 @@ function ownersView() {
   const sorted = owners.filter(Boolean).sort((a, b) => R.byOwner.get(b).length - R.byOwner.get(a).length);
   const send = (R.byOwner.get(sel) || []).slice();
   const co = (R.coByOwner.get(sel) || []).slice();
+  // ausgeblendete bleiben in der Liste (grau), damit sie nicht vergessen gehen
+  const hid = (R.hiddenByOwner.get(sel) || []).slice();
+  const pos = new Map(R.people.map((p, i) => [p.key, i]));
+  const rows = [...send, ...hid].sort((a, b) => pos.get(a.key) - pos.get(b.key));
   const d = send.filter(p => p.done).length;
   const byCat = new Map();
   for (const p of send) { const k = p.primaryCat; byCat.set(k, (byCat.get(k) || 0) + 1); }
@@ -897,7 +902,7 @@ function ownersView() {
         <div class="hd">
           <div>
             <h2>${sel ? ownerHtml(sel) : '⚠ Ohne Zuständigkeit'}</h2>
-            <div class="muted small">${send.length} Briefe versenden · ${co.length} Mal mitunterschreiben · ${d}/${send.length} erledigt
+            <div class="muted small">${send.length} Briefe versenden · ${co.length} Mal mitunterschreiben · ${d}/${send.length} erledigt${hid.length ? ` · ${hid.length} ausgeblendet (grau, kein Versand)` : ''}
               ${byCat.size ? ' · ' + [...byCat].map(([k, v]) => `${esc(k)} ${v}`).join(', ') : ''}</div>
           </div>
           <div class="right noprint" style="display:flex;gap:6px">
@@ -907,9 +912,9 @@ function ownersView() {
           </div>
         </div>
         ${!sel ? `<div class="bd"><div class="callout warn">Diese Empfänger haben weder in der Liste noch in der Kategorie eine Zuständigkeit. Im Tab <a href="#" data-tab="assign">Unvollständig</a> frei eine Person eintragen – oder im Tab <a href="#" data-tab="cats">Kategorien</a> eine Zuständigkeit pro Kategorie setzen.</div></div>` : ''}
-        ${send.length ? `<div class="tablewrap"><table>
+        ${rows.length ? `<div class="tablewrap"><table>
           <thead><tr><th></th><th>Empfänger*in</th><th>Adresse</th><th>Gefunden in</th>${!sel ? '<th>Zuständig</th>' : ''}<th class="wrap">Unterschreiben auch</th><th class="noprint"></th></tr></thead>
-          <tbody>${send.map(p => personRow(p, { showOwner: !sel })).join('')}</tbody></table></div>` : '<div class="empty">Keine eigenen Briefe.</div>'}
+          <tbody>${rows.map(p => personRow(p, { showOwner: !sel })).join('')}</tbody></table></div>` : '<div class="empty">Keine eigenen Briefe.</div>'}
       </div>
       ${co.length ? `<div class="section-title"><h3>✍ Hier unterschreibt ${sel ? esc(ownerName(sel).split(' ')[0]) : ''} zusätzlich mit</h3><span class="muted small">Brief wird von jemand anderem versendet</span></div>
       <div class="panel"><div class="tablewrap"><table>
@@ -918,8 +923,7 @@ function ownersView() {
           <td><div class="name">${esc(p.displayName)}</div>${p.org && p.org !== p.displayName ? `<div class="org">${esc(p.org)}</div>` : ''}</td>
           <td><a href="#" data-owner="${esc(p.owner)}">${ownerHtml(p.owner)}</a></td>
           <td class="small">${via.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
-      ${(R.hiddenByOwner.get(sel) || []).length ? `<div class="section-title noprint"><h3>Ausgeblendet – kein Versand (${R.hiddenByOwner.get(sel).length})</h3><span class="muted small">Keine Etikette, kein Export · mit „↺ einblenden“ wieder aufnehmen</span></div>
-      <div class="panel noprint"><div class="tablewrap"><table><tbody>${R.hiddenByOwner.get(sel).map(p => personRow(p, { showOwner: !sel })).join('')}</tbody></table></div></div>` : ''}`}
+`}
     </div>
   </div>`;
 }

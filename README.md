@@ -2,7 +2,7 @@
 
 Ein Tool für den Versand der Weihnachtsbriefe. Es führt die Adresslisten aller Bereiche zusammen, erkennt Personen, die mehrfach vorkommen, und verteilt die Briefe auf die Zuständigen. Wer zusätzlich unterschreiben muss, ist jeweils vermerkt.
 
-**Online öffnen:** <https://fabulousteaching.github.io/Weihnachtskartenversand/>
+**Online öffnen:** <https://cevi-schweiz-geschaftsstelle.github.io/Weihnachtskartenversand/>
 **Offline:** `index.html` herunterladen und per Doppelklick im Browser öffnen.
 
 Das Tool ist eine einzelne HTML-Datei. Die Adressdaten werden nur im eigenen Browser verarbeitet und dort zwischengespeichert. Es wird nichts hochgeladen, auch nicht bei der Online-Version.
@@ -108,7 +108,7 @@ Der Knopf **„↻ Aktualisieren“** oben rechts gleicht sofort ab: Er sendet d
 - SharePoint-Website anlegen.
 - App-Registrierung in Entra ID:
   - Single-Page-Anwendung,
-  - Umleitungs-URI `https://fabulousteaching.github.io/Weihnachtskartenversand/auth.html`,
+  - Umleitungs-URI `https://cevi-schweiz-geschaftsstelle.github.io/Weihnachtskartenversand/auth.html`,
   - delegierte Graph-Berechtigungen `User.Read` und `Sites.ReadWrite.All`,
   - Administratorzustimmung.
 - Zurückmelden: Tenant-ID, Client-ID und die Adresse der Website. Sie sind in `src/app.html` (`M365_DEFAULTS`) fest hinterlegt. Niemand muss etwas eintragen: Beim ersten Öffnen meldet man sich einmal mit dem Cevi-Konto an, danach läuft der Abgleich automatisch.
@@ -139,7 +139,7 @@ Einrichten:
 1. In der Cevi DB bei der Gruppe Cevi Schweiz → Tab **API-Keys** → neuer Key.
    - Berechtigung: *Leserechte auf dieser Ebene* (oder *… und darunterliegenden Ebenen*).
    - Zugriffsbereich: **Personen** und **Gruppen**.
-2. Im selben Formular unter **Hosts mit API-Zugriff** eintragen: `https://fabulousteaching.github.io`
+2. Im selben Formular unter **Hosts mit API-Zugriff** eintragen: `https://cevi-schweiz-geschaftsstelle.github.io`
 3. Im Tool im Tab **Cevi DB** den Key einfügen.
 4. **Gruppen aus der Cevi DB – zwei Spalten:**
    - Links **„✓ Für Versand berücksichtigt“**, rechts **„✕ Für Versand nicht berücksichtigt“**. Jede Karte ist eine Gruppe der obersten Ebene von Cevi Schweiz (Geschäftsstelle, Vorstand, Fachgruppen, Projektgruppen …).

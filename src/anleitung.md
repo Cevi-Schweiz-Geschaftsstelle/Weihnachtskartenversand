@@ -8,13 +8,37 @@ Das machst du als Nutzer\*in:
 - geschriebene Karten abhaken
 - bei Bedarf eine Adresse korrigieren, eine Bemerkung notieren oder eine fehlende Person ergänzen
 
-Das machst du nicht: Einstellungen in den Reitern **Cevi DB**, **Importierte Listen**, **Kategorien** und **Zuständigkeit**. Diese betreuen die Verantwortlichen.
+Das machst du nicht: Einstellungen in den Reitern **Cevi DB** und **Zuständigkeit** sowie die Kategorien selbst. Diese betreuen die Verantwortlichen. Ausnahmen sind die Aufgaben der Checkliste unten, z.B. die Grossspenderliste ersetzen oder eine Person anlegen.
 
 Gut zu wissen:
 
 - Jede Person bekommt **nur eine Karte**, auch wenn sie in mehreren Listen steht. Die anderen Zuständigen unterschreiben mit.
 - Alles, was du im Tool änderst, wird **automatisch für alle gespeichert**. Es gibt keinen Speichern-Knopf.
 - Alle Personen und Adressen in den Bildern dieser Anleitung sind erfunden.
+
+## Jedes Jahr: Checkliste
+
+Diese Aufgaben fallen jedes Jahr vor dem Kartenversand an und werden von euch Nutzer\*innen erledigt, am besten in dieser Reihenfolge.
+
+1. **Grossspenderliste ersetzen** (Reiter **Importierte Listen**)
+    - Die neuste Grossspenderliste mit **„＋ Excel hinzufügen“** einlesen (oder die Datei ins Fenster ziehen) und prüfen, dass sie die richtige Kategorie hat.
+    - Die alte Grossspenderliste in ihrer Zeile mit **✕** entfernen. Hat die neue Datei denselben Namen wie die alte, ersetzt das Tool sie automatisch.
+2. **Personen ohne Zuständigkeit zuteilen** (Kachel **„ohne Zuständigkeit“** oder links in **Pro Zuständige\*r** „⚠ Ohne Zuständigkeit“)
+    - Schaut, wer von diesen Personen zu euch gehört, und wählt euch in der Spalte **„Zuständig“** aus.
+    - Hat die Person noch keine Kategorie („ohne Kategorie“), teilt ihr eine zu. Das geht im Reiter Importierte Listen für die ganze Liste, aus der sie stammt.
+    - Bleiben am Schluss Personen übrig, die zu niemandem gehören: mit **„🗑 löschen“** entfernen oder, wo das nicht angeboten wird, mit **„✕ ausblenden“**.
+3. **Hauptzuständigkeit klären** (Reiter **Unvollständig**, Abschnitt „Mehrfach gelistet“)
+    - Sind für eine Person mehrere zuständig, entscheidet ihr gemeinsam, wer die Karte verschickt, und klickt diese Person an. Die anderen unterschreiben mit.
+4. **Eigene Adressen durchgehen** (Reiter **Pro Zuständige\*r**, euren Namen anklicken)
+    - Geht alle eure Adressen kurz durch. Bei Personen **ohne Adresse** („keine Adresse“, „Adresse unvollständig“) entscheidet ihr:
+        - Adresse ausfindig machen und mit **„✎ bearbeiten“** eintragen (bei Personen aus der Cevi DB dort korrigieren lassen), oder
+        - die Person für den diesjährigen Versand **ausblenden** bzw. **löschen**.
+5. **Fehlende Personen ergänzen** (Reiter **Kategorien**, ganz oben)
+    - Fehlen noch Personen oder Organisationen, die in keiner Liste und nicht in der Cevi DB stehen, erfasst ihr sie unter **„Person anlegen und zuweisen“** und teilt sie einer Kategorie und euch zu (siehe „Fehlende Person ergänzen“).
+6. **Vorstand mitunterschreiben lassen** (Reiter **Pro Zuständige\*r**)
+    - Geht eure Liste durch: Sollen bei einer Karte Personen aus dem Vorstand mitunterschreiben, klickt in der Spalte „Unterschreiben auch“ auf **„Zuständigkeit anpassen“** und hakt sie bei **„✍ unterschreibt mit“** an (siehe „Zuständigkeit anpassen“).
+
+Danach: Etiketten drucken, Karten schreiben, unterschreiben lassen und abhaken.
 
 ## Tool öffnen und anmelden
 

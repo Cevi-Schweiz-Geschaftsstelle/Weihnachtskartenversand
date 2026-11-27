@@ -52,6 +52,22 @@ def _inline(t):
     return t
 
 
+def _list_html(entries, k):
+    """Baut aus (Einrückung, Art, Text) ab Position k eine verschachtelte Liste.
+    Gibt das HTML und die Position nach der Liste zurück."""
+    indent, kind = entries[k][0], entries[k][1]
+    items = ""
+    while k < len(entries) and entries[k][0] == indent:
+        text = entries[k][2]
+        k += 1
+        sub = ""
+        while k < len(entries) and entries[k][0] > indent:
+            s, k = _list_html(entries, k)
+            sub += s
+        items += f"<li>{_inline(text)}{sub}</li>"
+    return f"<{kind}>{items}</{kind}>", k
+
+
 def _md_to_html(md):
     out, toc = [], []
     lines = md.split("\n")
@@ -85,20 +101,16 @@ def _md_to_html(md):
                        + "".join("<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in r) + "</tr>" for r in body) + "</tbody></table>")
             continue
         if _re.match(r"^(\d+\.|-) ", ln):
-            # Liste (eine Unterebene mit 4 Leerzeichen)
-            items = []
-            kind = "ol" if _re.match(r"^\d+\.", ln) else "ul"
+            # Liste; jede Unterebene ist 4 Leerzeichen tiefer eingerückt (beliebig tief)
+            entries = []
             while i < len(lines) and (_re.match(r"^(\d+\.|-) ", lines[i]) or lines[i].startswith("    ")):
-                if lines[i].startswith("    "):
-                    items[-1][1].append(_re.sub(r"^\s*- ", "", lines[i]))
+                m = _re.match(r"^( *)(\d+\.|-) (.*)$", lines[i])
+                if m:
+                    entries.append((len(m.group(1)), "ol" if m.group(2)[0].isdigit() else "ul", m.group(3)))
                 else:
-                    items.append([_re.sub(r"^(\d+\.|-) ", "", lines[i]), []])
+                    entries.append((len(lines[i]) - len(lines[i].lstrip(" ")), "ul", lines[i].strip()))
                 i += 1
-            html_items = ""
-            for text, subs in items:
-                sub = "<ul>" + "".join(f"<li>{_inline(s)}</li>" for s in subs) + "</ul>" if subs else ""
-                html_items += f"<li>{_inline(text)}{sub}</li>"
-            out.append(f"<{kind}>{html_items}</{kind}>")
+            out.append(_list_html(entries, 0)[0])
             continue
         para = [ln]
         i += 1
